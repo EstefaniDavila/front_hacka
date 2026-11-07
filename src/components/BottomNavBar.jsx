@@ -36,7 +36,8 @@ export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0 
 
         const isActive = currentTab === tab.id ||
           (tab.id === 'solidarity' && currentTab === 'eco_solidaria') ||
-          (tab.id === 'home' && currentTab === 'emergency');
+          (tab.id === 'home' && currentTab === 'emergency') ||
+          (tab.id === 'services' && (currentTab === 'service_detail' || currentTab === 'my_services'));
 
         return (
           <TouchableOpacity

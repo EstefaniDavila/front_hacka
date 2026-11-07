@@ -21,6 +21,8 @@ import EmergencyBanner from './src/components/EmergencyBanner';
 import BottomNavBar from './src/components/BottomNavBar';
 import HomeScreen from './src/screens/HomeScreen';
 import ServicesScreen from './src/screens/ServicesScreen';
+import ServiceDetailScreen from './src/screens/ServiceDetailScreen';
+import MyServicesScreen from './src/screens/MyServicesScreen';
 import SolidarityScreen from './src/screens/SolidarityScreen';
 import EcoSolidariaScreen from './src/screens/EcoSolidariaScreen';
 import EmergencyScreen from './src/screens/EmergencyScreen';
@@ -37,9 +39,10 @@ function MainApp() {
   // Vista de autenticación: 'login' | 'register' | 'forgot_password'
   const [authView, setAuthView] = useState('login');
   
-  // Pestaña activa: home, services, solidarity, eco_solidaria, emergency, publish, profile, chat
+  // Pestaña activa: home, services, service_detail, my_services, solidarity, eco_solidaria, emergency, publish, profile, chat
   const [currentTab, setCurrentTab] = useState('home');
   const [previousTab, setPreviousTab] = useState('home');
+  const [selectedServiceId, setSelectedServiceId] = useState(null);
   
   // Contacto seleccionado para chat directo
   const [activeChatContact, setActiveChatContact] = useState(null);
@@ -75,8 +78,11 @@ function MainApp() {
 
   const scale = (val) => Math.round(val * fontScale);
 
-  const handleNavigate = (tab) => {
+  const handleNavigate = (tab, params = null) => {
     setPreviousTab(currentTab);
+    if (tab === 'service_detail' && params?.serviceId) {
+      setSelectedServiceId(params.serviceId);
+    }
     setCurrentTab(tab);
   };
 
@@ -221,6 +227,22 @@ function MainApp() {
               onNavigate={handleNavigate}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
+            />
+          )}
+
+          {currentTab === 'service_detail' && (
+            <ServiceDetailScreen
+              serviceId={selectedServiceId}
+              onNavigate={handleNavigate}
+              fontScale={fontScale}
+              onOpenChat={handleOpenChatWith}
+            />
+          )}
+
+          {currentTab === 'my_services' && (
+            <MyServicesScreen
+              onNavigate={handleNavigate}
+              fontScale={fontScale}
             />
           )}
 

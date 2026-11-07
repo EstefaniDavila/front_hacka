@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,31 +8,60 @@ import {
   ScrollView,
   Image,
   Switch,
+  ActivityIndicator,
   Alert
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
+  const { session } = useAuth();
+  const token = session?.access_token || null;
+
   const [subStep, setSubStep] = useState(2); // 2: Seleccionar qué compartir, 3: Formulario
-  const [formType, setFormType] = useState('producto');
-  const [title, setTitle] = useState('Pan casero');
-  const [price, setPrice] = useState('0.50');
-  const [unit, setUnit] = useState('Unidad');
-  const [desc, setDesc] = useState('Pan casero y fresco, hecho en casa.');
+  const [formType, setFormType] = useState('servicio');
+  const [title, setTitle] = useState('Servicio de Reparación Eléctrica');
+  const [price, setPrice] = useState('25.00');
+  const [unit, setUnit] = useState('servicio');
+  const [desc, setDesc] = useState('Reparación de fugas, cableado e instalaciones en Zona A.');
+  const [availability, setAvailability] = useState('Lunes a Sábado 8am - 6pm');
   const [visible, setVisible] = useState(true);
 
+  // Categorías de servicio desde el backend
+  const [categories, setCategories] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [publishing, setPublishing] = useState(false);
+
   const scale = (val) => Math.round(val * fontScale);
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const data = await api.getServiceCategories();
+      if (Array.isArray(data) && data.length > 0) {
+        setCategories(data);
+        setSelectedCategoryId(data[0].id);
+      }
+    } catch (err) {
+      console.warn('[PublishScreen] Error al cargar categorías:', err);
+    }
+  };
 
   const publishTypes = [
     {
       id: 'servicio',
       title: 'Ofrecer servicio',
-      sub: '(Ej. gasfitería, eléctrico)',
+      sub: '(Ej. gasfitería, eléctrico, clases)',
       icon: '🔧',
       bg: '#eff6ff',
       border: '#bfdbfe',
       defaultTitle: 'Servicio de Reparación Eléctrica',
       defaultPrice: '25.00',
+      defaultUnit: 'servicio',
       defaultDesc: 'Reparación de fugas y cañerías en Zona A. Rápido y garantizado.'
     },
     {
@@ -44,6 +73,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       border: '#fde68a',
       defaultTitle: 'Pan casero',
       defaultPrice: '0.50',
+      defaultUnit: 'unidad',
       defaultDesc: 'Pan casero y fresco, hecho en casa.'
     },
     {
@@ -55,6 +85,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       border: '#bbf7d0',
       defaultTitle: 'Necesito escalera para pintar fachada',
       defaultPrice: '0.00',
+      defaultUnit: 'día',
       defaultDesc: 'Para trabajo de 1 día en casa. Se devuelve limpia y puntual.'
     },
     {
@@ -66,6 +97,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       border: '#99f6e4',
       defaultTitle: 'Presto taladro percutor',
       defaultPrice: '0.00',
+      defaultUnit: 'préstamo',
       defaultDesc: 'Disponible para vecinos de Zona A este fin de semana.'
     },
     {
@@ -77,6 +109,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       border: '#e9d5ff',
       defaultTitle: 'Caja de víveres no perecibles',
       defaultPrice: '0.00',
+      defaultUnit: 'caja',
       defaultDesc: 'Tengo alimentos no perecibles para una familia que lo necesite.'
     },
     {
@@ -88,6 +121,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       border: '#c7d2fe',
       defaultTitle: 'Clases de computación por inglés',
       defaultPrice: '0.00',
+      defaultUnit: 'clase',
       defaultDesc: 'Puedo enseñar computación básica a cambio de apoyo con inglés.'
     }
   ];
@@ -96,26 +130,76 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
     setFormType(item.id);
     setTitle(item.defaultTitle);
     setPrice(item.defaultPrice);
+    setUnit(item.defaultUnit);
     setDesc(item.defaultDesc);
     setSubStep(3);
   };
 
-  const handlePublish = () => {
-    Alert.alert(
-      '🎉 ¡Publicación creada con éxito!',
-      `Tu publicación "${title}" (S/ ${price}) ya está visible para todos los vecinos verificados de Zona A, Manzana 2.`,
-      [
-        {
-          text: 'Entendido',
-          onPress: () => onNavigate('home')
-        }
-      ]
-    );
+  const handlePublish = async () => {
+    if (!title.trim()) {
+      Alert.alert('Campo obligatorio', 'Por favor ingresa un título para la publicación.');
+      return;
+    }
+
+    if (formType === 'servicio') {
+      if (!token) {
+        Alert.alert('Inicia sesión', 'Debes estar autenticado para publicar un servicio.');
+        return;
+      }
+
+      if (!selectedCategoryId && categories.length > 0) {
+        setSelectedCategoryId(categories[0].id);
+      }
+
+      try {
+        setPublishing(true);
+        const payload = {
+          title: title.trim(),
+          description: desc.trim() || null,
+          category_id: selectedCategoryId || (categories[0] ? categories[0].id : null),
+          price_from: price ? parseFloat(price) : null,
+          price_unit: unit || 'servicio',
+          availability: availability.trim() || null
+        };
+
+        const created = await api.createService(payload, token);
+        Alert.alert(
+          '🎉 ¡Servicio publicado con éxito!',
+          `Tu servicio "${created.title}" ya está visible para los vecinos de tu comunidad.`,
+          [
+            {
+              text: 'Ver en mis servicios',
+              onPress: () => onNavigate('my_services')
+            },
+            {
+              text: 'Ir a Servicios',
+              onPress: () => onNavigate('services')
+            }
+          ]
+        );
+      } catch (err) {
+        console.warn('[PublishScreen] Error al publicar servicio:', err);
+        Alert.alert('Error', err.message || 'No fue posible publicar el servicio. Inténtalo nuevamente.');
+      } finally {
+        setPublishing(false);
+      }
+    } else {
+      // Para productos u otros tipos
+      Alert.alert(
+        '🎉 ¡Publicación creada con éxito!',
+        `Tu publicación "${title}" (S/ ${price}) ya está registrada para tus vecinos.`,
+        [
+          {
+            text: 'Entendido',
+            onPress: () => onNavigate('home')
+          }
+        ]
+      );
+    }
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      
       {/* PASO 2 DE 3: ¿QUÉ DESEAS COMPARTIR? */}
       {subStep === 2 && (
         <View>
@@ -162,7 +246,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
         </View>
       )}
 
-      {/* PASO 3 DE 3: FORMULARIO DETALLADO (PAN CASERO) */}
+      {/* PASO 3 DE 3: FORMULARIO DETALLADO */}
       {subStep === 3 && (
         <View>
           <View style={styles.headerCard}>
@@ -172,10 +256,10 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
               </TouchableOpacity>
               <View>
                 <Text style={[styles.headerTitle, { fontSize: scale(15) }]}>
-                  Publicar: {formType === 'producto' ? 'Vender producto' : 'Ofrecer'}
+                  Publicar: {formType === 'servicio' ? 'Ofrecer servicio' : 'Vender producto'}
                 </Text>
                 <Text style={[styles.headerSub, { fontSize: scale(10) }]}>
-                  Comparte tu publicación con tus vecinos
+                  Comparte tu oferta con tus vecinos
                 </Text>
               </View>
             </View>
@@ -185,58 +269,101 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
           </View>
 
           <View style={styles.formCard}>
-            {/* Foto con Botón de Cámara */}
+            {/* Foto Ilustrativa */}
             <View style={styles.photoContainer}>
               <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600' }}
+                source={{ uri: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=600' }}
                 style={styles.photoPreview}
               />
               <TouchableOpacity
                 style={styles.cameraBtn}
-                onPress={() => Alert.alert('📸 Cámara IA', 'Foto capturada y optimizada automáticamente para el catálogo barrial.')}
+                onPress={() => Alert.alert('📸 Cámara VeciRed', 'Foto optimizada para el catálogo barrial.')}
               >
                 <Text style={{ fontSize: 18 }}>📷</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Campo Producto * */}
+            {/* Selector de Categoría (si es servicio) */}
+            {formType === 'servicio' && categories.length > 0 && (
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Categoría del servicio *</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                  {categories.map((c) => {
+                    const isSelected = selectedCategoryId === c.id;
+                    return (
+                      <TouchableOpacity
+                        key={c.id}
+                        style={[styles.categoryChoice, isSelected && styles.categoryChoiceSelected]}
+                        onPress={() => setSelectedCategoryId(c.id)}
+                      >
+                        <Text style={{ fontSize: 13, marginRight: 4 }}>{c.icon || '🏷️'}</Text>
+                        <Text style={[styles.categoryChoiceText, isSelected && styles.categoryChoiceTextSelected, { fontSize: scale(11) }]}>
+                          {c.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Campo Título * */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Producto o Título *</Text>
+              <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Título de la publicación *</Text>
               <TextInput
                 style={[styles.input, { fontSize: scale(13) }]}
                 value={title}
                 onChangeText={setTitle}
+                placeholder="Ej. Gasfitería Integral para el barrio"
               />
             </View>
 
             {/* Campos Precio * y Unidad */}
             <View style={styles.rowFields}>
               <View style={[styles.fieldGroup, { flex: 1 }]}>
-                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Precio * (S/)</Text>
+                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Precio referencia * (S/)</Text>
                 <TextInput
                   style={[styles.input, { fontSize: scale(13) }]}
                   value={price}
                   onChangeText={setPrice}
                   keyboardType="decimal-pad"
+                  placeholder="0.00"
                 />
               </View>
               <View style={[styles.fieldGroup, { flex: 1 }]}>
-                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Unidad</Text>
-                <View style={styles.unitPickerBox}>
-                  <Text style={[styles.unitText, { fontSize: scale(13) }]}>{unit}</Text>
-                </View>
+                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Unidad de cobro</Text>
+                <TextInput
+                  style={[styles.input, { fontSize: scale(13) }]}
+                  value={unit}
+                  onChangeText={setUnit}
+                  placeholder="servicio, hora, visita"
+                />
               </View>
             </View>
 
-            {/* Descripción (opcional) */}
+            {/* Disponibilidad Horaria */}
+            {formType === 'servicio' && (
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Disponibilidad horaria</Text>
+                <TextInput
+                  style={[styles.input, { fontSize: scale(12) }]}
+                  value={availability}
+                  onChangeText={setAvailability}
+                  placeholder="Ej: Lunes a Viernes 8am - 6pm, o 24/7 urgencias"
+                />
+              </View>
+            )}
+
+            {/* Descripción */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Descripción (opcional)</Text>
+              <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Descripción y detalles</Text>
               <TextInput
                 style={[styles.input, styles.textarea, { fontSize: scale(12) }]}
                 value={desc}
                 onChangeText={setDesc}
                 multiline
                 numberOfLines={3}
+                placeholder="Explica qué incluye tu servicio, garantía o herramientas que utilizas..."
               />
             </View>
 
@@ -244,7 +371,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
             <View style={styles.locationChip}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={{ fontSize: 18, marginRight: 6 }}>📍</Text>
-                <Text style={[styles.locationText, { fontSize: scale(12) }]}>Zona A, Manzana 2</Text>
+                <Text style={[styles.locationText, { fontSize: scale(12) }]}>Comunidad Barrial • Zona A</Text>
               </View>
               <Text style={{ fontSize: 16, color: COLORS.textMuted }}>›</Text>
             </View>
@@ -263,21 +390,26 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
               />
             </View>
 
-            {/* Botón Gigante Publicar */}
+            {/* Botón Publicar */}
             <TouchableOpacity
               style={styles.publishSubmitBtn}
               activeOpacity={0.8}
               onPress={handlePublish}
+              disabled={publishing}
             >
-              <Text style={{ fontSize: 18, color: COLORS.white, marginRight: 6 }}>✈️</Text>
-              <Text style={[styles.publishSubmitBtnText, { fontSize: scale(15) }]}>Publicar</Text>
-              <Text style={{ fontSize: 16, color: '#fde047', marginLeft: 4 }}>✨</Text>
+              {publishing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Text style={{ fontSize: 18, color: COLORS.white, marginRight: 6 }}>✈️</Text>
+                  <Text style={[styles.publishSubmitBtnText, { fontSize: scale(15) }]}>Publicar Servicio</Text>
+                  <Text style={{ fontSize: 16, color: '#fde047', marginLeft: 4 }}>✨</Text>
+                </>
+              )}
             </TouchableOpacity>
-
           </View>
         </View>
       )}
-
     </ScrollView>
   );
 }
@@ -310,126 +442,123 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 12,
     marginBottom: 16
   },
   typeCard: {
     width: '48%',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 18,
     borderWidth: 1.5,
+    padding: 16,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2
+    justifyContent: 'center',
+    minHeight: 120
   },
-  typeTitle: { fontWeight: '900', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 2 },
+  typeTitle: { fontWeight: '900', color: COLORS.text, textAlign: 'center', marginBottom: 2 },
   typeSub: { fontWeight: '600', color: COLORS.textSecondary, textAlign: 'center' },
   freeTipBox: {
-    backgroundColor: COLORS.white,
-    padding: 14,
+    backgroundColor: '#fffbeb',
     borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center'
+    borderColor: '#fde68a'
   },
-  freeTipText: { color: COLORS.textSecondary, fontWeight: '600' },
+  freeTipText: { color: '#92400e', fontWeight: '700', textAlign: 'center' },
   formCard: {
     backgroundColor: COLORS.white,
     borderRadius: 22,
-    padding: 16,
+    padding: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2
+    gap: 12
   },
   photoContainer: {
-    width: '100%',
     height: 150,
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
-    marginBottom: 14
+    backgroundColor: '#e2e8f0'
   },
-  photoPreview: {
-    width: '100%',
-    height: '100%'
-  },
+  photoPreview: { width: '100%', height: '100%' },
   cameraBtn: {
     position: 'absolute',
     bottom: 10,
     right: 10,
+    backgroundColor: COLORS.white,
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
     shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4
+    shadowOpacity: 0.15,
+    shadowRadius: 4
   },
-  fieldGroup: { marginBottom: 12 },
-  fieldLabel: { fontWeight: '800', color: COLORS.textPrimary, marginBottom: 4 },
+  categoryChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  categoryChoiceSelected: {
+    backgroundColor: COLORS.primarySurface,
+    borderColor: COLORS.primary
+  },
+  categoryChoiceText: {
+    color: '#475569',
+    fontWeight: '600'
+  },
+  categoryChoiceTextSelected: {
+    color: COLORS.primaryDark,
+    fontWeight: '700'
+  },
+  fieldGroup: { gap: 4 },
+  fieldLabel: { fontWeight: '800', color: COLORS.text },
   input: {
-    backgroundColor: COLORS.background,
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    fontWeight: '700',
-    color: COLORS.textPrimary
+    color: COLORS.text,
+    fontWeight: '600'
   },
-  textarea: { height: 70, textAlignVertical: 'top' },
+  textarea: { height: 75, textAlignVertical: 'top' },
   rowFields: { flexDirection: 'row', gap: 10 },
-  unitPickerBox: {
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    justifyContent: 'center'
-  },
-  unitText: { fontWeight: '700', color: COLORS.textPrimary },
   locationChip: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    padding: 12,
+    backgroundColor: '#f8fafc',
     borderRadius: 14,
-    marginBottom: 12,
+    padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border
   },
-  locationText: { fontWeight: '800', color: COLORS.textPrimary },
+  locationText: { fontWeight: '700', color: COLORS.text },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
-    marginBottom: 14
+    paddingVertical: 4
   },
-  switchLabel: { fontWeight: '800', color: COLORS.textPrimary },
+  switchLabel: { fontWeight: '700', color: COLORS.text },
   publishSubmitBtn: {
     backgroundColor: COLORS.primary,
-    flexDirection: 'row',
+    borderRadius: 18,
     paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
+    flexDirection: 'row',
     justifyContent: 'center',
-    shadowColor: COLORS.primaryDark,
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3
+    alignItems: 'center',
+    marginTop: 6
   },
-  publishSubmitBtnText: { color: COLORS.white, fontWeight: '900', letterSpacing: 0.5 }
+  publishSubmitBtnText: { fontWeight: '900', color: COLORS.white }
 });

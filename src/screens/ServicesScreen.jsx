@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,29 +7,86 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ActivityIndicator,
   Alert
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { mockServices } from '../data/mockData';
+import { api } from '../services/api';
 
 export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat }) {
+  const [categories, setCategories] = useState([
+    { id: 'all', name: 'Todos', icon: '▦' }
+  ]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [filterType, setFilterType] = useState('near'); // near, recommended, promos
+  const [searchQuery, setSearchQuery] = useState('');
+  const [services, setServices] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const scale = (val) => Math.round(val * fontScale);
 
-  const categories = [
-    { id: 'all', name: 'Todos', icon: '▦' },
-    { id: 'oficios', name: 'Oficios y rep.', icon: '🔧' },
-    { id: 'clases', name: 'Clases', icon: '🎓' },
-    { id: 'hogar', name: 'Limpieza', icon: '🧹' },
-    { id: 'mascotas', name: 'Mascotas', icon: '🐾' },
-    { id: 'cargas', name: 'Movilidad', icon: '🚚' }
-  ];
+  // Cargar categorías iniciales
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  // Recargar servicios cuando cambie la categoría, filtro o búsqueda
+  useEffect(() => {
+    loadServices();
+  }, [activeCategory, filterType]);
+
+  const loadCategories = async () => {
+    try {
+      const data = await api.getServiceCategories();
+      if (Array.isArray(data) && data.length > 0) {
+        setCategories([
+          { id: 'all', name: 'Todos', icon: '▦' },
+          ...data.map((c) => ({
+            id: c.id,
+            name: c.name,
+            icon: c.icon || '🛠️'
+          }))
+        ]);
+      }
+    } catch (err) {
+      console.warn('[ServicesScreen] Error al cargar categorías:', err);
+    }
+  };
+
+  const loadServices = async (searchTerm = searchQuery) => {
+    try {
+      setLoading(true);
+
+      let sortBy = 'newest';
+      if (filterType === 'recommended') sortBy = 'rating';
+      else if (filterType === 'promos') sortBy = 'price_asc';
+
+      const res = await api.getServices({
+        q: searchTerm,
+        category_id: activeCategory !== 'all' ? activeCategory : null,
+        sort_by: sortBy,
+        page: 1,
+        limit: 30
+      });
+
+      setServices(res.items || []);
+      setTotalCount(res.meta?.total || (res.items || []).length);
+    } catch (err) {
+      console.warn('[ServicesScreen] Error al cargar servicios:', err);
+      // Fallback a array vacío si falla la conexión
+      setServices([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    loadServices(searchQuery);
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      
       {/* Cabecera de Servicios (Verde Azulado) */}
       <View style={styles.headerBox}>
         <View style={styles.headerTitleRow}>
@@ -44,8 +101,16 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               </Text>
             </View>
           </View>
-          <View style={styles.zoneChip}>
-            <Text style={[styles.zoneChipText, { fontSize: scale(10) }]}>📍 Zona A</Text>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity
+              style={styles.myServicesPill}
+              onPress={() => onNavigate('my_services')}
+            >
+              <Text style={[styles.myServicesPillText, { fontSize: scale(10) }]}>🛠️ Mis servicios</Text>
+            </TouchableOpacity>
+            <View style={styles.zoneChip}>
+              <Text style={[styles.zoneChipText, { fontSize: scale(10) }]}>📍 Zona A</Text>
+            </View>
           </View>
         </View>
 
@@ -56,10 +121,14 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
             style={[styles.searchInput, { fontSize: scale(12) }]}
             placeholder="Ej. Necesito un electricista hoy..."
             placeholderTextColor="#94a3b8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
           />
           <TouchableOpacity
             style={styles.sendButton}
-            onPress={() => Alert.alert('🤖 VeciRed IA', 'Buscando profesionales verificados a menos de 500 metros...')}
+            onPress={handleSearchSubmit}
           >
             <Text style={{ fontSize: 14, color: COLORS.white }}>➤</Text>
           </TouchableOpacity>
@@ -108,90 +177,132 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           onPress={() => setFilterType('promos')}
         >
           <Text style={[styles.filterChipText, filterType === 'promos' && styles.filterChipTextActive, { fontSize: scale(11) }]}>
-            🏷️ Promociones
+            🏷️ Más económicos
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Radar de Servicios Disponibles (24 servicios a < 1 km) */}
+      {/* Radar de Servicios Disponibles */}
       <View style={styles.radarCard}>
         <View style={styles.radarIconWrap}>
           <Text style={{ fontSize: 26 }}>📡</Text>
         </View>
         <View style={styles.radarDetails}>
           <Text style={[styles.radarTitle, { fontSize: scale(12) }]}>
-            Servicios en tu zona
+            Servicios en tu comunidad
           </Text>
           <Text style={[styles.radarSub, { fontSize: scale(10) }]}>
-            Zona A, a menos de 1 km
+            Comunidad verificada de vecinos
           </Text>
           <Text style={[styles.radarNumber, { fontSize: scale(18) }]}>
-            24 servicios disponibles
+            {totalCount} {totalCount === 1 ? 'servicio disponible' : 'servicios disponibles'}
           </Text>
         </View>
-        <Text style={styles.radarArrow}>➔</Text>
+        <TouchableOpacity onPress={() => onNavigate('publish')}>
+          <Text style={styles.radarArrow}>+ Publicar</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Lista de Prestadores Recomendados */}
       <View style={styles.sectionTitleRow}>
         <Text style={[styles.sectionTitle, { fontSize: scale(14) }]}>
-          ⭐ Recomendados por tus vecinos
+          ⭐ Servicios de tus vecinos
         </Text>
       </View>
 
-      {mockServices.map((service) => (
-        <View key={service.id} style={styles.serviceItemCard}>
-          <View style={styles.serviceItemTop}>
-            <Image source={{ uri: service.provider_avatar }} style={styles.providerAvatar} />
-            <View style={styles.providerInfo}>
-              <View style={styles.vistoBuenoBadge}>
-                <Text style={styles.vistoBuenoText}>★ Visto Bueno Vecinal</Text>
-              </View>
-              <Text style={[styles.providerName, { fontSize: scale(13) }]}>
-                {service.provider_name}
-              </Text>
-              <Text style={[styles.serviceTitle, { fontSize: scale(11) }]}>
-                {service.title}
-              </Text>
-              <Text style={[styles.ratingRow, { fontSize: scale(11) }]}>
-                ⭐ {service.rating_avg} ({service.endorsements_count}) • 📍 {service.distance_m} m
-              </Text>
-            </View>
-          </View>
-
-          <Text style={[styles.serviceDesc, { fontSize: scale(11) }]} numberOfLines={2}>
-            {service.description}
-          </Text>
-
-          <View style={styles.serviceFooterRow}>
-            <Text style={[styles.servicePrice, { fontSize: scale(12) }]}>
-              Desde S/ {service.price_from.toFixed(2)}
-            </Text>
-            <TouchableOpacity
-              style={styles.whatsappButton}
-              activeOpacity={0.8}
-              onPress={() => {
-                if (onOpenChat) {
-                  onOpenChat({
-                    name: service.provider_name,
-                    topic: service.title,
-                    avatar: '👨‍🔧',
-                    zone: 'Zona A',
-                    badge: 'Proveedor Verificado',
-                    phone: service.phone
-                  });
-                } else {
-                  Alert.alert('💬 Chat Vecinal', `Iniciando chat con ${service.provider_name} (${service.phone})...`);
-                }
-              }}
-            >
-              <Text style={[styles.whatsappButtonText, { fontSize: scale(11) }]}>
-                💬 Contactar
-              </Text>
-            </TouchableOpacity>
-          </View>
+      {loading ? (
+        <View style={{ padding: 30, alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={{ marginTop: 10, color: COLORS.textSecondary }}>Buscando profesionales...</Text>
         </View>
-      ))}
+      ) : services.length > 0 ? (
+        services.map((service) => (
+          <TouchableOpacity
+            key={service.id}
+            style={styles.serviceItemCard}
+            activeOpacity={0.9}
+            onPress={() => onNavigate('service_detail', { serviceId: service.id })}
+          >
+            <View style={styles.serviceItemTop}>
+              <Image
+                source={{
+                  uri: service.provider_avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'
+                }}
+                style={styles.providerAvatar}
+              />
+              <View style={styles.providerInfo}>
+                <View style={styles.vistoBuenoBadge}>
+                  <Text style={styles.vistoBuenoText}>★ Visto Bueno Vecinal</Text>
+                </View>
+                <Text style={[styles.providerName, { fontSize: scale(13) }]}>
+                  {service.provider_name}
+                </Text>
+                <Text style={[styles.serviceTitle, { fontSize: scale(12) }]}>
+                  {service.title}
+                </Text>
+                <Text style={[styles.ratingRow, { fontSize: scale(11) }]}>
+                  ⭐ {service.rating_avg > 0 ? service.rating_avg.toFixed(1) : 'Nuevo'} ({service.reviews_count}) • 📍 {service.distance_m || 350} m
+                </Text>
+              </View>
+            </View>
+
+            {service.description ? (
+              <Text style={[styles.serviceDesc, { fontSize: scale(11) }]} numberOfLines={2}>
+                {service.description}
+              </Text>
+            ) : null}
+
+            <View style={styles.serviceFooterRow}>
+              <Text style={[styles.servicePrice, { fontSize: scale(12) }]}>
+                {service.price_from != null ? `Desde S/ ${Number(service.price_from).toFixed(2)}` : 'Tarifa a convenir'}
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  style={styles.detailButton}
+                  onPress={() => onNavigate('service_detail', { serviceId: service.id })}
+                >
+                  <Text style={[styles.detailButtonText, { fontSize: scale(11) }]}>Ficha</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.whatsappButton}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (onOpenChat) {
+                      onOpenChat({
+                        name: service.provider_name,
+                        topic: service.title,
+                        avatar: '👨‍🔧',
+                        zone: 'Zona A',
+                        badge: 'Proveedor Verificado',
+                        phone: service.provider_phone
+                      });
+                    } else {
+                      Alert.alert('💬 Chat Vecinal', `Iniciando chat con ${service.provider_name}...`);
+                    }
+                  }}
+                >
+                  <Text style={[styles.whatsappButtonText, { fontSize: scale(11) }]}>
+                    💬 Contactar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        ))
+      ) : (
+        <View style={styles.emptyCard}>
+          <Text style={{ fontSize: 36, marginBottom: 8 }}>🔍</Text>
+          <Text style={[styles.emptyTitle, { fontSize: scale(14) }]}>No encontramos servicios con esos filtros</Text>
+          <Text style={[styles.emptySub, { fontSize: scale(11) }]}>
+            Sé el primero en ofrecer un servicio en tu barrio o prueba buscando con otra palabra.
+          </Text>
+          <TouchableOpacity style={styles.emptyBtn} onPress={() => onNavigate('publish')}>
+            <Text style={styles.emptyBtnText}>+ Publicar un servicio</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Banner de Emergencia Inferior (Rojo) */}
       <TouchableOpacity
@@ -212,17 +323,22 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           <Text style={styles.emergencyBtnText}>Activar soporte ➔</Text>
         </View>
       </TouchableOpacity>
-
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 90 },
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc'
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 30
+  },
   headerBox: {
     backgroundColor: COLORS.primaryDark,
-    borderRadius: 22,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 12
   },
@@ -237,43 +353,54 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   headerTitle: {
-    fontWeight: '900',
+    fontWeight: '800',
     color: COLORS.white
   },
   headerSub: {
-    fontWeight: '600',
-    color: COLORS.primaryPale
+    color: '#ccfbf1',
+    fontWeight: '500'
   },
   zoneChip: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999
+    borderRadius: 12
   },
   zoneChipText: {
     color: COLORS.white,
-    fontWeight: '800'
+    fontWeight: '700'
+  },
+  myServicesPill: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12
+  },
+  myServicesPillText: {
+    color: COLORS.primaryDark,
+    fontWeight: '700'
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: 14,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 7
+    paddingVertical: 8
   },
   searchInput: {
     flex: 1,
-    color: COLORS.textPrimary,
-    fontWeight: '600'
+    color: COLORS.text,
+    padding: 0
   },
   sendButton: {
     backgroundColor: COLORS.primary,
     width: 28,
     height: 28,
     borderRadius: 14,
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'center'
+    marginLeft: 6
   },
   categoriesScroll: {
     marginBottom: 12
@@ -282,23 +409,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 14,
+    borderRadius: 20,
+    marginRight: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: 8
+    borderColor: '#e2e8f0'
   },
   categoryPillActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primaryDark
+    backgroundColor: COLORS.primarySurface,
+    borderColor: COLORS.primary
   },
   categoryPillText: {
-    fontWeight: '700',
-    color: COLORS.textSecondary
+    color: COLORS.textSecondary,
+    fontWeight: '600'
   },
   categoryPillTextActive: {
-    color: COLORS.white
+    color: COLORS.primaryDark,
+    fontWeight: '700'
   },
   filterRow: {
     flexDirection: 'row',
@@ -307,60 +435,77 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     backgroundColor: COLORS.white,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border
+    borderColor: '#e2e8f0'
   },
   filterChipActive: {
-    backgroundColor: COLORS.primarySurface,
-    borderColor: COLORS.primary
+    backgroundColor: '#f1f5f9',
+    borderColor: '#cbd5e1'
   },
   filterChipText: {
-    fontWeight: '700',
-    color: COLORS.textSecondary
+    color: COLORS.textSecondary,
+    fontWeight: '500'
   },
   filterChipTextActive: {
-    color: COLORS.primaryDark
+    color: COLORS.text,
+    fontWeight: '700'
   },
   radarCard: {
-    backgroundColor: COLORS.primarySurface,
-    borderWidth: 1.5,
-    borderColor: COLORS.primaryLight,
-    borderRadius: 20,
-    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: COLORS.primarySurface,
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 16
   },
   radarIconWrap: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.white,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: 12
   },
-  radarDetails: { flex: 1 },
-  radarTitle: { fontWeight: '800', color: COLORS.textPrimary },
-  radarSub: { fontWeight: '600', color: COLORS.textSecondary },
-  radarNumber: { fontWeight: '900', color: COLORS.primaryDeep, marginTop: 2 },
-  radarArrow: { fontSize: 18, color: COLORS.primary, fontWeight: '900' },
-  sectionTitleRow: { marginBottom: 10 },
-  sectionTitle: { fontWeight: '900', color: COLORS.textPrimary },
+  radarDetails: {
+    flex: 1
+  },
+  radarTitle: {
+    fontWeight: '700',
+    color: COLORS.primaryDark
+  },
+  radarSub: {
+    color: '#0f766e'
+  },
+  radarNumber: {
+    fontWeight: '800',
+    color: COLORS.primaryDark,
+    marginTop: 2
+  },
+  radarArrow: {
+    color: COLORS.primaryDark,
+    fontWeight: '700',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#99f6e4',
+    fontSize: 11
+  },
+  sectionTitleRow: {
+    marginBottom: 10
+  },
+  sectionTitle: {
+    fontWeight: '800',
+    color: COLORS.text
+  },
   serviceItemCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2
+    borderColor: '#e2e8f0',
+    marginBottom: 12
   },
   serviceItemTop: {
     flexDirection: 'row',
@@ -368,62 +513,134 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   providerAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 16,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     marginRight: 12
   },
-  providerInfo: { flex: 1 },
+  providerInfo: {
+    flex: 1
+  },
   vistoBuenoBadge: {
-    backgroundColor: '#ede9fe',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 999,
-    marginBottom: 3
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 2
   },
   vistoBuenoText: {
     fontSize: 9,
-    fontWeight: '900',
-    color: COLORS.purple
+    color: '#92400e',
+    fontWeight: '700'
   },
-  providerName: { fontWeight: '900', color: COLORS.textPrimary },
-  serviceTitle: { fontWeight: '700', color: COLORS.primaryDark },
-  ratingRow: { fontWeight: '700', color: COLORS.textSecondary, marginTop: 2 },
-  serviceDesc: { color: COLORS.textSecondary, marginBottom: 10, lineHeight: 16 },
+  providerName: {
+    fontWeight: '700',
+    color: COLORS.text
+  },
+  serviceTitle: {
+    fontWeight: '600',
+    color: '#334155',
+    marginTop: 1
+  },
+  ratingRow: {
+    color: '#854d0e',
+    fontWeight: '600',
+    marginTop: 2
+  },
+  serviceDesc: {
+    color: COLORS.textSecondary,
+    marginBottom: 10,
+    lineHeight: 16
+  },
   serviceFooterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 8
+    borderTopColor: '#f1f5f9',
+    paddingTop: 10
   },
-  servicePrice: { fontWeight: '900', color: COLORS.primaryDeep },
+  servicePrice: {
+    fontWeight: '700',
+    color: COLORS.primaryDark
+  },
+  detailButton: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  detailButtonText: {
+    color: '#334155',
+    fontWeight: '600'
+  },
   whatsappButton: {
-    backgroundColor: COLORS.emerald,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 12
+    paddingVertical: 6,
+    borderRadius: 8
   },
-  whatsappButtonText: { color: COLORS.white, fontWeight: '900' },
+  whatsappButtonText: {
+    color: COLORS.white,
+    fontWeight: '700'
+  },
+  emptyCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 16
+  },
+  emptyTitle: {
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 4
+  },
+  emptySub: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 14
+  },
+  emptyBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 8
+  },
+  emptyBtnText: {
+    color: COLORS.white,
+    fontWeight: '700'
+  },
   emergencySupportCard: {
-    backgroundColor: COLORS.emergencySurface,
-    borderWidth: 1.5,
-    borderColor: COLORS.emergencyPale,
-    borderRadius: 20,
-    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6
+    backgroundColor: COLORS.emergencySurface,
+    borderWidth: 1,
+    borderColor: COLORS.emergencyPale,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8
   },
-  emergencySupportTitle: { fontWeight: '900', color: COLORS.emergencyDark },
-  emergencySupportSub: { fontWeight: '600', color: '#991b1b', marginTop: 2 },
+  emergencySupportTitle: {
+    fontWeight: '700',
+    color: COLORS.emergencyDark
+  },
+  emergencySupportSub: {
+    color: '#991b1b'
+  },
   emergencyBtn: {
     backgroundColor: COLORS.emergency,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10
+    borderRadius: 8,
+    marginLeft: 6
   },
-  emergencyBtnText: { color: COLORS.white, fontWeight: '900', fontSize: 10 }
+  emergencyBtnText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: '700'
+  }
 });

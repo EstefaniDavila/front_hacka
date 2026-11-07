@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,19 +6,40 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { mockServices } from '../data/mockData';
+import { api } from '../services/api';
 
 export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
+  const [recommendedServices, setRecommendedServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+
   const scale = (val) => Math.round(val * fontScale);
 
-  const gasfitero = mockServices.find(s => s.id === 'srv-004') || mockServices[0];
+  useEffect(() => {
+    loadRecommended();
+  }, []);
+
+  const loadRecommended = async () => {
+    try {
+      setLoadingServices(true);
+      const res = await api.getServices({ sort_by: 'rating', limit: 3 });
+      if (res && Array.isArray(res.items) && res.items.length > 0) {
+        setRecommendedServices(res.items);
+      }
+    } catch (err) {
+      console.warn('[HomeScreen] Error al cargar recomendados:', err);
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
+  const topService = recommendedServices.length > 0 ? recommendedServices[0] : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      
       {/* Header Héroe Verde Azulado (Teal) */}
       <View style={styles.heroCard}>
         <View style={styles.heroTopRow}>
@@ -32,22 +53,26 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
         </Text>
 
         {/* Buscador IA con Micrófono */}
-        <View style={styles.searchBar}>
+        <TouchableOpacity
+          style={styles.searchBar}
+          activeOpacity={0.9}
+          onPress={() => onNavigate('services')}
+        >
           <Text style={{ fontSize: 16, marginRight: 6 }}>🔍</Text>
           <TextInput
             style={[styles.searchInput, { fontSize: scale(12) }]}
             placeholder="Ej. Necesito un electricista..."
             placeholderTextColor="#94a3b8"
+            editable={false}
           />
-          <TouchableOpacity style={styles.micButton} onPress={() => alert('🎙️ Dictado por voz IA activado')}>
+          <TouchableOpacity style={styles.micButton} onPress={() => onNavigate('services')}>
             <Text style={{ fontSize: 16 }}>🎙️</Text>
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Grid 2x2 de los 4 Cuadrantes Principales */}
       <View style={styles.gridContainer}>
-        
         {/* 1. Servicios Cercanos */}
         <TouchableOpacity
           style={[styles.gridCard, { backgroundColor: '#f0fdfa', borderColor: '#ccfbf1' }]}
@@ -119,7 +144,6 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
             Reporta y coordina apoyo vecinal
           </Text>
         </TouchableOpacity>
-
       </View>
 
       {/* Sección: Recomendados por tus Vecinos */}
@@ -134,38 +158,72 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
         </TouchableOpacity>
       </View>
 
-      {/* Tarjeta Gasfitería (Idéntica al Mockup) */}
-      <TouchableOpacity
-        style={styles.providerCard}
-        activeOpacity={0.85}
-        onPress={() => onNavigate('services')}
-      >
-        <Image
-          source={{ uri: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300' }}
-          style={styles.providerImage}
-        />
-        <View style={styles.providerDetails}>
-          <Text style={[styles.providerTitle, { fontSize: scale(13) }]}>
-            {gasfitero.title}
-          </Text>
-          <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
-            📍 A {gasfitero.distance_m} m • Zona A, Mz. 2
-          </Text>
-          
-          <View style={styles.ratingRow}>
-            <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
-              ⭐ {gasfitero.rating_avg} ({gasfitero.endorsements_count} recomendaciones)
+      {/* Tarjeta de Servicio Destacado */}
+      {topService ? (
+        <TouchableOpacity
+          style={styles.providerCard}
+          activeOpacity={0.85}
+          onPress={() => onNavigate('service_detail', { serviceId: topService.id })}
+        >
+          <Image
+            source={{
+              uri: topService.provider_avatar || 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300'
+            }}
+            style={styles.providerImage}
+          />
+          <View style={styles.providerDetails}>
+            <Text style={[styles.providerTitle, { fontSize: scale(13) }]}>
+              {topService.title}
             </Text>
-          </View>
+            <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
+              📍 A {topService.distance_m || 350} m • {topService.community_name || 'Comunidad Barrial'}
+            </Text>
 
-          <View style={styles.verifiedBadge}>
-            <Text style={[styles.verifiedBadgeText, { fontSize: scale(10) }]}>
-              ✓ Vecino verificado
-            </Text>
+            <View style={styles.ratingRow}>
+              <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
+                ⭐ {topService.rating_avg > 0 ? topService.rating_avg.toFixed(1) : 'Nuevo'} ({topService.reviews_count} recomendaciones)
+              </Text>
+            </View>
+
+            <View style={styles.verifiedBadge}>
+              <Text style={[styles.verifiedBadgeText, { fontSize: scale(10) }]}>
+                ✓ Vecino verificado
+              </Text>
+            </View>
           </View>
-        </View>
-        <Text style={styles.cardArrow}>›</Text>
-      </TouchableOpacity>
+          <Text style={styles.cardArrow}>›</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.providerCard}
+          activeOpacity={0.85}
+          onPress={() => onNavigate('services')}
+        >
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300' }}
+            style={styles.providerImage}
+          />
+          <View style={styles.providerDetails}>
+            <Text style={[styles.providerTitle, { fontSize: scale(13) }]}>
+              Servicios de Proximidad en tu Zona
+            </Text>
+            <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
+              📍 Profesionales cerca de ti • Zona A
+            </Text>
+            <View style={styles.ratingRow}>
+              <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
+                ⭐ Red de economía local
+              </Text>
+            </View>
+            <View style={styles.verifiedBadge}>
+              <Text style={[styles.verifiedBadgeText, { fontSize: scale(10) }]}>
+                ✓ Explora servicios
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.cardArrow}>›</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Banner Invitación a Publicar */}
       <TouchableOpacity
@@ -186,7 +244,6 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
         </View>
         <Text style={styles.publishBannerBtn}>+ Publicar</Text>
       </TouchableOpacity>
-
     </ScrollView>
   );
 }
@@ -252,32 +309,30 @@ const styles = StyleSheet.create({
   gridCard: {
     width: '48%',
     borderRadius: 18,
-    padding: 14,
     borderWidth: 1.5,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1
+    padding: 14,
+    minHeight: 110,
+    justifyContent: 'space-between'
   },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8
+    alignItems: 'center'
   },
   chevron: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
-    color: COLORS.textSecondary
+    color: COLORS.primary
   },
   gridCardTitle: {
     fontWeight: '900',
-    color: COLORS.textPrimary,
-    marginBottom: 2
+    color: COLORS.text,
+    marginTop: 6
   },
   gridCardSub: {
-    fontWeight: '600',
-    color: COLORS.textSecondary
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    marginTop: 2
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -287,29 +342,29 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '900',
-    color: COLORS.textPrimary
+    color: COLORS.text
   },
   seeMoreText: {
-    fontWeight: '800',
-    color: COLORS.primaryDark
+    color: COLORS.primary,
+    fontWeight: '700'
   },
   providerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 18,
     padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 14,
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2
+    shadowRadius: 4,
+    elevation: 1
   },
   providerImage: {
-    width: 66,
-    height: 66,
+    width: 60,
+    height: 60,
     borderRadius: 14,
     marginRight: 12
   },
@@ -317,50 +372,51 @@ const styles = StyleSheet.create({
     flex: 1
   },
   providerTitle: {
-    fontWeight: '900',
-    color: COLORS.textPrimary,
-    marginBottom: 2
+    fontWeight: '800',
+    color: COLORS.text
   },
   providerLocation: {
-    fontWeight: '600',
     color: COLORS.textSecondary,
-    marginBottom: 4
+    fontWeight: '500',
+    marginTop: 2
   },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4
+    marginTop: 4
   },
   ratingText: {
-    fontWeight: '800',
-    color: '#d97706'
+    color: '#854d0e',
+    fontWeight: '700'
   },
   verifiedBadge: {
-    backgroundColor: COLORS.emeraldPale,
-    alignSelf: 'flex-start',
+    backgroundColor: '#ecfdf5',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 999
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4
   },
   verifiedBadgeText: {
-    fontWeight: '800',
-    color: COLORS.emerald
+    color: '#065f46',
+    fontWeight: '800'
   },
   cardArrow: {
-    fontSize: 20,
+    fontSize: 22,
     color: COLORS.textMuted,
-    fontWeight: '900',
-    marginLeft: 6
+    fontWeight: '800',
+    paddingLeft: 6
   },
   publishBanner: {
-    backgroundColor: COLORS.primarySurface,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
     borderWidth: 1,
-    borderColor: COLORS.primaryPale,
+    borderColor: '#fde68a',
     borderRadius: 16,
     padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
+    marginBottom: 14
   },
   publishBannerLeft: {
     flexDirection: 'row',
@@ -369,19 +425,21 @@ const styles = StyleSheet.create({
   },
   publishBannerTitle: {
     fontWeight: '800',
-    color: COLORS.primaryDeep
+    color: '#92400e'
   },
   publishBannerSub: {
-    fontWeight: '600',
-    color: COLORS.primaryDark
+    color: '#b45309',
+    fontWeight: '500',
+    marginTop: 1
   },
   publishBannerBtn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#f59e0b',
     color: COLORS.white,
-    fontWeight: '900',
+    fontWeight: '800',
     fontSize: 11,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10
+    borderRadius: 8,
+    marginLeft: 8
   }
 });

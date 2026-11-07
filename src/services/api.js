@@ -105,6 +105,102 @@ export const api = {
   // Consultar estado de verificación
   async getVerificationStatus(token) {
     return request('/users/verification-status', { method: 'GET' }, token);
+  },
+
+  // ==========================================================
+  // MÓDULO DE SERVICIOS DE PROXIMIDAD
+  // ==========================================================
+  // Categorías de servicios
+  async getServiceCategories() {
+    return request('/services/categories', { method: 'GET' });
+  },
+
+  // Listar servicios con filtros y búsqueda
+  async getServices({ q = '', category_id = null, community_id = null, sort_by = 'newest', page = 1, limit = 20 } = {}) {
+    const params = new URLSearchParams();
+    if (q) params.append('q', q);
+    if (category_id && category_id !== 'all') params.append('category_id', category_id);
+    if (community_id) params.append('community_id', community_id);
+    if (sort_by) params.append('sort_by', sort_by);
+    if (page) params.append('page', page);
+    if (limit) params.append('limit', limit);
+
+    const queryString = params.toString();
+    const endpoint = `/services${queryString ? `?${queryString}` : ''}`;
+    return request(endpoint, { method: 'GET' });
+  },
+
+  // Detalle de un servicio específico
+  async getServiceDetail(serviceId) {
+    return request(`/services/${serviceId}`, { method: 'GET' });
+  },
+
+  // Servicios publicados por el usuario actual
+  async getMyServices({ page = 1, limit = 20 } = {}, token) {
+    return request(`/services/my?page=${page}&limit=${limit}`, { method: 'GET' }, token);
+  },
+
+  // Servicios públicos de un vecino específico
+  async getUserServices(userId, { page = 1, limit = 20 } = {}) {
+    return request(`/services/user/${userId}?page=${page}&limit=${limit}`, { method: 'GET' });
+  },
+
+  // Crear y publicar un nuevo servicio
+  async createService(serviceData, token) {
+    return request(
+      '/services',
+      {
+        method: 'POST',
+        body: JSON.stringify(serviceData)
+      },
+      token
+    );
+  },
+
+  // Editar un servicio existente
+  async updateService(serviceId, serviceData, token) {
+    return request(
+      `/services/${serviceId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(serviceData)
+      },
+      token
+    );
+  },
+
+  // Cambiar estado de un servicio (active, paused)
+  async updateServiceStatus(serviceId, status, token) {
+    return request(
+      `/services/${serviceId}/status`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status })
+      },
+      token
+    );
+  },
+
+  // Desactivar / eliminar servicio propio
+  async deleteService(serviceId, token) {
+    return request(`/services/${serviceId}`, { method: 'DELETE' }, token);
+  },
+
+  // Calificar y reseñar un servicio
+  async addServiceReview(serviceId, { rating, comment }, token) {
+    return request(
+      `/services/${serviceId}/reviews`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ rating, comment })
+      },
+      token
+    );
+  },
+
+  // Consultar reseñas de un servicio
+  async getServiceReviews(serviceId, { page = 1, limit = 20 } = {}) {
+    return request(`/services/${serviceId}/reviews?page=${page}&limit=${limit}`, { method: 'GET' });
   }
 };
 
