@@ -23,8 +23,10 @@ export default defineConfig({
   },
   define: {
     global: 'window',
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production')
+    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
+    'process.env': {}
   },
+  envPrefix: ['VITE_', 'EXPO_PUBLIC_'],
   server: {
     host: '0.0.0.0',
     port: 3000,

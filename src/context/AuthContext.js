@@ -1,5 +1,5 @@
 // ==========================================================
-// VECIRED IA — CONTEXTO GLOBAL DE AUTENTICACIÓN Y SESIÓN
+// VECIRED IA — CONTEXTO GLOBAL DE AUTENTICACIÓN Y SESIÓN REAL
 // ==========================================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
@@ -14,20 +14,26 @@ export function AuthProvider({ children }) {
   const [verificationStatus, setVerificationStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Inicializar y restaurar sesión persistente
+  // -------------------------------------------------------------
+  // Inicialización y escucha reactiva de sesión Supabase
+  // -------------------------------------------------------------
   useEffect(() => {
     let mounted = true;
 
     async function initSession() {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.warn('[VeciRed Auth] Error al verificar sesión inicial:', error.message);
+        }
+
         if (mounted && data?.session) {
           setSession(data.session);
           setUser(data.session.user);
           await loadUserProfile(data.session.access_token);
         }
       } catch (err) {
-        console.warn('Error restaurando sesión Supabase:', err);
+        console.warn('[VeciRed Auth] Fallo inesperado al restaurar sesión:', err);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -35,10 +41,11 @@ export function AuthProvider({ children }) {
 
     initSession();
 
-    // Suscripción reactiva a cambios de autenticación
+    // Listener para eventos de login, logout y refresco de token
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         if (!mounted) return;
+
         setSession(currentSession);
         setUser(currentSession?.user || null);
 
@@ -57,69 +64,79 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // Carga del perfil desde el backend de VeciRed
+  // -------------------------------------------------------------
+  // Carga del perfil desde el Backend FastAPI usando el JWT
+  // -------------------------------------------------------------
   const loadUserProfile = async (token) => {
+    if (!token) return null;
     try {
       const profileData = await api.getMyProfile(token);
       setProfile(profileData);
-      
+
+      // Consulta del estado de verificación de identidad si aplica
       const statusData = await api.getVerificationStatus(token).catch(() => null);
       if (statusData) {
         setVerificationStatus(statusData);
       }
       return profileData;
     } catch (err) {
-      console.warn('No se pudo cargar el perfil del backend:', err.message);
+      console.warn('[VeciRed Auth] No se pudo obtener perfil del backend:', err.message);
       return null;
     }
   };
 
-  // Iniciar Sesión con Supabase Auth
+  // -------------------------------------------------------------
+  // Inicio de Sesión Real (Email + Password)
+  // -------------------------------------------------------------
   const login = async (email, password) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
-        password
+        password: password
       });
 
       if (error) {
-        // Soporte para fallback de demostración si el usuario aún no existe en Supabase
-        if (error.message.includes('Invalid login credentials') && email.includes('@')) {
-          console.info('Modo demo/desarrollo: creando sesión local...');
-          const demoUser = {
-            id: 'd9b7a421-5c8e-4a7b-8e12-3f5c8e4a7b12',
-            email: email.trim(),
-            user_metadata: { full_name: email.split('@')[0].toUpperCase() }
-          };
-          setUser(demoUser);
-          setProfile({
-            id: demoUser.id,
-            full_name: demoUser.user_metadata.full_name,
-            phone: '984 555 123',
-            account_status: 'pending'
-          });
-          return { success: true, user: demoUser };
-        }
-        throw error;
+        return {
+          success: false,
+          error: error.message || 'Credenciales inválidas'
+        };
       }
 
+      if (!data.session) {
+        return {
+          success: false,
+          error: 'Supabase no retornó una sesión activa. Verifica tu cuenta.'
+        };
+      }
+
+      // Actualizar estados reactivos
       setSession(data.session);
       setUser(data.user);
-      if (data.session?.access_token) {
-        await loadUserProfile(data.session.access_token);
-      }
-      return { success: true, user: data.user };
+
+      // Cargar perfil desde el backend con el JWT real
+      await loadUserProfile(data.session.access_token);
+
+      return {
+        success: true,
+        user: data.user,
+        session: data.session
+      };
     } catch (error) {
-      return { success: false, error: error.message || 'Error al iniciar sesión' };
+      return {
+        success: false,
+        error: error.message || 'Error de conexión al iniciar sesión'
+      };
     }
   };
 
-  // Registro de nuevo usuario
+  // -------------------------------------------------------------
+  // Registro de Nuevo Vecino (Sin Confirmación de Correo Requerida)
+  // -------------------------------------------------------------
   const register = async (email, password, { fullName, phone, skill, address }) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
-        password,
+        password: password,
         options: {
           data: {
             full_name: fullName,
@@ -131,50 +148,55 @@ export function AuthProvider({ children }) {
       });
 
       if (error) {
-        // Fallback resiliente para entorno de evaluación
-        console.warn('Supabase signUp aviso:', error.message);
-        const fallbackUser = {
-          id: 'e4c8b210-9f1a-4d7e-9c2b-1a2b3c4d5e6f',
-          email: email.trim(),
-          user_metadata: { full_name: fullName, phone, skill }
+        return {
+          success: false,
+          error: error.message || 'Error al registrar usuario en Supabase'
         };
-        setUser(fallbackUser);
-        setProfile({
-          id: fallbackUser.id,
-          full_name: fullName,
-          phone,
-          account_status: 'pending'
-        });
-        return { success: true, user: fallbackUser };
       }
 
-      setSession(data.session);
-      setUser(data.user);
-
-      if (data.session?.access_token) {
+      // Manejar correctamente la sesión devuelta por Supabase
+      // Si la confirmación de correo está desactivada en Supabase, data.session contiene la sesión inmediata
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.user);
         await loadUserProfile(data.session.access_token);
-      } else {
-        // Usuario creado localmente
-        setProfile({
-          id: data.user?.id || 'demo-user-id',
-          full_name: fullName,
-          phone,
-          account_status: 'pending'
-        });
+
+        return {
+          success: true,
+          hasSession: true,
+          user: data.user,
+          session: data.session
+        };
       }
 
-      return { success: true, user: data.user };
+      // Si Supabase no devuelve sesión (por ejemplo, si en el dashboard aún estuviese activa la confirmación):
+      // NO suponer que existe sesión ni crear datos simulados.
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+
+      return {
+        success: true,
+        hasSession: false,
+        user: data.user,
+        message: 'Usuario registrado exitosamente en Supabase. Ahora puedes iniciar sesión con tus credenciales.'
+      };
     } catch (error) {
-      return { success: false, error: error.message || 'Error en el registro' };
+      return {
+        success: false,
+        error: error.message || 'Error inesperado durante el registro'
+      };
     }
   };
 
-  // Cerrar Sesión
+  // -------------------------------------------------------------
+  // Cerrar Sesión Real
+  // -------------------------------------------------------------
   const logout = async () => {
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      console.warn('Error cerrando sesión Supabase:', err);
+      console.warn('[VeciRed Auth] Error al cerrar sesión:', err);
     } finally {
       setUser(null);
       setSession(null);
@@ -183,38 +205,61 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Recuperar contraseña
+  // -------------------------------------------------------------
+  // Recuperación de Contraseña
+  // NOTA: Esta funcionalidad requiere un servidor SMTP configurado en Supabase
+  // (Project Settings > Auth > SMTP Settings). En modo de desarrollo gratuito de Supabase
+  // hay un límite estricto de envío de correos antes de bloquear peticiones.
+  // -------------------------------------------------------------
   const resetPassword = async (email) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
-      if (error) throw error;
-      return { success: true };
+      if (error) {
+        return {
+          success: false,
+          error: error.message || 'No fue posible enviar el correo de recuperación'
+        };
+      }
+      return {
+        success: true,
+        message: 'Se ha enviado un enlace de recuperación a tu correo electrónico (requiere servidor SMTP activo).'
+      };
     } catch (error) {
-      return { success: false, error: error.message || 'Error al enviar correo de recuperación' };
+      return {
+        success: false,
+        error: error.message || 'Error al solicitar recuperación de contraseña'
+      };
     }
   };
 
-  // Envío de verificación de identidad al backend FastAPI
+  // -------------------------------------------------------------
+  // Verificación de Identidad (DNI + Selfie) contra Backend FastAPI
+  // -------------------------------------------------------------
   const submitVerification = async ({ dniFrontFile, dniBackFile, selfieFile, fullName }) => {
+    const token = session?.access_token;
+    if (!token) {
+      return {
+        success: false,
+        error: 'Debes tener una sesión activa para enviar tu verificación de identidad.'
+      };
+    }
+
     try {
-      const token = session?.access_token;
       const result = await api.verifyIdentity(
         { dniFrontFile, dniBackFile, selfieFile, fullName },
         token
       );
+
       if (result.success) {
-        if (token) {
-          await loadUserProfile(token);
-        } else {
-          setProfile((prev) => ({
-            ...prev,
-            account_status: 'verified'
-          }));
-        }
+        await loadUserProfile(token);
       }
+
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: error.message || 'Fallo en la verificación de identidad' };
+      return {
+        success: false,
+        error: error.message || 'Fallo en la verificación de identidad'
+      };
     }
   };
 
@@ -223,7 +268,7 @@ export function AuthProvider({ children }) {
     session,
     profile,
     verificationStatus,
-    isAuthenticated: Boolean(user),
+    isAuthenticated: Boolean(session && user),
     isLoading,
     login,
     register,
@@ -243,4 +288,3 @@ export function useAuth() {
   }
   return context;
 }
-

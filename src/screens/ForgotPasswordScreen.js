@@ -76,7 +76,7 @@ export default function ForgotPasswordScreen({
           <Text style={[styles.description, { fontSize: scale(14) }]}>
             {sentSuccess
               ? `Hemos enviado las instrucciones para restablecer tu contraseña al correo ${email}. Revisa tu bandeja de entrada o spam.`
-              : 'Ingresa el correo electrónico asociado a tu cuenta de vecino y te enviaremos un enlace seguro para crear una nueva contraseña.'}
+              : 'Ingresa el correo electrónico asociado a tu cuenta de vecino y te enviaremos un enlace seguro para crear una nueva contraseña.\n\n⚠️ Nota: La entrega efectiva del correo depende de la configuración del servidor SMTP en Supabase.'}
           </Text>
 
           {errorMessage ? (

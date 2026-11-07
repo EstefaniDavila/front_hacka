@@ -161,29 +161,51 @@ export default function OnboardingScreen({
     const finalSkill = customSkill.trim() ? customSkill.trim() : selectedSkill;
 
     try {
-      // 1. Registro en Supabase Auth
-      await register(email, password, {
+      // 1. Registro real en Supabase Auth
+      const regResult = await register(email, password, {
         fullName: name,
         phone,
         skill: finalSkill,
         address: `${detectedAddress} • ${detectedZone}`
       });
 
-      // 2. Verificación de identidad contra FastAPI Backend
+      if (!regResult.success) {
+        setSubmitError(regResult.error || 'Error al registrar la cuenta en Supabase.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 2. Si Supabase no devolvió sesión inmediata (por ejemplo si la confirmación de correo está activa)
+      if (!regResult.hasSession) {
+        if (typeof window !== 'undefined' && window.alert) {
+          window.alert('¡Registro exitoso! Por favor inicia sesión con tu correo y contraseña.');
+        }
+        setIsSubmitting(false);
+        if (onNavigateToLogin) {
+          onNavigateToLogin();
+        }
+        return;
+      }
+
+      // 3. Verificación de identidad contra FastAPI Backend con el token real
       let fFile = dniFrontFile || (await createSyntheticBlob('DNI ANVERSO REAL'));
       let bFile = dniBackFile || (await createSyntheticBlob('DNI REVERSO REAL'));
       let sFile = selfieFile || (await createSyntheticBlob('SELFIE VECINO REAL'));
 
       if (fFile && sFile) {
-        await submitVerification({
-          dniFrontFile: fFile,
-          dniBackFile: bFile,
-          selfieFile: sFile,
-          fullName: name
-        });
+        try {
+          await submitVerification({
+            dniFrontFile: fFile,
+            dniBackFile: bFile,
+            selfieFile: sFile,
+            fullName: name
+          });
+        } catch (verifErr) {
+          console.warn('[Onboarding] Aviso en verificación de identidad:', verifErr);
+        }
       }
 
-      // 3. Notificar al estado de la aplicación
+      // 4. Notificar al estado de la aplicación
       if (onSaveUserData) {
         onSaveUserData({
           name,
@@ -196,8 +218,8 @@ export default function OnboardingScreen({
 
       onFinishLogin();
     } catch (err) {
-      console.warn('Registro completado localmente:', err.message);
-      onFinishLogin();
+      console.error('[Onboarding] Error durante el registro:', err);
+      setSubmitError(err.message || 'Error inesperado al completar el registro.');
     } finally {
       setIsSubmitting(false);
     }

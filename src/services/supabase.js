@@ -5,10 +5,34 @@ import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://gipoemmdfoxbcrsjtkrj.supabase.co';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpcG9lbW1kZm94YmNyc2p0a3JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDk4NTYwMDAsImV4cCI6MjAyNTQzMjAwMH0.placeholder';
+const getEnvVar = (name) => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[name]) {
+    return import.meta.env[name];
+  }
+  if (typeof process !== 'undefined' && process.env && process.env[name]) {
+    return process.env[name];
+  }
+  return '';
+};
 
-// Storage personalizado con fallback para Web y React Native
+const SUPABASE_URL =
+  getEnvVar('EXPO_PUBLIC_SUPABASE_URL') ||
+  getEnvVar('VITE_SUPABASE_URL') ||
+  'https://gipoemmdfoxbcrsjtkrj.supabase.co';
+
+const SUPABASE_ANON_KEY =
+  getEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY') ||
+  getEnvVar('VITE_SUPABASE_ANON_KEY') ||
+  '';
+
+if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('placeholder')) {
+  console.warn(
+    '[VeciRed Supabase] ATENCIÓN: EXPO_PUBLIC_SUPABASE_ANON_KEY no está configurada o tiene un valor placeholder. ' +
+    'Configura tu clave anon en .env para conectar con Supabase Auth.'
+  );
+}
+
+// Storage personalizado con persistencia tanto para Web (localStorage) como para React Native (AsyncStorage)
 const customStorage = {
   getItem: async (key) => {
     try {
@@ -52,4 +76,3 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: false
   }
 });
-
