@@ -103,7 +103,7 @@ export default function SolidarityScreen({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
       
       {/* Cabecera en VERDE AZULADO (Teal) unificada con el resto de la app */}
       <View style={styles.headerCard}>
@@ -415,7 +415,7 @@ export default function SolidarityScreen({
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520, padding: 16 }}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingBottom: 60 }} style={{ maxHeight: 520, padding: 16 }}>
               {/* Selector de Tipo de Publicación */}
               <Text style={[styles.formLabel, { fontSize: scale(12) }]}>
                 1. ¿Qué tipo de publicación deseas realizar?

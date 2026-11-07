@@ -28,7 +28,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
       
       {/* Cabecera de Servicios (Verde Azulado) */}
       <View style={styles.headerBox}>
@@ -56,6 +56,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
             style={[styles.searchInput, { fontSize: scale(12) }]}
             placeholder="Ej. Necesito un electricista hoy..."
             placeholderTextColor="#94a3b8"
+            returnKeyType="search"
           />
           <TouchableOpacity
             style={styles.sendButton}

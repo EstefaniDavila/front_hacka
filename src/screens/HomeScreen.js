@@ -17,7 +17,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
   const gasfitero = mockServices.find(s => s.id === 'srv-004') || mockServices[0];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
       
       {/* Header Héroe Verde Azulado (Teal) */}
       <View style={styles.heroCard}>
@@ -38,6 +38,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
             style={[styles.searchInput, { fontSize: scale(12) }]}
             placeholder="Ej. Necesito un electricista..."
             placeholderTextColor="#94a3b8"
+            returnKeyType="search"
           />
           <TouchableOpacity style={styles.micButton} onPress={() => alert('🎙️ Dictado por voz IA activado')}>
             <Text style={{ fontSize: 16 }}>🎙️</Text>

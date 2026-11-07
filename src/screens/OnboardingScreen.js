@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Platform,
-  StatusBar
+  StatusBar,
+  Keyboard,
+  KeyboardAvoidingView
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 
@@ -39,6 +41,24 @@ export default function OnboardingScreen({
   const [detectedAddress, setDetectedAddress] = useState('Calle Los Nogales 214, Mz B Lote 4');
   const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2');
   const [addressConfirmed, setAddressConfirmed] = useState(true);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -109,7 +129,21 @@ export default function OnboardingScreen({
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        >
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 50 }
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+          >
           
           {/* PASO 1: BIENVENIDA */}
           {step === 1 && (
@@ -169,6 +203,7 @@ export default function OnboardingScreen({
                   value={name}
                   onChangeText={setName}
                   placeholder="Ej: Doña Martha Quispe"
+                  returnKeyType="next"
                 />
               </View>
 
@@ -181,6 +216,7 @@ export default function OnboardingScreen({
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   placeholder="984 555 123"
+                  returnKeyType="done"
                 />
               </View>
 
@@ -220,6 +256,7 @@ export default function OnboardingScreen({
                 <TextInput
                   style={[styles.input, { fontSize: scale(13), marginTop: 4 }]}
                   placeholder="Ej: Conductor, Cuidador de adultos, etc."
+                  returnKeyType="done"
                   value={customSkill}
                   onChangeText={(val) => {
                     setCustomSkill(val);
@@ -620,6 +657,23 @@ export default function OnboardingScreen({
           )}
 
         </ScrollView>
+
+          {/* Barra accesoria flotante para cerrar teclado de 1 toque */}
+          {keyboardHeight > 0 && (
+            <View style={styles.keyboardToolbar}>
+              <Text style={[styles.keyboardToolbarHint, { fontSize: scale(11) }]}>
+                ⌨️ Teclado activo • Desliza o toca para cerrar
+              </Text>
+              <TouchableOpacity
+                style={styles.keyboardCloseBtn}
+                onPress={() => Keyboard.dismiss()}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.keyboardCloseBtnText}>✓ Listo / Ocultar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </KeyboardAvoidingView>
       </View>
     </SafeAreaView>
   );
@@ -1039,5 +1093,34 @@ const styles = StyleSheet.create({
   enterAppButtonText: {
     color: COLORS.white,
     fontWeight: '900'
+  },
+  keyboardToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4
+  },
+  keyboardToolbarHint: {
+    color: COLORS.textMuted,
+    fontWeight: '600'
+  },
+  keyboardCloseBtn: {
+    backgroundColor: COLORS.primaryDark,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  keyboardCloseBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 12
   }
 });
