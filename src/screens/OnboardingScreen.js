@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,26 +7,19 @@ import {
   StyleSheet,
   ScrollView,
   SafeAreaView,
-  ActivityIndicator,
-  Platform
+  ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { useAuth } from '../context/AuthContext';
 
 export default function OnboardingScreen({
   onFinishLogin,
-  onNavigateToLogin,
   fontScale = 1.0,
   setFontScale,
   onSaveUserData
 }) {
-  const { register, submitVerification } = useAuth();
-
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState('984 555 123');
   const [name, setName] = useState('Doña Martha Quispe');
-  const [email, setEmail] = useState('martha.quispe@vecired.pe');
-  const [password, setPassword] = useState('VecinaMartha2026!');
   const [selectedSkill, setSelectedSkill] = useState('🩺 Enfermería / Primeros auxilios');
   const [customSkill, setCustomSkill] = useState('');
   
@@ -34,13 +27,10 @@ export default function OnboardingScreen({
   const [dniFrontScanned, setDniFrontScanned] = useState(false);
   const [dniBackScanned, setDniBackScanned] = useState(false);
   const [scanningDni, setScanningDni] = useState(null); // 'front' | 'back' | 'both' | null
-  const [dniFrontFile, setDniFrontFile] = useState(null);
-  const [dniBackFile, setDniBackFile] = useState(null);
 
   // Biometría
   const [scanningFace, setScanningFace] = useState(false);
   const [faceScanned, setFaceScanned] = useState(false);
-  const [selfieFile, setSelfieFile] = useState(null);
 
   // Dirección GPS y Corrección
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -48,27 +38,7 @@ export default function OnboardingScreen({
   const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2');
   const [addressConfirmed, setAddressConfirmed] = useState(true);
 
-  // Estado de envío
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-
   const scale = (val) => Math.round(val * fontScale);
-
-  // Detectar ubicación real vía Geolocation del navegador si está en Web
-  useEffect(() => {
-    if (step === 5 && typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setDetectedZone(`GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} • Lima`);
-        },
-        () => {
-          // Si no hay permiso o falla, conservar la zona por defecto
-        },
-        { timeout: 5000 }
-      );
-    }
-  }, [step]);
 
   const SKILL_OPTIONS = [
     '🩺 Enfermería / Primeros auxilios',
@@ -81,126 +51,46 @@ export default function OnboardingScreen({
     '🌟 Ninguna en particular / Voluntario de apoyo general'
   ];
 
-  // Helper para generar imagen sintética para pruebas backend
-  const createSyntheticBlob = (textLabel) => {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 250;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#0f766e';
-    ctx.fillRect(0, 0, 400, 250);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText('PERU DNI 72849103', 40, 80);
-    ctx.fillText(textLabel, 40, 140);
-    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg'));
-  };
-
-  const handleScanDni = async (side) => {
+  const handleScanDni = (side) => {
     setScanningDni(side);
-    const blob = await createSyntheticBlob(`DNI ${side.toUpperCase()} VECIRED`);
     setTimeout(() => {
       setScanningDni(null);
-      if (side === 'front') {
-        setDniFrontScanned(true);
-        setDniFrontFile(blob);
-      }
-      if (side === 'back') {
-        setDniBackScanned(true);
-        setDniBackFile(blob);
-      }
-    }, 1000);
+      if (side === 'front') setDniFrontScanned(true);
+      if (side === 'back') setDniBackScanned(true);
+    }, 1100);
   };
 
-  const handleScanBothDni = async () => {
+  const handleScanBothDni = () => {
     setScanningDni('both');
-    const fBlob = await createSyntheticBlob('DNI ANVERSO 72849103');
-    const bBlob = await createSyntheticBlob('DNI REVERSO UBIGEO 150101');
     setTimeout(() => {
       setScanningDni(null);
       setDniFrontScanned(true);
       setDniBackScanned(true);
-      setDniFrontFile(fBlob);
-      setDniBackFile(bBlob);
-    }, 1200);
+    }, 1300);
   };
 
-  const handleScanFace = async () => {
+  const handleScanFace = () => {
     setScanningFace(true);
-    const sBlob = await createSyntheticBlob('SELFIE BIOMETRICA ROSTRO');
     setTimeout(() => {
       setScanningFace(false);
       setFaceScanned(true);
-      setSelfieFile(sBlob);
       setTimeout(() => {
         setStep(5);
       }, 500);
-    }, 1100);
+    }, 1200);
   };
 
-  const handleFileUpload = (event, type) => {
-    if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
-      if (type === 'front') {
-        setDniFrontFile(file);
-        setDniFrontScanned(true);
-      } else if (type === 'back') {
-        setDniBackFile(file);
-        setDniBackScanned(true);
-      } else if (type === 'selfie') {
-        setSelfieFile(file);
-        setFaceScanned(true);
-      }
-    }
-  };
-
-  const handleCompleteRegistration = async () => {
-    setIsSubmitting(true);
-    setSubmitError('');
+  const handleCompleteRegistration = () => {
     const finalSkill = customSkill.trim() ? customSkill.trim() : selectedSkill;
-
-    try {
-      // 1. Registro en Supabase Auth
-      await register(email, password, {
-        fullName: name,
+    if (onSaveUserData) {
+      onSaveUserData({
+        name,
         phone,
         skill: finalSkill,
         address: `${detectedAddress} • ${detectedZone}`
       });
-
-      // 2. Verificación de identidad contra FastAPI Backend
-      let fFile = dniFrontFile || (await createSyntheticBlob('DNI ANVERSO REAL'));
-      let bFile = dniBackFile || (await createSyntheticBlob('DNI REVERSO REAL'));
-      let sFile = selfieFile || (await createSyntheticBlob('SELFIE VECINO REAL'));
-
-      if (fFile && sFile) {
-        await submitVerification({
-          dniFrontFile: fFile,
-          dniBackFile: bFile,
-          selfieFile: sFile,
-          fullName: name
-        });
-      }
-
-      // 3. Notificar al estado de la aplicación
-      if (onSaveUserData) {
-        onSaveUserData({
-          name,
-          phone,
-          email,
-          skill: finalSkill,
-          address: `${detectedAddress} • ${detectedZone}`
-        });
-      }
-
-      onFinishLogin();
-    } catch (err) {
-      console.warn('Registro completado localmente:', err.message);
-      onFinishLogin();
-    } finally {
-      setIsSubmitting(false);
     }
+    onFinishLogin();
   };
 
   return (
@@ -253,32 +143,20 @@ export default function OnboardingScreen({
                   EMPEZAR REGISTRO
                 </Text>
               </TouchableOpacity>
-
-              {onNavigateToLogin ? (
-                <TouchableOpacity
-                  style={styles.secondaryLoginButton}
-                  activeOpacity={0.8}
-                  onPress={onNavigateToLogin}
-                >
-                  <Text style={[styles.secondaryLoginButtonText, { fontSize: scale(14) }]}>
-                    ¿Ya eres vecino registrado? INICIAR SESIÓN
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           )}
 
-          {/* PASO 2: CELULAR, NOMBRE, CORREO, CONTRASEÑA Y PROFESIÓN / HABILIDAD */}
+          {/* PASO 2: CELULAR, NOMBRE Y PROFESIÓN / HABILIDAD */}
           {step === 2 && (
             <View style={styles.stepCard}>
               <View style={styles.iconCircle}>
                 <Text style={{ fontSize: 32 }}>📱</Text>
               </View>
               <Text style={[styles.title, { fontSize: scale(20) }]}>
-                Tus Datos de Contacto y Acceso
+                Tus Datos de Contacto
               </Text>
               <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                Crea tus credenciales de acceso y tu habilidad vecinal para coordinar apoyo en tu barrio.
+                Ingresa tu celular y tu habilidad u oficio para recibir solicitudes vecinales y coordinar ayuda.
               </Text>
 
               {/* Nombre Completo */}
@@ -289,32 +167,6 @@ export default function OnboardingScreen({
                   value={name}
                   onChangeText={setName}
                   placeholder="Ej: Doña Martha Quispe"
-                />
-              </View>
-
-              {/* Correo Electrónico */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Correo Electrónico *</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="ejemplo@correo.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-
-              {/* Contraseña */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Contraseña de Acceso *</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Mínimo 6 caracteres"
-                  secureTextEntry
-                  autoCapitalize="none"
                 />
               </View>
 
@@ -687,24 +539,14 @@ export default function OnboardingScreen({
                 ¡Registro Completado!
               </Text>
               <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                Tus datos quedaron guardados en tu dispositivo y protegidos en la base de datos de VeciRed.
+                Tus datos quedaron guardados en tu dispositivo para siempre. Ya no tendrás que volver a loguearte.
               </Text>
-
-              {submitError ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>⚠️ {submitError}</Text>
-                </View>
-              ) : null}
 
               {/* Ficha Resumen de Identidad */}
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>👤 Vecino:</Text>
                   <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{name}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>✉️ Correo:</Text>
-                  <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{email}</Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>📞 Celular:</Text>
@@ -764,18 +606,13 @@ export default function OnboardingScreen({
               </View>
 
               <TouchableOpacity
-                style={[styles.enterAppButton, isSubmitting && { opacity: 0.7 }]}
+                style={styles.enterAppButton}
                 activeOpacity={0.8}
-                disabled={isSubmitting}
                 onPress={handleCompleteRegistration}
               >
-                {isSubmitting ? (
-                  <ActivityIndicator color={COLORS.white} size="small" />
-                ) : (
-                  <Text style={[styles.enterAppButtonText, { fontSize: scale(16) }]}>
-                    🚀 ENTRAR A LA APLICACIÓN
-                  </Text>
-                )}
+                <Text style={[styles.enterAppButtonText, { fontSize: scale(16) }]}>
+                  🚀 ENTRAR A LA APLICACIÓN
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1185,21 +1022,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '900'
   },
-  secondaryLoginButton: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 10
-  },
-  secondaryLoginButtonText: {
-    color: COLORS.primaryDark,
-    fontWeight: '700'
-  },
   enterAppButton: {
     backgroundColor: COLORS.primaryDark,
     borderRadius: 14,
@@ -1211,17 +1033,5 @@ const styles = StyleSheet.create({
   enterAppButtonText: {
     color: COLORS.white,
     fontWeight: '900'
-  },
-  errorBox: {
-    backgroundColor: '#fee2e2',
-    padding: 10,
-    borderRadius: 8,
-    width: '100%',
-    marginBottom: 10
-  },
-  errorText: {
-    color: '#b91c1c',
-    fontSize: 12,
-    fontWeight: '600'
   }
 });

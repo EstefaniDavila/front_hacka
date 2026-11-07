@@ -11,7 +11,7 @@ import {
 import { COLORS } from '../theme/colors';
 import { mockServices } from '../data/mockData';
 
-export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
+export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
   const scale = (val) => Math.round(val * fontScale);
 
   const gasfitero = mockServices.find(s => s.id === 'srv-004') || mockServices[0];
@@ -88,7 +88,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
         <TouchableOpacity
           style={[styles.gridCard, { backgroundColor: '#fffbeb', borderColor: '#fef3c7' }]}
           activeOpacity={0.8}
-          onPress={() => onNavigate('publish')}
+          onPress={() => onNavigate('products')}
         >
           <View style={styles.cardHeaderRow}>
             <Text style={{ fontSize: 24 }}>🏪</Text>
@@ -138,7 +138,13 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
       <TouchableOpacity
         style={styles.providerCard}
         activeOpacity={0.85}
-        onPress={() => onNavigate('services')}
+        onPress={() => {
+          if (onOpenDetail) {
+            onOpenDetail(gasfitero, 'service');
+          } else {
+            onNavigate('services');
+          }
+        }}
       >
         <Image
           source={{ uri: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300' }}
@@ -171,7 +177,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
       <TouchableOpacity
         style={styles.publishBanner}
         activeOpacity={0.85}
-        onPress={() => onNavigate('publish')}
+        onPress={() => onNavigate('products')}
       >
         <View style={styles.publishBannerLeft}>
           <Text style={{ fontSize: 24, marginRight: 8 }}>📢</Text>

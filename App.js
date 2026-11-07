@@ -1,26 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   SafeAreaView,
   StatusBar,
-  TouchableOpacity,
-  ActivityIndicator
+  TouchableOpacity
 } from 'react-native';
 import { COLORS } from './src/theme/colors';
-import { AuthProvider, useAuth } from './src/context/AuthContext';
 
-// Pantallas de Autenticación
-import LoginScreen from './src/screens/LoginScreen';
-import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
-import OnboardingScreen from './src/screens/OnboardingScreen';
-
-// Componentes y Pantallas Principales
+// Componentes y Pantallas Principales (100% Frontend React Native)
 import EmergencyBanner from './src/components/EmergencyBanner';
 import BottomNavBar from './src/components/BottomNavBar';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ServicesScreen from './src/screens/ServicesScreen';
+import ProductsScreen from './src/screens/ProductsScreen';
+import ItemDetailScreen from './src/screens/ItemDetailScreen';
 import SolidarityScreen from './src/screens/SolidarityScreen';
 import EcoSolidariaScreen from './src/screens/EcoSolidariaScreen';
 import EmergencyScreen from './src/screens/EmergencyScreen';
@@ -28,21 +24,20 @@ import PublishScreen from './src/screens/PublishScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ChatScreen from './src/screens/ChatScreen';
 
-function MainApp() {
-  const { profile, isAuthenticated, isLoading, logout } = useAuth();
-
-  // Simulación y control de sesión
+export default function App() {
+  // Simulación de instalación y primer inicio (Registro inicial con DNI anverso/reverso y biometría)
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
-  // Vista de autenticación: 'login' | 'register' | 'forgot_password'
-  const [authView, setAuthView] = useState('login');
-  
-  // Pestaña activa: home, services, solidarity, eco_solidaria, emergency, publish, profile, chat
+  // Pestaña activa: home, services, products, detail, solidarity, eco_solidaria, emergency, publish, profile, chat
   const [currentTab, setCurrentTab] = useState('home');
   const [previousTab, setPreviousTab] = useState('home');
   
   // Contacto seleccionado para chat directo
   const [activeChatContact, setActiveChatContact] = useState(null);
+
+  // Artículo seleccionado para vista de detalle (Producto o Servicio)
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItemType, setSelectedItemType] = useState('product'); // 'product' | 'service'
 
   // Accesibilidad Senior (Escala de fuente: 1.0 Normal, 1.15 Grande, 1.30 Senior)
   const [fontScale, setFontScale] = useState(1.0);
@@ -50,28 +45,13 @@ function MainApp() {
   // Contador de Solidaridad Activa (12 iniciales, incrementa en vivo)
   const [helpedCount, setHelpedCount] = useState(12);
 
-  // Datos del perfil registrados en el Login
+  // Datos del perfil registrados en el Login/Onboarding inicial
   const [userProfile, setUserProfile] = useState({
     name: 'Doña Martha Quispe',
     phone: '984 555 123',
     skill: '🩺 Enfermería / Primeros auxilios',
     address: 'Calle Los Nogales 214, Mz B Lote 4 • Zona A'
   });
-
-  // Sincronizar datos si el backend retorna un perfil
-  useEffect(() => {
-    if (profile) {
-      setUserProfile((prev) => ({
-        ...prev,
-        name: profile.full_name || prev.name,
-        phone: profile.phone || prev.phone
-      }));
-      if (profile.font_scale_preference) {
-        const val = parseFloat(profile.font_scale_preference);
-        if (!isNaN(val)) setFontScale(val);
-      }
-    }
-  }, [profile]);
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -86,51 +66,18 @@ function MainApp() {
     setCurrentTab('chat');
   };
 
-  const handleLogout = async () => {
-    await logout();
-    setIsLoggedIn(false);
-    setAuthView('login');
+  const handleOpenDetail = (item, type = 'product') => {
+    setSelectedItem(item);
+    setSelectedItemType(type);
+    setPreviousTab(currentTab);
+    setCurrentTab('detail');
   };
 
-  // Indicador de carga inicial
-  if (isLoading) {
-    return (
-      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </SafeAreaView>
-    );
-  }
-
-  // Si no está autenticado ni marcado como logueado
-  const userIsActive = isAuthenticated || isLoggedIn;
-
-  if (!userIsActive) {
-    if (authView === 'login') {
-      return (
-        <LoginScreen
-          onNavigateToRegister={() => setAuthView('register')}
-          onNavigateToForgotPassword={() => setAuthView('forgot_password')}
-          fontScale={fontScale}
-        />
-      );
-    }
-
-    if (authView === 'forgot_password') {
-      return (
-        <ForgotPasswordScreen
-          onBackToLogin={() => setAuthView('login')}
-          fontScale={fontScale}
-        />
-      );
-    }
-
+  // Si es la primera vez que se abre la app, muestra el registro vecinal completo
+  if (!isLoggedIn) {
     return (
       <OnboardingScreen
-        onFinishLogin={() => {
-          setIsLoggedIn(true);
-          setAuthView('login');
-        }}
-        onNavigateToLogin={() => setAuthView('login')}
+        onFinishLogin={() => setIsLoggedIn(true)}
         fontScale={fontScale}
         setFontScale={setFontScale}
         onSaveUserData={(data) => setUserProfile((prev) => ({ ...prev, ...data }))}
@@ -199,8 +146,8 @@ function MainApp() {
           </View>
         </View>
 
-        {/* Barra de Alerta Permanente en Rojo */}
-        {currentTab !== 'chat' && (
+        {/* Barra de Alerta Permanente en Rojo (salvo en chat o detalle) */}
+        {currentTab !== 'chat' && currentTab !== 'detail' && (
           <EmergencyBanner
             onOpenEmergency={() => handleNavigate('emergency')}
             fontScale={fontScale}
@@ -213,12 +160,33 @@ function MainApp() {
             <HomeScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
+              onOpenDetail={handleOpenDetail}
             />
           )}
 
           {currentTab === 'services' && (
             <ServicesScreen
               onNavigate={handleNavigate}
+              fontScale={fontScale}
+              onOpenChat={handleOpenChatWith}
+              onOpenDetail={handleOpenDetail}
+            />
+          )}
+
+          {currentTab === 'products' && (
+            <ProductsScreen
+              onNavigate={handleNavigate}
+              fontScale={fontScale}
+              onOpenDetail={handleOpenDetail}
+              onOpenChat={handleOpenChatWith}
+            />
+          )}
+
+          {currentTab === 'detail' && (
+            <ItemDetailScreen
+              item={selectedItem}
+              type={selectedItemType}
+              onBack={() => setCurrentTab(previousTab || 'home')}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
             />
@@ -262,11 +230,7 @@ function MainApp() {
             <ProfileScreen
               fontScale={fontScale}
               setFontScale={setFontScale}
-              onRestartOnboarding={() => {
-                setIsLoggedIn(false);
-                setAuthView('register');
-              }}
-              onLogout={handleLogout}
+              onRestartOnboarding={() => setIsLoggedIn(false)}
               helpedCount={helpedCount}
               userProfile={userProfile}
               onOpenChat={() => {
@@ -285,8 +249,8 @@ function MainApp() {
           )}
         </View>
 
-        {/* Barra de Navegación Inferior */}
-        {currentTab !== 'chat' && (
+        {/* Barra de Navegación Inferior (Oculta en chat y detalle para mayor comodidad) */}
+        {currentTab !== 'chat' && currentTab !== 'detail' && (
           <BottomNavBar
             currentTab={currentTab}
             onSelectTab={handleNavigate}
@@ -296,14 +260,6 @@ function MainApp() {
 
       </View>
     </SafeAreaView>
-  );
-}
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
   );
 }
 

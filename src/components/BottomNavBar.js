@@ -35,6 +35,7 @@ export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0 
         }
 
         const isActive = currentTab === tab.id ||
+          (tab.id === 'services' && currentTab === 'products') ||
           (tab.id === 'solidarity' && currentTab === 'eco_solidaria') ||
           (tab.id === 'home' && currentTab === 'emergency');
 

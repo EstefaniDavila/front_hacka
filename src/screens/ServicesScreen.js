@@ -12,7 +12,7 @@ import {
 import { COLORS } from '../theme/colors';
 import { mockServices } from '../data/mockData';
 
-export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat }) {
+export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [filterType, setFilterType] = useState('near'); // near, recommended, promos
 
@@ -140,7 +140,14 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
       </View>
 
       {mockServices.map((service) => (
-        <View key={service.id} style={styles.serviceItemCard}>
+        <TouchableOpacity
+          key={service.id}
+          style={styles.serviceItemCard}
+          activeOpacity={0.88}
+          onPress={() => {
+            if (onOpenDetail) onOpenDetail(service, 'service');
+          }}
+        >
           <View style={styles.serviceItemTop}>
             <Image source={{ uri: service.provider_avatar }} style={styles.providerAvatar} />
             <View style={styles.providerInfo}>
@@ -190,7 +197,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
       ))}
 
       {/* Banner de Emergencia Inferior (Rojo) */}

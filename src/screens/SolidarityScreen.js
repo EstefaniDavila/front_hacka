@@ -7,7 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  Modal
+  Modal,
+  Image
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { mockSolidarityPosts } from '../data/mockData';
@@ -261,7 +262,11 @@ export default function SolidarityScreen({
 
           <View style={styles.postFooter}>
             <View style={styles.authorRow}>
-              <Text style={{ fontSize: 16, marginRight: 6 }}>{post.author_avatar || '👤'}</Text>
+              {post.author_avatar && post.author_avatar.startsWith('http') ? (
+                <Image source={{ uri: post.author_avatar }} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
+              ) : (
+                <Text style={{ fontSize: 16, marginRight: 6 }}>{post.author_avatar || '👤'}</Text>
+              )}
               <Text style={[styles.authorName, { fontSize: scale(11) }]}>
                 {post.author_name} • {post.block_code}
               </Text>
@@ -302,7 +307,11 @@ export default function SolidarityScreen({
                 </Text>
 
                 <View style={styles.modalAuthorBox}>
-                  <Text style={{ fontSize: 36, marginRight: 10 }}>{selectedPost.author_avatar || '👵'}</Text>
+                  {selectedPost.author_avatar && selectedPost.author_avatar.startsWith('http') ? (
+                    <Image source={{ uri: selectedPost.author_avatar }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 10 }} />
+                  ) : (
+                    <Text style={{ fontSize: 36, marginRight: 10 }}>{selectedPost.author_avatar || '👵'}</Text>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.modalAuthorName, { fontSize: scale(14) }]}>
                       {selectedPost.author_name}
