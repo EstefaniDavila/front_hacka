@@ -1,0 +1,103 @@
+================================================================================
+          GUIA DE EJECUCION DEL FRONTEND - VECIRED IA (REACT NATIVE / EXPO)
+================================================================================
+
+Repositorio oficial:
+https://github.com/EstefaniDavila/front_hacka.git
+
+--------------------------------------------------------------------------------
+1. REQUISITOS PREVIOS EN TU COMPUTADORA
+--------------------------------------------------------------------------------
+1.1 Tener instalado Node.js (Version 18 o superior recomendada):
+    - Puedes descargarlo gratis desde: https://nodejs.org/
+    - Para verificar si ya lo tienes instalado, abre tu terminal y escribe:
+        node -v
+        npm -v
+
+--------------------------------------------------------------------------------
+2. PASO INICIAL: DESCARGAR EL PROYECTO
+--------------------------------------------------------------------------------
+Opcion A: Clonar por Git en la terminal:
+    git clone https://github.com/EstefaniDavila/front_hacka.git
+    cd front_hacka
+
+Opcion B: Descargar en archivo .ZIP:
+    1. Entra a https://github.com/EstefaniDavila/front_hacka
+    2. Haz clic en el boton verde "<> Code" y luego en "Download ZIP".
+    3. Descomprime la carpeta en tu computadora (ejemplo: en el Escritorio).
+    4. Abre una terminal dentro de esa carpeta descomprimida.
+
+--------------------------------------------------------------------------------
+3. INSTALAR LAS DEPENDENCIAS DEL PROYECTO
+--------------------------------------------------------------------------------
+Dentro de la carpeta del proyecto, ejecuta una sola vez:
+
+    npm install
+
+(Esto descargara automaticamente todas las librerias de Expo y React Native).
+
+================================================================================
+4. COMO EJECUTAR EN LA WEB (EN EL NAVEGADOR DE TU PC)
+================================------------------------------------------------
+En la terminal dentro de la carpeta del proyecto ejecuta:
+
+    npx expo start --web
+
+(o tambien puedes escribir: npm run web)
+
+- Se abrira automaticamente en tu navegador web la direccion:
+  http://localhost:8081
+- Podras ver y probar todas las pantallas y funciones interactivas en tu PC.
+
+================================================================================
+5. COMO EJECUTAR EN EL CELULAR (ANDROID O IPHONE)
+================================================================================
+
+¿QUE SE NECESITA INSTALAR EN EL CELULAR?
+-----------------------------------------
+En tu telefono celular SOLO necesitas instalar una aplicacion gratuita oficial
+llamada "Expo Go" desde la tienda de aplicaciones:
+
+* En Android (Google Play Store):
+  Busca: "Expo Go"
+  Link directo: https://play.google.com/store/apps/details?id=host.exp.exponent
+
+* En iPhone / iOS (App Store):
+  Busca: "Expo Go"
+  Link directo: https://apps.apple.com/app/expo-go/id982107779
+
+PASOS PARA VER LA APLICACION EN EL CELULAR:
+--------------------------------------------
+1. Asegurate de que tu computadora y tu celular esten conectados a la MISMA red Wi-Fi.
+2. En la terminal de tu computadora dentro del proyecto ejecuta:
+
+    npx expo start
+
+3. Aparecera un codigo QR grande en la pantalla de la terminal.
+4. Para abrirlo en el telefono:
+   - En Android: Abre la aplicacion "Expo Go", pulsa en "Scan QR code" y escanea el codigo QR de la pantalla de tu computadora.
+   - En iPhone: Abre la aplicacion de Camara normal del iPhone, enfoca el codigo QR y toca la notificacion que dice "Open in Expo Go".
+5. ¡Listo! La aplicacion VeciRed IA cargara inmediatamente en tu celular.
+
+================================================================================
+6. RECORRIDO DE LA APLICACION (FUNCIONALIDADES)
+================================================================================
+1. LOGIN / ONBOARDING (Solo la primera vez que se entra):
+   - Paso 1: Bienvenida comunitaria.
+   - Paso 2: Registro de Celular, Nombre y Profesion u Habilidad vecinal 
+             (incluye opcion de "Apoyo general / Voluntario" si no tiene oficio).
+   - Paso 3: Escaneo de DNI por AMBOS LADOS (Frente y Reverso con OCR).
+   - Paso 4: Biometria facial con prueba de vida (Liveness check).
+   - Paso 5: Permiso y deteccion GPS de tu direccion vecinal con boton 
+             "Si, es mi direccion" o "No es mi direccion / Corregir manualmente".
+   - Paso 6: Confirmacion de datos y selector de tamano de letra 
+             (Normal, Grande o Senior para personas mayores).
+
+2. PESTAÑAS PRINCIPALES:
+   - Inicio: Buscador IA barrial, cuadrantes y banner rojo de emergencia.
+   - Servicios: Radar de oficios cercanos con boton de WhatsApp y Visto Bueno vecinal.
+   - Ayuda Solidaria: Muro comunitario con boton directo "+ Publicar" y sub-tab de "Economia Solidaria".
+   - Mensajes (Icono de chat en la cabecera): Chatea dentro de la app con tus vecinos en tiempo real.
+   - Boton Central (+): Publicar productos y oficios con precio en Soles.
+   - Perfil: Muestra celular, habilidad comunitaria, DNI verificado, estadisticas y balance de ayuda.
+================================================================================
