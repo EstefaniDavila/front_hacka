@@ -107,3 +107,4 @@ export const api = {
     return request('/users/verification-status', { method: 'GET' }, token);
   }
 };
+
