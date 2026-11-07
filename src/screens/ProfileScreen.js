@@ -13,6 +13,7 @@ export default function ProfileScreen({
   fontScale = 1.0,
   setFontScale,
   onRestartOnboarding,
+  onLogout,
   helpedCount = 12,
   userProfile = {
     name: 'Doña Martha Quispe',
@@ -192,6 +193,19 @@ export default function ProfileScreen({
           🔄 Probar de nuevo el Login y Escaneo de DNI
         </Text>
       </TouchableOpacity>
+
+      {/* Botón de Cerrar Sesión */}
+      {onLogout ? (
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={onLogout}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.logoutButtonText, { fontSize: scale(12) }]}>
+            🚪 Cerrar Sesión de Vecino
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
     </ScrollView>
   );
@@ -420,5 +434,18 @@ const styles = StyleSheet.create({
   restartButtonText: {
     fontWeight: '800',
     color: COLORS.primaryDark
+  },
+  logoutButton: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1.5,
+    borderColor: COLORS.emergency,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 8
+  },
+  logoutButtonText: {
+    fontWeight: '800',
+    color: COLORS.emergencyDark
   }
 });

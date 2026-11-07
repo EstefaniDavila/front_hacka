@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   SafeAreaView,
   StatusBar,
-  TouchableOpacity
+  TouchableOpacity,
+  ActivityIndicator
 } from 'react-native';
 import { COLORS } from './src/theme/colors';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 
-// Componentes y Pantallas
+// Pantallas de Autenticación
+import LoginScreen from './src/screens/LoginScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+
+// Componentes y Pantallas Principales
 import EmergencyBanner from './src/components/EmergencyBanner';
 import BottomNavBar from './src/components/BottomNavBar';
-import OnboardingScreen from './src/screens/OnboardingScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ServicesScreen from './src/screens/ServicesScreen';
 import SolidarityScreen from './src/screens/SolidarityScreen';
@@ -22,9 +28,14 @@ import PublishScreen from './src/screens/PublishScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ChatScreen from './src/screens/ChatScreen';
 
-export default function App() {
-  // Simulación de instalación y primer inicio (Login/Onboarding)
+function MainApp() {
+  const { profile, isAuthenticated, isLoading, logout } = useAuth();
+
+  // Simulación y control de sesión
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // Vista de autenticación: 'login' | 'register' | 'forgot_password'
+  const [authView, setAuthView] = useState('login');
   
   // Pestaña activa: home, services, solidarity, eco_solidaria, emergency, publish, profile, chat
   const [currentTab, setCurrentTab] = useState('home');
@@ -47,6 +58,21 @@ export default function App() {
     address: 'Calle Los Nogales 214, Mz B Lote 4 • Zona A'
   });
 
+  // Sincronizar datos si el backend retorna un perfil
+  useEffect(() => {
+    if (profile) {
+      setUserProfile((prev) => ({
+        ...prev,
+        name: profile.full_name || prev.name,
+        phone: profile.phone || prev.phone
+      }));
+      if (profile.font_scale_preference) {
+        const val = parseFloat(profile.font_scale_preference);
+        if (!isNaN(val)) setFontScale(val);
+      }
+    }
+  }, [profile]);
+
   const scale = (val) => Math.round(val * fontScale);
 
   const handleNavigate = (tab) => {
@@ -60,14 +86,54 @@ export default function App() {
     setCurrentTab('chat');
   };
 
-  // Si aún no ha iniciado sesión por primera vez, muestra el Onboarding / Registro DNI
-  if (!isLoggedIn) {
+  const handleLogout = async () => {
+    await logout();
+    setIsLoggedIn(false);
+    setAuthView('login');
+  };
+
+  // Indicador de carga inicial
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  // Si no está autenticado ni marcado como logueado
+  const userIsActive = isAuthenticated || isLoggedIn;
+
+  if (!userIsActive) {
+    if (authView === 'login') {
+      return (
+        <LoginScreen
+          onNavigateToRegister={() => setAuthView('register')}
+          onNavigateToForgotPassword={() => setAuthView('forgot_password')}
+          fontScale={fontScale}
+        />
+      );
+    }
+
+    if (authView === 'forgot_password') {
+      return (
+        <ForgotPasswordScreen
+          onBackToLogin={() => setAuthView('login')}
+          fontScale={fontScale}
+        />
+      );
+    }
+
     return (
       <OnboardingScreen
-        onFinishLogin={() => setIsLoggedIn(true)}
+        onFinishLogin={() => {
+          setIsLoggedIn(true);
+          setAuthView('login');
+        }}
+        onNavigateToLogin={() => setAuthView('login')}
         fontScale={fontScale}
         setFontScale={setFontScale}
-        onSaveUserData={(data) => setUserProfile(prev => ({ ...prev, ...data }))}
+        onSaveUserData={(data) => setUserProfile((prev) => ({ ...prev, ...data }))}
       />
     );
   }
@@ -133,7 +199,7 @@ export default function App() {
           </View>
         </View>
 
-        {/* Barra de Alerta Permanente en Rojo (En todas las pantallas salvo en chat si se desea) */}
+        {/* Barra de Alerta Permanente en Rojo */}
         {currentTab !== 'chat' && (
           <EmergencyBanner
             onOpenEmergency={() => handleNavigate('emergency')}
@@ -163,7 +229,7 @@ export default function App() {
               onNavigate={handleNavigate}
               fontScale={fontScale}
               helpedCount={helpedCount}
-              onIncrementHelped={() => setHelpedCount(prev => prev + 1)}
+              onIncrementHelped={() => setHelpedCount((prev) => prev + 1)}
               onOpenChat={handleOpenChatWith}
             />
           )}
@@ -172,7 +238,7 @@ export default function App() {
             <EcoSolidariaScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
-              onIncrementHelped={() => setHelpedCount(prev => prev + 1)}
+              onIncrementHelped={() => setHelpedCount((prev) => prev + 1)}
               onOpenChat={handleOpenChatWith}
             />
           )}
@@ -196,7 +262,11 @@ export default function App() {
             <ProfileScreen
               fontScale={fontScale}
               setFontScale={setFontScale}
-              onRestartOnboarding={() => setIsLoggedIn(false)}
+              onRestartOnboarding={() => {
+                setIsLoggedIn(false);
+                setAuthView('register');
+              }}
+              onLogout={handleLogout}
               helpedCount={helpedCount}
               userProfile={userProfile}
               onOpenChat={() => {
@@ -215,7 +285,7 @@ export default function App() {
           )}
         </View>
 
-        {/* Barra de Navegación Inferior (Oculta si está dentro de una conversación de chat individual para más espacio) */}
+        {/* Barra de Navegación Inferior */}
         {currentTab !== 'chat' && (
           <BottomNavBar
             currentTab={currentTab}
@@ -226,6 +296,14 @@ export default function App() {
 
       </View>
     </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
 
