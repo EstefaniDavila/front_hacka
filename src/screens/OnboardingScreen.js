@@ -7,7 +7,9 @@ import {
   StyleSheet,
   ScrollView,
   SafeAreaView,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform,
+  StatusBar
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 
@@ -626,11 +628,15 @@ export default function OnboardingScreen({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.white
+    backgroundColor: COLORS.white,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background
+    backgroundColor: COLORS.background,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center'
   },
   headerProgress: {
     paddingHorizontal: 20,

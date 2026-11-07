@@ -28,13 +28,18 @@ Opcion B: Descargar en archivo .ZIP:
     4. Abre una terminal dentro de esa carpeta descomprimida.
 
 --------------------------------------------------------------------------------
-3. INSTALAR LAS DEPENDENCIAS DEL PROYECTO
+3. INSTALAR LAS DEPENDENCIAS DEL PROYECTO (¡PASO OBLIGATORIO PRIMERO!)
 --------------------------------------------------------------------------------
-Dentro de la carpeta del proyecto, ejecuta una sola vez:
+Dentro de la carpeta del proyecto, ejecuta siempre antes de iniciar:
 
     npm install
 
-(Esto descargara automaticamente todas las librerias de Expo y React Native).
+(Esto descargará todas las librerías necesarias de Expo y React Native en la carpeta node_modules).
+
+* NOTA IMPORTANTE:
+Si intentas ejecutar "npx expo start" antes de "npm install", la terminal te mostrará el error:
+"ConfigError: Cannot determine the project's Expo SDK version because the module 'expo' is not installed."
+Para solucionarlo, simplemente ejecuta "npm install" y luego "npx expo start".
 
 ================================================================================
 4. COMO EJECUTAR EN LA WEB (EN EL NAVEGADOR DE TU PC)

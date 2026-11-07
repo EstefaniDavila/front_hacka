@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -155,6 +155,7 @@ export default function ChatScreen({
   });
 
   const [inputText, setInputText] = useState('');
+  const scrollViewRef = useRef(null);
 
   const quickReplies = [
     '¡Hola vecina! Cuenta con mi apoyo 🤝',
@@ -191,7 +192,7 @@ export default function ChatScreen({
   // VISTA 1: DETALLE DE CONVERSACIÓN (CHAT ABIERTO)
   if (selectedChat) {
     return (
-      <SafeAreaView style={styles.chatDetailContainer}>
+      <View style={styles.chatDetailContainer}>
         {/* Cabecera del Chat con Vecino */}
         <View style={styles.chatDetailHeader}>
           <TouchableOpacity
@@ -234,107 +235,114 @@ export default function ChatScreen({
           </TouchableOpacity>
         </View>
 
-        {/* Tarjeta de tema / confianza comunitaria */}
-        <View style={styles.topicCard}>
-          <Text style={[styles.topicCardText, { fontSize: scale(11) }]}>
-            📌 Tema: <Text style={{ fontWeight: '900', color: COLORS.primaryDeep }}>{selectedChat.topic}</Text>
-          </Text>
-          <Text style={[styles.topicCardSecure, { fontSize: scale(9) }]}>
-            🔒 Chat vecinal seguro: Los números se protegen contra spam.
-          </Text>
-        </View>
-
-        {/* Lista de Mensajes */}
-        <ScrollView
-          style={styles.messagesList}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
+        {/* Contenedor que empuja el teclado y mantiene el input visible */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
         >
-          {selectedChat.messages.map((msg) => {
-            const isMe = msg.sender === 'me';
-            return (
-              <View
-                key={msg.id}
-                style={[
-                  styles.messageRow,
-                  isMe ? styles.messageRowMe : styles.messageRowThem
-                ]}
-              >
+          {/* Tarjeta de tema / confianza comunitaria */}
+          <View style={styles.topicCard}>
+            <Text style={[styles.topicCardText, { fontSize: scale(11) }]}>
+              📌 Tema: <Text style={{ fontWeight: '900', color: COLORS.primaryDeep }}>{selectedChat.topic}</Text>
+            </Text>
+            <Text style={[styles.topicCardSecure, { fontSize: scale(9) }]}>
+              🔒 Chat vecinal seguro: Los números se protegen contra spam.
+            </Text>
+          </View>
+
+          {/* Lista de Mensajes con scroll automático al escribir */}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesList}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          >
+            {selectedChat.messages.map((msg) => {
+              const isMe = msg.sender === 'me';
+              return (
                 <View
+                  key={msg.id}
                   style={[
-                    styles.messageBubble,
-                    isMe ? styles.bubbleMe : styles.bubbleThem
+                    styles.messageRow,
+                    isMe ? styles.messageRowMe : styles.messageRowThem
                   ]}
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.messageText,
-                      isMe ? styles.messageTextMe : styles.messageTextThem,
-                      { fontSize: scale(13) }
+                      styles.messageBubble,
+                      isMe ? styles.bubbleMe : styles.bubbleThem
                     ]}
                   >
-                    {msg.text}
-                  </Text>
-                  <View style={styles.messageFooter}>
                     <Text
                       style={[
-                        styles.messageTime,
-                        isMe ? styles.messageTimeMe : styles.messageTimeThem,
-                        { fontSize: scale(9) }
+                        styles.messageText,
+                        isMe ? styles.messageTextMe : styles.messageTextThem,
+                        { fontSize: scale(13) }
                       ]}
                     >
-                      {msg.time}
+                      {msg.text}
                     </Text>
-                    {isMe && (
-                      <Text style={[styles.checkmarks, { fontSize: scale(10) }]}>
-                        {' '}✓✓
+                    <View style={styles.messageFooter}>
+                      <Text
+                        style={[
+                          styles.messageTime,
+                          isMe ? styles.messageTimeMe : styles.messageTimeThem,
+                          { fontSize: scale(9) }
+                        ]}
+                      >
+                        {msg.time}
                       </Text>
-                    )}
+                      {isMe && (
+                        <Text style={[styles.checkmarks, { fontSize: scale(10) }]}>
+                          {' '}✓✓
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 </View>
-              </View>
-            );
-          })}
-        </ScrollView>
-
-        {/* Respuestas Rápidas Sugeridas */}
-        <View style={styles.quickRepliesContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, gap: 6 }}>
-            {quickReplies.map((qr, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={styles.quickReplyPill}
-                onPress={() => handleSendMessage(qr)}
-              >
-                <Text style={[styles.quickReplyText, { fontSize: scale(10) }]}>
-                  {qr}
-                </Text>
-              </TouchableOpacity>
-            ))}
+              );
+            })}
           </ScrollView>
-        </View>
 
-        {/* Barra de Entrada de Texto */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.inputContainer}
-        >
-          <TextInput
-            style={[styles.textInput, { fontSize: scale(13) }]}
-            placeholder="Escribe un mensaje al vecino..."
-            placeholderTextColor={COLORS.textMuted}
-            value={inputText}
-            onChangeText={setInputText}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, !inputText.trim() && { opacity: 0.6 }]}
-            disabled={!inputText.trim()}
-            onPress={() => handleSendMessage()}
-          >
-            <Text style={styles.sendButtonText}>➤</Text>
-          </TouchableOpacity>
+          {/* Respuestas Rápidas Sugeridas */}
+          <View style={styles.quickRepliesContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, gap: 6 }}>
+              {quickReplies.map((qr, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.quickReplyPill}
+                  onPress={() => handleSendMessage(qr)}
+                >
+                  <Text style={[styles.quickReplyText, { fontSize: scale(10) }]}>
+                    {qr}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Barra de Entrada de Texto con botón Enviar visible */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.textInput, { fontSize: scale(13) }]}
+              placeholder="Escribe un mensaje al vecino..."
+              placeholderTextColor={COLORS.textMuted}
+              value={inputText}
+              onChangeText={setInputText}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, !inputText.trim() && { opacity: 0.6 }]}
+              disabled={!inputText.trim()}
+              onPress={() => handleSendMessage()}
+            >
+              <Text style={styles.sendButtonText}>➤</Text>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -509,7 +517,10 @@ const styles = StyleSheet.create({
   },
   chatDetailContainer: {
     flex: 1,
-    backgroundColor: COLORS.background
+    backgroundColor: COLORS.background,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center'
   },
   chatDetailHeader: {
     flexDirection: 'row',
