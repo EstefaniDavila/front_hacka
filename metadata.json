@@ -1,0 +1,8 @@
+{
+  "name": "VeciRed IA",
+  "description": "Red comunitaria inteligente y solidaria de vecinos verificados para asistencia en emergencias, oficios barriales y apoyo mutuo.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
