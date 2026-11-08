@@ -10,8 +10,11 @@ import {
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../api/apiClient';
+import { useAuth } from '../context/AuthContext';
 
-export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
+export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered }) {
+  const { session } = useAuth();
+  const token = session?.access_token;
   const [activeTab, setActiveTab] = useState('alert'); // 'alert' | 'map'
   const [activeEmergency, setActiveEmergency] = useState(null);
   const [volunteers, setVolunteers] = useState([
@@ -70,17 +73,65 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
       return;
     }
     const chosen = emergencyTypes.find(t => t.id === selectedType) || emergencyTypes[0];
+
+    // Mapeo seguro al backend de emergencias
+    const typeMap = {
+      inundacion: 'inundacion',
+      incendio: 'incendio',
+      medica: 'medica',
+      vivienda: 'sismo',
+      seguridad: 'seguridad',
+      recursos: 'otro'
+    };
+    const mappedType = typeMap[selectedType] || 'seguridad';
+
     const newAlert = {
       id: 'emg-' + Date.now(),
       title: `${chosen.name} en Manzana 2`,
-      description: chosen.sub,
+      description: `${chosen.sub}. Alerta comunitaria activada por vecino para auxilio inmediato en Zona A.`,
       location: 'Zona A – Manzana 2 (Alerta Activa)',
-      type: chosen.name
+      type: mappedType,
+      severity: 'critical'
     };
+
     setActiveEmergency(newAlert);
+    if (onAlertTriggered) {
+      onAlertTriggered(newAlert);
+    }
+
+    // Persistir de inmediato en el Backend PostgreSQL y notificar a la comunidad
+    if (token) {
+      try {
+        await api.reportEmergency(
+          {
+            type: mappedType,
+            title: newAlert.title,
+            desc: newAlert.description,
+            severity: 'critical'
+          },
+          token
+        );
+      } catch (err) {
+        console.warn('[EmergencyScreen] Error reportando emergencia al backend:', err);
+      }
+    }
+
+    // Disparar Web Notification si está habilitada en el navegador
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification('🚨 ¡Alerta Vecinal Activada!', {
+            body: `${chosen.name} en Manzana 2. Se solicita apoyo vecinal inmediato.`
+          });
+        } catch {}
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().catch(() => {});
+      }
+    }
+
     Alert.alert(
       '🚨 ¡Alerta Vecinal Activada!',
-      `Se ha enviado la alerta de "${chosen.name}" a los vecinos de tu manzana en Zona A.`
+      `Se ha emitido la alerta de "${chosen.name}" a todos los vecinos de tu manzana en Zona A.`
     );
   };
 

@@ -2,24 +2,32 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS } from '../theme/colors';
 
-export default function EmergencyBanner({ onOpenEmergency, emergencyTitle, fontScale = 1.0 }) {
+export default function EmergencyBanner({
+  onOpenEmergency,
+  onPressView,
+  emergencyTitle,
+  emergency,
+  fontScale = 1.0
+}) {
   const scale = (val) => Math.round(val * fontScale);
+  const titleText = emergencyTitle || emergency?.title || emergency?.name || 'Emergencia en Mz 2 (Zona A)';
+  const handlePress = onOpenEmergency || onPressView;
 
   return (
     <View style={styles.bannerContainer}>
       <View style={styles.leftContent}>
         <View style={styles.pulseDot} />
         <Text style={[styles.bannerText, { fontSize: scale(11) }]} numberOfLines={1}>
-          🚨 Alerta: {emergencyTitle || 'Emergencia en Mz 2 (Zona A)'}
+          🚨 Alerta: {titleText}
         </Text>
       </View>
       <TouchableOpacity
         style={styles.actionButton}
         activeOpacity={0.8}
-        onPress={onOpenEmergency}
+        onPress={handlePress}
       >
         <Text style={[styles.actionButtonText, { fontSize: scale(11) }]}>
-          Ver ayuda ›
+          Ver auxilio ›
         </Text>
       </TouchableOpacity>
     </View>

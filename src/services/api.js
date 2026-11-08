@@ -334,9 +334,10 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify({
+          emergency_type: emergencyData.type || emergencyData.emergency_type || 'seguridad',
           title: emergencyData.title,
           description: emergencyData.desc || emergencyData.description || '',
-          severity: emergencyData.severity || 'high'
+          severity: emergencyData.severity || 'critical'
         })
       },
       token
@@ -352,6 +353,33 @@ export const api = {
       },
       token
     );
+  },
+
+  // ==========================================================
+  // MÓDULO DE NOTIFICACIONES Y ALERTAS
+  // ==========================================================
+  async getNotifications(token) {
+    try {
+      return await request('/notifications', { method: 'GET' }, token);
+    } catch {
+      return [];
+    }
+  },
+
+  async getUnreadNotificationsCount(token) {
+    try {
+      return await request('/notifications/unread-count', { method: 'GET' }, token);
+    } catch {
+      return { unread_count: 0 };
+    }
+  },
+
+  async markNotificationAsRead(notificationId, token) {
+    try {
+      return await request(`/notifications/${notificationId}/read`, { method: 'PATCH' }, token);
+    } catch {
+      return null;
+    }
   },
 
   // ==========================================================

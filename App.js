@@ -35,6 +35,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import MyServicesScreen from './src/screens/MyServicesScreen';
 import ServiceDetailScreen from './src/screens/ServiceDetailScreen';
+import NotificationsModal from './src/components/NotificationsModal';
 
 class ScreenErrorBoundary extends React.Component {
   constructor(props) {
@@ -91,19 +92,50 @@ function MainApp() {
   const [selectedServiceId, setSelectedServiceId] = useState(null);
   const [backendOnline, setBackendOnline] = useState(false);
 
-  useEffect(() => {
-    api.checkHealth()
-      .then(res => setBackendOnline(res?.connected || false))
-      .catch(() => setBackendOnline(false));
-
-    api.getActiveEmergency()
-      .then(setActiveEmergency)
-      .catch(() => setActiveEmergency(null));
-  }, []);
-
   const [fontScale, setFontScale] = useState(1.0);
   const [helpedCount, setHelpedCount] = useState(0);
   const [activeEmergency, setActiveEmergency] = useState(null);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+  // Verificación de estado de backend y sondeo en tiempo real de alertas comunitarias
+  useEffect(() => {
+    let mounted = true;
+
+    api.checkHealth()
+      .then((res) => {
+        if (mounted) setBackendOnline(res?.connected || false);
+      })
+      .catch(() => {
+        if (mounted) setBackendOnline(false);
+      });
+
+    async function pollEmergenciesAndNotifications() {
+      try {
+        const emg = await api.getActiveEmergency();
+        if (mounted) {
+          setActiveEmergency(emg || null);
+        }
+      } catch {}
+
+      if (session?.access_token) {
+        try {
+          const countData = await api.getUnreadNotificationsCount(session.access_token);
+          if (mounted && countData && typeof countData.unread_count === 'number') {
+            setUnreadNotificationsCount(countData.unread_count);
+          }
+        } catch {}
+      }
+    }
+
+    pollEmergenciesAndNotifications();
+    const interval = setInterval(pollEmergenciesAndNotifications, 4500);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [session?.access_token]);
 
   const EMPTY_PROFILE = {
     name: '',
@@ -360,14 +392,16 @@ function MainApp() {
                 )}
               </TouchableOpacity>
 
-              {/* Botón de Notificaciones */}
+              {/* Botón de Notificaciones y Alertas Barriales */}
               <TouchableOpacity
                 style={styles.headerIconButton}
                 activeOpacity={0.8}
-                onPress={() => handleNavigate('solidarity')}
+                onPress={() => setShowNotificationsModal(true)}
               >
                 <Ionicons name="notifications" size={19} color={COLORS.primaryDark} />
-                <View style={styles.bellRedDot} />
+                {(unreadNotificationsCount > 0 || activeEmergency) && (
+                  <View style={styles.bellRedDot} />
+                )}
               </TouchableOpacity>
 
               {/* Avatar de Perfil */}
@@ -389,7 +423,9 @@ function MainApp() {
         {/* Banner de Emergencia Comunitaria Activa */}
         {activeEmergency && currentTab !== 'emergency' && (
           <EmergencyBanner
+            emergencyTitle={activeEmergency.title || activeEmergency.name}
             emergency={activeEmergency}
+            onOpenEmergency={() => handleNavigate('emergency')}
             onPressView={() => handleNavigate('emergency')}
             fontScale={fontScale}
           />
@@ -482,6 +518,7 @@ function MainApp() {
               onNavigate={handleNavigate}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
+              onAlertTriggered={(alert) => setActiveEmergency(alert)}
             />
           )}
 
@@ -535,6 +572,19 @@ function MainApp() {
             fontScale={fontScale}
           />
         )}
+
+        {/* Modal de Alertas y Notificaciones Comunitarias */}
+        <NotificationsModal
+          visible={showNotificationsModal}
+          onClose={() => setShowNotificationsModal(false)}
+          token={session?.access_token}
+          fontScale={fontScale}
+          activeEmergency={activeEmergency}
+          onViewEmergency={(notif) => {
+            setShowNotificationsModal(false);
+            handleNavigate('emergency');
+          }}
+        />
 
       </View>
     </SafeAreaView>
