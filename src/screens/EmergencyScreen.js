@@ -37,11 +37,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
   };
   const [activeTab, setActiveTab] = useState('alert'); // 'alert' | 'map'
   const [activeEmergency, setActiveEmergency] = useState(null);
-  const [volunteers, setVolunteers] = useState([
-    { id: '1', name: 'Martha Quispe', skill: 'Primeros Auxilios / Enfermería', avatar: '👵', distance: '50m', status: 'En guardia' },
-    { id: '2', name: 'Carlos Ramos', skill: 'Electricidad y Gasfitería', avatar: '👨‍🔧', distance: '120m', status: 'Disponible' },
-    { id: '3', name: 'Lucía Mendoza', skill: 'Apoyo Logístico / Agua', avatar: '👩', distance: '180m', status: 'En guardia' }
-  ]);
+  const [activeEmergenciesList, setActiveEmergenciesList] = useState([]);
+  const [volunteers, setVolunteers] = useState([]);
   const [isVolunteering, setIsVolunteering] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
   const [userCoords, setUserCoords] = useState({ lat: -12.0463, lng: -77.0427, zone: 'Zona A • Manzana 2' });
@@ -66,12 +63,39 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     }
   }, [activeTab]);
 
+  const loadVolunteersForEmergency = async (emgId) => {
+    if (!emgId) return;
+    try {
+      const vols = await api.getEmergencyVolunteers(emgId);
+      setVolunteers(Array.isArray(vols) ? vols : []);
+    } catch {
+      setVolunteers([]);
+    }
+  };
+
   const loadEmergencyData = async () => {
     try {
-      const emg = await api.getActiveEmergency();
-      if (emg) setActiveEmergency(emg);
-      const vols = await api.getEmergencyVolunteers();
-      if (vols && vols.length > 0) setVolunteers(vols);
+      const list = await api.getActiveEmergencies();
+      if (Array.isArray(list) && list.length > 0) {
+        setActiveEmergenciesList(list);
+        setActiveEmergency((prev) => {
+          if (!prev) {
+            loadVolunteersForEmergency(list[0].id);
+            return list[0];
+          }
+          const matched = list.find((e) => String(e.id) === String(prev.id));
+          const chosen = matched || list[0];
+          loadVolunteersForEmergency(chosen.id);
+          return chosen;
+        });
+      } else {
+        const emg = await api.getActiveEmergency();
+        if (emg) {
+          setActiveEmergency(emg);
+          setActiveEmergenciesList([emg]);
+          loadVolunteersForEmergency(emg.id);
+        }
+      }
     } catch {
       // mantener estado inicial limpio
     }
@@ -115,6 +139,7 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
 
     try {
       const updatedVols = await api.joinEmergencyBrigade({
+        emergency_id: activeEmergency?.id,
         name: myName,
         skill: mySkill,
         avatar: myAvatar,
@@ -183,15 +208,10 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       severity: 'critical'
     };
 
-    setActiveEmergency(newAlert);
-    if (onAlertTriggered) {
-      onAlertTriggered(newAlert);
-    }
-
     // Persistir de inmediato en el Backend PostgreSQL y notificar a la comunidad
     if (token) {
       try {
-        await api.reportEmergency(
+        const created = await api.reportEmergency(
           {
             type: mappedType,
             title: newAlert.title,
@@ -200,9 +220,20 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
           },
           token
         );
+        if (created && created.id) {
+          newAlert.id = created.id;
+        }
       } catch (err) {
         console.warn('[EmergencyScreen] Error reportando emergencia al backend:', err);
       }
+    }
+
+    setActiveEmergency(newAlert);
+    setActiveEmergenciesList((prev) => [newAlert, ...prev.filter((e) => String(e.id) !== String(newAlert.id))]);
+    setVolunteers([]); // La nueva alerta empieza con su propia brigada independiente
+
+    if (onAlertTriggered) {
+      onAlertTriggered(newAlert);
     }
 
     // Disparar Web Notification si está habilitada en el navegador
@@ -281,6 +312,35 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       {/* VISTA 1: ACTIVAR ALERTA */}
       {activeTab === 'alert' && (
         <View>
+          {/* Selector de Alertas Activas si hay más de una */}
+          {activeEmergenciesList && activeEmergenciesList.length > 1 && (
+            <View style={styles.alertSelectorCard}>
+              <Text style={[styles.alertSelectorTitle, { fontSize: scale(12) }]}>
+                📋 Alertas Activas en tu Zona ({activeEmergenciesList.length}) — Selecciona una:
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {activeEmergenciesList.map((emg) => {
+                  const isSelected = String(emg.id) === String(activeEmergency?.id);
+                  return (
+                    <TouchableOpacity
+                      key={emg.id}
+                      style={[styles.alertPill, isSelected && styles.alertPillActive]}
+                      onPress={() => {
+                        setActiveEmergency(emg);
+                        loadVolunteersForEmergency(emg.id);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.alertPillText, isSelected && styles.alertPillTextActive]}>
+                        {isSelected ? '🔴 ' : '⚠️ '}{emg.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Alerta Activa si existe */}
           {activeEmergency ? (
             <View style={styles.activeEmergencyBox}>
@@ -523,6 +583,39 @@ const styles = StyleSheet.create({
   tabBtnTextActive: {
     color: '#dc2626',
     fontWeight: '900'
+  },
+  alertSelectorCard: {
+    backgroundColor: '#fff1f2',
+    borderWidth: 1,
+    borderColor: '#fecdd3',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12
+  },
+  alertSelectorTitle: {
+    fontWeight: '800',
+    color: '#9f1239'
+  },
+  alertPill: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8
+  },
+  alertPillActive: {
+    backgroundColor: '#dc2626',
+    borderColor: '#b91c1c'
+  },
+  alertPillText: {
+    fontWeight: '700',
+    color: '#475569',
+    fontSize: 12
+  },
+  alertPillTextActive: {
+    color: '#ffffff'
   },
   activeEmergencyBox: {
     backgroundColor: '#fff1f2',

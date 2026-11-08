@@ -328,6 +328,17 @@ export const api = {
     }
   },
 
+  async getActiveEmergencies(communityId = null, token = null) {
+    try {
+      const endpoint = communityId ? `/emergencies/active-all?community_id=${communityId}` : '/emergencies/active-all';
+      const data = await request(endpoint, { method: 'GET' }, token);
+      if (Array.isArray(data)) return data;
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
   async reportEmergency(emergencyData, token) {
     return request(
       '/emergencies',

@@ -270,6 +270,7 @@ export default function ItemDetailScreen({
                 if (onOpenChat) {
                   onOpenChat({
                     name: personName,
+                    userId: item.seller_id || item.provider_id || item.user_id,
                     topic: `${isProduct ? 'Producto' : 'Servicio'}: ${title}`,
                     avatar: personAvatar && !personAvatar.startsWith('http') ? personAvatar : '👤',
                     zone: item.block_code || 'Zona A',

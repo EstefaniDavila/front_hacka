@@ -524,16 +524,6 @@ export default function ProfileScreen({
 
       {/* Acciones de Cuenta */}
       <View style={styles.accountCard}>
-        <TouchableOpacity
-          style={styles.accountBtn}
-          onPress={onRestartOnboarding}
-          activeOpacity={0.8}
-        >
-          <Feather name="refresh-cw" size={15} color={COLORS.primaryDark} style={{ marginRight: 8 }} />
-          <Text style={[styles.accountBtnText, { fontSize: scale(12) }]}>
-            Completar nuevo registro vecinal
-          </Text>
-        </TouchableOpacity>
 
         {onLogout && (
           <TouchableOpacity

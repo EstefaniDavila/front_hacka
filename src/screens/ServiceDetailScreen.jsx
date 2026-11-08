@@ -218,6 +218,7 @@ export default function ServiceDetailScreen({
                 if (onOpenChat) {
                   onOpenChat({
                     name: provider.full_name || service.provider_name,
+                    userId: service.provider_id || provider.id,
                     topic: service.title,
                     avatar: '👨‍🔧',
                     zone: 'Zona A',
