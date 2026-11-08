@@ -76,7 +76,7 @@ class ScreenErrorBoundary extends React.Component {
 }
 
 function MainApp() {
-  const { user, profile, isAuthenticated, isLoading, logout, updateUserProfile } = useAuth();
+  const { session, user, profile, isAuthenticated, isLoading, logout, updateUserProfile } = useAuth();
 
   // Control de sesión adicional para permitir alternar entre pantallas
   const [isLoggedIn, setIsLoggedIn] = useState(false);
