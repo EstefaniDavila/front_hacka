@@ -184,10 +184,18 @@ export default function OnboardingScreen({
   // HANDLERS PASO 3: VERIFICACIÓN FACIAL CON INSIGHTFACE
   // ==========================================================
   const handleFaceCaptured = (photo) => {
-    setSelfieFile(photo);
+    if (!photo || !photo.uri) return;
+    const formatted = {
+      uri: photo.uri,
+      name: photo.fileName || photo.name || 'selfie.jpg',
+      type: (photo.mimeType && photo.mimeType.includes('/')) ? photo.mimeType : 'image/jpeg',
+      width: photo.width,
+      height: photo.height
+    };
+    setSelfieFile(formatted);
     setShowCameraScanner(false);
     // Ejecutar comparación automática con el DNI
-    handleVerifyFaceMatch(photo);
+    handleVerifyFaceMatch(formatted);
   };
 
   const handleVerifyFaceMatch = async (capturedPhoto = selfieFile) => {
@@ -564,7 +572,16 @@ export default function OnboardingScreen({
                   subtitle="Foto clara donde se aprecie tu rostro y número de documento"
                   selectedImage={dniFrontFile}
                   onImageSelected={(asset) => {
-                    setDniFrontFile(asset);
+                    if (!asset || !asset.uri) return;
+                    const formatted = {
+                      uri: asset.uri,
+                      name: asset.fileName || asset.name || 'dni_front.jpg',
+                      type: (asset.mimeType && asset.mimeType.includes('/')) ? asset.mimeType : 'image/jpeg',
+                      width: asset.width,
+                      height: asset.height,
+                      fileSize: asset.fileSize
+                    };
+                    setDniFrontFile(formatted);
                     setDniExtractedData(null);
                     setIsUnderageBlocked(false);
                     setDniExtractionError('');
@@ -585,7 +602,16 @@ export default function OnboardingScreen({
                   subtitle="Donde figura el UBIGEO, código de barras y firma"
                   selectedImage={dniBackFile}
                   onImageSelected={(asset) => {
-                    setDniBackFile(asset);
+                    if (!asset || !asset.uri) return;
+                    const formatted = {
+                      uri: asset.uri,
+                      name: asset.fileName || asset.name || 'dni_back.jpg',
+                      type: (asset.mimeType && asset.mimeType.includes('/')) ? asset.mimeType : 'image/jpeg',
+                      width: asset.width,
+                      height: asset.height,
+                      fileSize: asset.fileSize
+                    };
+                    setDniBackFile(formatted);
                   }}
                   onImageRemoved={() => {
                     setDniBackFile(null);

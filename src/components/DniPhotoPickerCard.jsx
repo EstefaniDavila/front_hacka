@@ -105,7 +105,20 @@ export default function DniPhotoPickerCard({
         if (!validation.valid) {
           Alert.alert('Imagen no válida', validation.message);
         } else {
-          onImageSelected(asset);
+          const defaultName = side === 'front' ? 'dni_front.jpg' : 'dni_back.jpg';
+          const normalized = {
+            uri: asset.uri,
+            name: asset.fileName || asset.name || defaultName,
+            type: (asset.mimeType && asset.mimeType.includes('/'))
+              ? asset.mimeType
+              : (asset.uri?.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+            fileName: asset.fileName || defaultName,
+            mimeType: (asset.mimeType && asset.mimeType.includes('/')) ? asset.mimeType : 'image/jpeg',
+            width: asset.width,
+            height: asset.height,
+            fileSize: asset.fileSize
+          };
+          onImageSelected(normalized);
         }
       }
     } catch (err) {
@@ -146,7 +159,20 @@ export default function DniPhotoPickerCard({
         if (!validation.valid) {
           Alert.alert('Imagen no válida', validation.message);
         } else {
-          onImageSelected(asset);
+          const defaultName = side === 'front' ? 'dni_front.jpg' : 'dni_back.jpg';
+          const normalized = {
+            uri: asset.uri,
+            name: asset.fileName || asset.name || defaultName,
+            type: (asset.mimeType && asset.mimeType.includes('/'))
+              ? asset.mimeType
+              : (asset.uri?.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+            fileName: asset.fileName || defaultName,
+            mimeType: (asset.mimeType && asset.mimeType.includes('/')) ? asset.mimeType : 'image/jpeg',
+            width: asset.width,
+            height: asset.height,
+            fileSize: asset.fileSize
+          };
+          onImageSelected(normalized);
         }
       }
     } catch (err) {

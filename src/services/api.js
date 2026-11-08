@@ -14,6 +14,39 @@ export const API_BASE_URL = Platform.OS === 'web'
 let isBackendConnected = false;
 
 
+function createReactNativeFilePart(file, defaultName) {
+  if (!file) return null;
+  const uri = typeof file === 'string' ? file : file.uri;
+  if (!uri) return null;
+
+  let name = file.fileName || file.name;
+  if (!name && typeof uri === 'string') {
+    const lastSlash = uri.lastIndexOf('/');
+    if (lastSlash !== -1) {
+      const part = uri.substring(lastSlash + 1);
+      if (part && part.includes('.')) {
+        name = part;
+      }
+    }
+  }
+  if (!name) name = defaultName;
+
+  let type = file.mimeType;
+  if (!type || typeof type !== 'string' || !type.includes('/')) {
+    type = file.type;
+  }
+  if (!type || typeof type !== 'string' || !type.includes('/')) {
+    const lower = name.toLowerCase();
+    type = lower.endsWith('.png') ? 'image/png' : 'image/jpeg';
+  }
+
+  return {
+    uri,
+    name,
+    type
+  };
+}
+
 async function request(endpoint, options = {}, token = null) {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
@@ -27,12 +60,30 @@ async function request(endpoint, options = {}, token = null) {
     headers['X-Test-User-Id'] = 'a0000000-0000-0000-0000-000000000001';
   }
 
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+  // Detección robusta de FormData en React Native Android / iOS / Web
+  const isFormData =
+    Boolean(options.body) &&
+    (options.body instanceof FormData ||
+      typeof options.body?.getParts === 'function' ||
+      Array.isArray(options.body?._parts) ||
+      (typeof options.body === 'object' && Object.prototype.toString.call(options.body) === '[object FormData]') ||
+      (typeof options.body?.append === 'function' && typeof options.body?.delete === 'function'));
+
+  if (isFormData) {
+    // REGLA CRÍTICA PARA REACT NATIVE ANDROID:
+    // NUNCA establecer manualmente Content-Type cuando el body es FormData.
+    // Al eliminarlo, fetch y el motor nativo OkHttp establecen automáticamente
+    // 'multipart/form-data; boundary=...' sin romper la serialización de FormDataPart.
+    delete headers['Content-Type'];
+    delete headers['content-type'];
+  } else if (!headers['Content-Type'] && !headers['content-type']) {
     headers['Content-Type'] = 'application/json';
   }
 
+  // Aumentar el timeout para peticiones con imágenes multipart (OCR Claude Vision)
+  const timeoutMs = isFormData ? 45000 : 12000;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
@@ -99,28 +150,29 @@ export const api = {
   },
 
   // Subir DNI y Selfie para verificación biométrica con IA (compatible con React Native Android y Web)
-  async verifyIdentity({ dniFrontFile, dniBackFile, selfieFile, fullName }, token) {
+  async verifyIdentity({ dniFrontFile, dniBackFile, selfieFile, fullName }, token = null) {
     const formData = new FormData();
 
-    const appendFile = (field, file, defaultName) => {
-      if (!file) return;
-      if (file.uri && typeof file.uri === 'string') {
-        // Objeto nativo de React Native (expo-camera / ImagePicker)
-        formData.append(field, {
-          uri: file.uri,
-          name: file.fileName || file.name || defaultName,
-          type: file.mimeType || file.type || 'image/jpeg'
-        });
-      } else {
-        // Blob o File para navegador web
-        formData.append(field, file, defaultName);
-      }
-    };
+    const frontPart = createReactNativeFilePart(dniFrontFile, 'dni_front.jpg');
+    if (frontPart) {
+      formData.append('dni_front', frontPart);
+    }
 
-    appendFile('dni_front', dniFrontFile, 'dni_front.jpg');
-    appendFile('dni_back', dniBackFile, 'dni_back.jpg');
-    appendFile('selfie', selfieFile, 'selfie.jpg');
-    if (fullName) formData.append('full_name', fullName);
+    if (dniBackFile) {
+      const backPart = createReactNativeFilePart(dniBackFile, 'dni_back.jpg');
+      if (backPart) {
+        formData.append('dni_back', backPart);
+      }
+    }
+
+    const selfiePart = createReactNativeFilePart(selfieFile, 'selfie.jpg');
+    if (selfiePart) {
+      formData.append('selfie', selfiePart);
+    }
+
+    if (fullName) {
+      formData.append('full_name', String(fullName));
+    }
 
     return request(
       '/users/verify-identity',
@@ -135,22 +187,17 @@ export const api = {
   async extractDni({ dniFrontFile, dniBackFile }, token = null) {
     const formData = new FormData();
 
-    const appendFile = (field, file, defaultName) => {
-      if (!file) return;
-      if (file.uri) {
-        formData.append(field, {
-          uri: file.uri,
-          name: file.fileName || file.name || defaultName,
-          type: file.mimeType || file.type || 'image/jpeg'
-        });
-      } else {
-        formData.append(field, file, defaultName);
-      }
-    };
+    const frontPart = createReactNativeFilePart(dniFrontFile, 'dni_front.jpg');
+    if (!frontPart) {
+      throw new Error('La fotografía del anverso del DNI es obligatoria.');
+    }
+    formData.append('dni_front', frontPart);
 
-    appendFile('dni_front', dniFrontFile, 'dni_front.jpg');
     if (dniBackFile) {
-      appendFile('dni_back', dniBackFile, 'dni_back.jpg');
+      const backPart = createReactNativeFilePart(dniBackFile, 'dni_back.jpg');
+      if (backPart) {
+        formData.append('dni_back', backPart);
+      }
     }
 
     return request(
