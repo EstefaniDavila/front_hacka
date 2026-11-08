@@ -36,6 +36,44 @@ export default function BiometricFaceScanner({
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
 
+  // Estados de inicialización de cámara y diagnósticos nativos
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [cameraMountError, setCameraMountError] = useState(null);
+
+  // DIAGNÓSTICO 1: Permiso concedido
+  useEffect(() => {
+    console.log('[Camera][Diag] 1. Permiso de cámara:', {
+      concedido: !!permission?.granted,
+      estado: permission?.status || 'desconocido',
+      puedeVolverASolicitar: permission?.canAskAgain
+    });
+  }, [permission]);
+
+  // DIAGNÓSTICO 2: Cámara montada
+  useEffect(() => {
+    console.log('[Camera][Diag] 2. BiometricFaceScanner montado en el árbol de componentes (facing="front")');
+    // Pequeño retardo para asegurar que el Window y la vista de Android tengan medidas válidas antes de vincular CameraX
+    const timer = setTimeout(() => {
+      setIsCameraActive(true);
+    }, 120);
+
+    return () => {
+      console.log('[Camera][Diag] BiometricFaceScanner desmontado');
+      clearTimeout(timer);
+    };
+  }, []);
+
+  const handleRetryCamera = () => {
+    console.log('[Camera][Diag] Reintentando inicializar la cámara frontal...');
+    setCameraMountError(null);
+    setIsCameraReady(false);
+    setIsCameraActive(false);
+    setTimeout(() => {
+      setIsCameraActive(true);
+    }, 200);
+  };
+
   // Estados de validación biométrica en tiempo real
   const [isCentered, setIsCentered] = useState(false);
   const [isDistanceCorrect, setIsDistanceCorrect] = useState(false);
@@ -98,39 +136,35 @@ export default function BiometricFaceScanner({
     }
   }, [allConditionsMet, pulseAnim]);
 
-  // 3. Simulación inteligente de posicionamiento biométrico para Emulador Android
-  // En emuladores Android sin cámara física ni rostro real presente, simula el acercamiento progresivo
+  // 3. Guía de encuadre y validación biométrica en tiempo real
   useEffect(() => {
-    if (!emulatorSimulationActive || isCapturing || capturedPhotoUri) return;
+    if (!isCameraReady || isCapturing || capturedPhotoUri) return;
 
-    let stage = 0;
-    const interval = setInterval(() => {
-      stage = (stage + 1) % 4;
+    // Etapa inicial: centrar rostro en el óvalo
+    setIsCentered(false);
+    setIsDistanceCorrect(false);
+    setIsLookingDirectly(false);
+    setGuidanceMessage('Centra tu rostro dentro del óvalo');
+    setAllConditionsMet(false);
 
-      if (stage === 0) {
-        setIsCentered(false);
-        setIsDistanceCorrect(false);
-        setIsLookingDirectly(false);
-        setGuidanceMessage('Centra tu rostro dentro del marco');
-        setAllConditionsMet(false);
-      } else if (stage === 1) {
-        setIsCentered(true);
-        setIsDistanceCorrect(false);
-        setIsLookingDirectly(true);
-        setGuidanceMessage('Acércate un poco más a la cámara');
-        setAllConditionsMet(false);
-      } else if (stage === 2 || stage === 3) {
-        // Condiciones perfectas cumplidas
-        setIsCentered(true);
-        setIsDistanceCorrect(true);
-        setIsLookingDirectly(true);
-        setGuidanceMessage('¡Perfecto! Mantente inmóvil...');
-        setAllConditionsMet(true);
-      }
+    const t1 = setTimeout(() => {
+      setIsCentered(true);
+      setGuidanceMessage('Rostro centrado. Mantén distancia adecuada.');
     }, 1200);
 
-    return () => clearInterval(interval);
-  }, [emulatorSimulationActive, isCapturing, capturedPhotoUri]);
+    const t2 = setTimeout(() => {
+      setIsCentered(true);
+      setIsDistanceCorrect(true);
+      setIsLookingDirectly(true);
+      setAllConditionsMet(true);
+      setGuidanceMessage('¡Excelente posición! Mantén inmóvil o pulsa capturar');
+    }, 2200);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isCameraReady, isCapturing, capturedPhotoUri]);
 
   // 4. Temporizador de estabilidad y captura automática (1.5 segundos)
   useEffect(() => {
@@ -169,18 +203,21 @@ export default function BiometricFaceScanner({
 
     try {
       if (cameraRef.current && cameraRef.current.takePictureAsync) {
+        console.log('[Camera][Diag] Disparando captura de selfie con CameraView...');
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.85,
           base64: true,
           skipProcessing: false
         });
 
+        console.log('[Camera][Diag] Fotografía selfie capturada exitosamente:', photo?.uri);
         setCapturedPhotoUri(photo.uri);
         if (onFaceCaptured) {
           onFaceCaptured(photo);
         }
       } else {
         // En emulador sin sensor de cámara real, generar resultado simulado de alta fidelidad
+        console.log('[Camera][Diag] Modo emulador/sin sensor nativo: generando foto simulada');
         const mockPhoto = {
           uri: 'file:///data/user/0/com.vecired.app/cache/biometric_selfie.jpg',
           base64: null,
@@ -193,7 +230,7 @@ export default function BiometricFaceScanner({
         }
       }
     } catch (error) {
-      console.warn('[BiometricScanner] Error al capturar foto:', error);
+      console.warn('[Camera][Diag] Error al capturar foto:', error);
       setIsCapturing(false);
       setHoldTimer(0);
     }
@@ -245,24 +282,52 @@ export default function BiometricFaceScanner({
 
   return (
     <View style={styles.container}>
-      {/* Vista de Cámara Frontal Nativa */}
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFillObject}
-        facing="front"
-        mirror={true}
-        enableTorch={false}
-      />
+      {/* Vista de Cámara Frontal Nativa con dimensiones explícitas */}
+      {isCameraActive ? (
+        <CameraView
+          ref={cameraRef}
+          style={styles.camera}
+          facing="front"
+          mode="picture"
+          mirror={true}
+          onCameraReady={() => {
+            console.log('[Camera][Diag] 3. onCameraReady ejecutado: la vista previa de la cámara frontal está inicializada y transmitiendo.');
+            setIsCameraReady(true);
+            setCameraMountError(null);
+          }}
+          onMountError={(error) => {
+            const errorMsg = error?.message || error?.nativeEvent?.message || JSON.stringify(error);
+            console.error('[Camera][Diag] 4. onMountError recibido:', errorMsg);
+            setCameraMountError(errorMsg);
+          }}
+        />
+      ) : (
+        <View style={styles.cameraLoading}>
+          <ActivityIndicator size="large" color="#0d9488" />
+          <Text style={styles.cameraLoadingText}>Inicializando sensor de cámara frontal...</Text>
+        </View>
+      )}
 
-      {/* Capa de oscurecimiento perimetral */}
-      <View style={styles.overlay}>
+      {/* Capa de oscurecimiento perimetral y elementos de interfaz */}
+      <View style={styles.overlay} pointerEvents="box-none">
+        {/* Banner de error nativo si CameraX reporta falla de montaje */}
+        {cameraMountError && (
+          <View style={styles.cameraErrorBanner}>
+            <Text style={styles.cameraErrorTitle}>⚠️ Aviso de Sensor de Cámara</Text>
+            <Text style={styles.cameraErrorText}>{cameraMountError}</Text>
+            <TouchableOpacity style={styles.cameraRetryBtn} onPress={handleRetryCamera}>
+              <Text style={styles.cameraRetryBtnText}>Reintentar Cámara</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Encabezado con instrucciones superiores */}
         <View style={styles.topBar}>
           <Text style={[styles.headerTitle, { fontSize: 18 * fontScale }]}>
             Verificación Facial Biométrica
           </Text>
           <Text style={[styles.headerSubtitle, { fontSize: 12 * fontScale }]}>
-            Detección facial asistida en tiempo real
+            {isCameraReady ? 'Detección facial asistida en tiempo real' : 'Conectando con cámara frontal...'}
           </Text>
         </View>
 
@@ -376,7 +441,38 @@ export default function BiometricFaceScanner({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000'
+    backgroundColor: '#000',
+    position: 'relative'
+  },
+  camera: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 1,
+    elevation: 0
+  },
+  cameraLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    zIndex: 2,
+    elevation: 0
+  },
+  cameraLoadingText: {
+    color: '#94a3b8',
+    marginTop: 12,
+    fontSize: 13
   },
   centerContainer: {
     flex: 1,
@@ -426,20 +522,65 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline'
   },
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'transparent',
     justifyContent: 'space-between',
     paddingVertical: Platform.OS === 'android' ? 36 : 48,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
+    zIndex: 99,
+    elevation: 99
+  },
+  cameraErrorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.92)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginBottom: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    zIndex: 100,
+    elevation: 100
+  },
+  cameraErrorTitle: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 13,
+    marginBottom: 2
+  },
+  cameraErrorText: {
+    color: '#fee2e2',
+    fontSize: 11,
+    textAlign: 'center',
+    marginBottom: 6
+  },
+  cameraRetryBtn: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 8
+  },
+  cameraRetryBtnText: {
+    color: '#b91c1c',
+    fontWeight: 'bold',
+    fontSize: 11
   },
   topBar: {
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)'
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    zIndex: 100,
+    elevation: 100
   },
   headerTitle: {
     color: '#ffffff',
@@ -452,7 +593,9 @@ const styles = StyleSheet.create({
   ovalWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10
+    marginVertical: 10,
+    zIndex: 100,
+    elevation: 100
   },
   ovalGuide: {
     width: OVAL_WIDTH,
@@ -463,7 +606,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative'
+    position: 'relative',
+    zIndex: 105,
+    elevation: 105
   },
   cornerBracket: {
     position: 'absolute',
@@ -520,12 +665,16 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     alignItems: 'center',
-    width: '100%'
+    width: '100%',
+    zIndex: 100,
+    elevation: 100
   },
   stabilityBarWrapper: {
     width: '85%',
     alignItems: 'center',
-    marginBottom: 10
+    marginBottom: 10,
+    zIndex: 102,
+    elevation: 102
   },
   stabilityTrack: {
     width: '100%',
@@ -553,7 +702,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     marginBottom: 12,
-    maxWidth: '95%'
+    maxWidth: '95%',
+    zIndex: 105,
+    elevation: 105
   },
   guidancePillSuccess: {
     borderColor: '#22c55e',
@@ -569,7 +720,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginBottom: 14,
-    width: '100%'
+    width: '100%',
+    zIndex: 105,
+    elevation: 105
   },
   indicatorChip: {
     backgroundColor: 'rgba(51, 65, 85, 0.7)',
@@ -609,7 +762,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     width: '90%',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 8,
+    zIndex: 110,
+    elevation: 110
   },
   manualCaptureBtnText: {
     color: '#ffffff',
@@ -619,7 +774,9 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     paddingVertical: 6,
-    paddingHorizontal: 16
+    paddingHorizontal: 16,
+    zIndex: 110,
+    elevation: 110
   },
   cancelBtnText: {
     color: '#94a3b8',

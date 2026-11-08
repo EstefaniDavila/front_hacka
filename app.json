@@ -14,7 +14,9 @@
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -34,6 +36,13 @@
         "expo-image-picker",
         {
           "photosPermission": "Permite a VeciRed IA seleccionar las fotos de tu DNI desde la galería para verificar tu identidad."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite a VeciRed IA acceder a tu ubicación para registrar tu domicilio de residencia actual.",
+          "locationWhenInUsePermission": "Permite a VeciRed IA acceder a tu ubicación para registrar tu domicilio de residencia actual."
         }
       ]
     ],

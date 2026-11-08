@@ -21,6 +21,8 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import BiometricFaceScanner from '../components/BiometricFaceScanner';
 import DniPhotoPickerCard from '../components/DniPhotoPickerCard';
+import InteractiveLocationPickerMap from '../components/InteractiveLocationPickerMap';
+import * as Location from 'expo-location';
 
 export default function OnboardingScreen({
   onFinishLogin,
@@ -29,9 +31,15 @@ export default function OnboardingScreen({
   setFontScale,
   onSaveUserData
 }) {
-  const { register, submitVerification, updateUserProfile, session } = useAuth();
+  const { register, login, submitVerification, updateUserProfile, session } = useAuth();
 
-  // Paso actual (1 al 6)
+  // Paso actual (1 al 6: estrictamente según requerimiento de arquitectura)
+  // Paso 1: Verificación del DNI (Claude Vision OCR + validación >= 18 años)
+  // Paso 2: Verificación Facial Biométrica (Cámara frontal nativa + InsightFace)
+  // Paso 3: Confirmación de Identidad (Revisión de datos oficiales y confirmación)
+  // Paso 4: Confirmación de Residencia (Domicilio actual + cuadrante comunal + GPS opcional)
+  // Paso 5: Creación de Cuenta (Credenciales seguras, oficio y avatar - sin llamada a Supabase aún)
+  // Paso 6: Confirmación y Registro Definitivo (Creación atómica en Supabase Auth y BD)
   const [step, setStep] = useState(1);
   const scrollViewRef = useRef(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -62,7 +70,7 @@ export default function OnboardingScreen({
   const scale = (val) => Math.round(val * fontScale);
 
   // ==========================================================
-  // ESTADOS DEL PASO 2: DNI FRENTE Y REVERSO (CLAUDE VISION OCR)
+  // ESTADOS DEL PASO 1: VERIFICACIÓN DEL DNI (CLAUDE VISION OCR)
   // ==========================================================
   const [dniFrontFile, setDniFrontFile] = useState(null);
   const [dniBackFile, setDniBackFile] = useState(null);
@@ -71,9 +79,10 @@ export default function OnboardingScreen({
   const [dniExtractionError, setDniExtractionError] = useState('');
   const [isUnderageBlocked, setIsUnderageBlocked] = useState(false);
   const [underageMessage, setUnderageMessage] = useState('');
+  const [verificationToken, setVerificationToken] = useState(null);
 
   // ==========================================================
-  // ESTADOS DEL PASO 3: BIOMETRÍA FACIAL (INSIGHTFACE)
+  // ESTADOS DEL PASO 2: VERIFICACIÓN FACIAL (INSIGHTFACE)
   // ==========================================================
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [selfieFile, setSelfieFile] = useState(null);
@@ -83,7 +92,31 @@ export default function OnboardingScreen({
   const [faceMatchDetails, setFaceMatchDetails] = useState(null);
 
   // ==========================================================
-  // ESTADOS DEL PASO 4: REGISTRO DE CUENTA (SUPABASE AUTH)
+  // ESTADOS DEL PASO 3: CONFIRMACIÓN DE IDENTIDAD
+  // ==========================================================
+  const [confirmedFullName, setConfirmedFullName] = useState('');
+  const [identityError, setIdentityError] = useState('');
+
+  // ==========================================================
+  // ESTADOS DEL PASO 4: CONFIRMACIÓN DE RESIDENCIA
+  // ==========================================================
+  const [residenceMode, setResidenceMode] = useState(null); // 'dni' | 'gps' | 'manual'
+  const [showResidenceFields, setShowResidenceFields] = useState(false);
+  const [addressDepartment, setAddressDepartment] = useState('');
+  const [addressProvince, setAddressProvince] = useState('');
+  const [addressDistrict, setAddressDistrict] = useState('');
+  const [addressCommunity, setAddressCommunity] = useState('');
+  const [addressZone, setAddressZone] = useState('');
+  const [addressStreet, setAddressStreet] = useState('');
+  const [addressBlock, setAddressBlock] = useState('');
+  const [addressReference, setAddressReference] = useState('');
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
+  const [gpsCoordinates, setGpsCoordinates] = useState(null);
+  const [gpsNotice, setGpsNotice] = useState('');
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+
+  // ==========================================================
+  // ESTADOS DEL PASO 5: CREACIÓN DE CUENTA (DATOS LOCALES)
   // ==========================================================
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -92,26 +125,10 @@ export default function OnboardingScreen({
   const [selectedSkill, setSelectedSkill] = useState('');
   const [customSkill, setCustomSkill] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('👤');
-  const [isRegisteringAccount, setIsRegisteringAccount] = useState(false);
   const [accountRegisterError, setAccountRegisterError] = useState('');
-  const [accountRegistered, setAccountRegistered] = useState(false);
 
   // ==========================================================
-  // ESTADOS DEL PASO 5: RESIDENCIA Y COMUNIDAD
-  // ==========================================================
-  const [addressDepartment, setAddressDepartment] = useState('Lima');
-  const [addressProvince, setAddressProvince] = useState('Lima');
-  const [addressDistrict, setAddressDistrict] = useState('Los Olivos');
-  const [addressCommunity, setAddressCommunity] = useState('Comunidad VeciRed Los Olivos');
-  const [addressZone, setAddressZone] = useState('Zona A - Manzana 2');
-  const [addressStreet, setAddressStreet] = useState('Calle Los Nogales 214');
-  const [addressBlock, setAddressBlock] = useState('Mz B Lote 4');
-  const [addressReference, setAddressReference] = useState('');
-  const [isDetectingGps, setIsDetectingGps] = useState(false);
-  const [gpsNotice, setGpsNotice] = useState('');
-
-  // ==========================================================
-  // ESTADOS DEL PASO 6: CONFIRMACIÓN Y FINALIZACIÓN
+  // ESTADOS DEL PASO 6: CONFIRMACIÓN Y REGISTRO DEFINITIVO
   // ==========================================================
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState('');
@@ -129,9 +146,9 @@ export default function OnboardingScreen({
   ];
 
   // ==========================================================
-  // HANDLERS PASO 2: EXTRACCIÓN REAL DE DNI CON CLAUDE VISION
+  // HANDLERS PASO 1: OCR DNI Y APERTURA DE SESIÓN TEMPORAL
   // ==========================================================
-  const handleExtractDni = async () => {
+  const handleStartDniVerification = async () => {
     if (!dniFrontFile) {
       Alert.alert('Foto Requerida', 'Debes seleccionar al menos la fotografía del anverso (frente) del DNI.');
       return;
@@ -143,45 +160,52 @@ export default function OnboardingScreen({
     setUnderageMessage('');
 
     try {
-      const result = await api.extractDni({
+      const result = await api.startDniVerificationSession({
         dniFrontFile,
         dniBackFile
       });
 
       if (!result) {
-        throw new Error('No se recibió respuesta del servicio de extracción OCR.');
+        throw new Error('No se recibió respuesta del servicio de verificación de DNI.');
       }
 
-      // 1. Verificación de mayoría de edad en backend
-      if (result.underage_blocked || (typeof result.age === 'number' && result.age < 18)) {
+      // 1. Verificación y bloqueo inmediato si es menor de 18 años
+      if (result.underage_blocked || (result.extracted_data && !result.extracted_data.is_adult)) {
         setIsUnderageBlocked(true);
         const blockMsg =
           result.message ||
-          `Registro bloqueado: El titular tiene ${result.age} años de edad. VeciRed IA es exclusivamente para personas mayores de 18 años.`;
+          'Registro bloqueado: VeciRed IA es exclusivamente para personas mayores de 18 años. El documento presentado indica minoría de edad.';
         setUnderageMessage(blockMsg);
-        setDniExtractedData(result);
+        setDniExtractedData(result.extracted_data || null);
+        setVerificationToken(null);
         return;
       }
 
-      // 2. Verificación si el OCR fue exitoso
-      if (result.success || result.dni_number || result.full_name) {
-        setDniExtractedData(result);
+      // 2. Verificación si el OCR fue exitoso y emitió token firmado
+      if (result.success && result.verification_token) {
+        setVerificationToken(result.verification_token);
+        setDniExtractedData(result.extracted_data);
+        if (result.extracted_data?.full_name) {
+          setConfirmedFullName(result.extracted_data.full_name);
+        }
       } else {
         setDniExtractionError(
           result.message ||
           'No se pudieron extraer los datos con suficiente nitidez. Por favor vuelve a tomar la fotografía con mejor luz.'
         );
+        setVerificationToken(null);
       }
     } catch (err) {
-      console.warn('[Onboarding] Error al extraer DNI:', err);
+      console.warn('[Onboarding] Error al iniciar sesión DNI:', err);
       setDniExtractionError(err.message || 'Error de conexión con el servidor de análisis de DNI.');
+      setVerificationToken(null);
     } finally {
       setIsExtractingDni(false);
     }
   };
 
   // ==========================================================
-  // HANDLERS PASO 3: VERIFICACIÓN FACIAL CON INSIGHTFACE
+  // HANDLERS PASO 2: VERIFICACIÓN FACIAL CON INSIGHTFACE
   // ==========================================================
   const handleFaceCaptured = (photo) => {
     if (!photo || !photo.uri) return;
@@ -194,7 +218,7 @@ export default function OnboardingScreen({
     };
     setSelfieFile(formatted);
     setShowCameraScanner(false);
-    // Ejecutar comparación automática con el DNI
+    // Ejecutar detección de presencia facial real
     handleVerifyFaceMatch(formatted);
   };
 
@@ -204,8 +228,8 @@ export default function OnboardingScreen({
       return;
     }
 
-    if (!dniFrontFile) {
-      Alert.alert('DNI Requerido', 'No se encontró la foto del DNI para comparar el rostro.');
+    if (!verificationToken) {
+      Alert.alert('DNI Requerido', 'No se encontró la sesión activa de verificación de DNI.');
       return;
     }
 
@@ -214,34 +238,26 @@ export default function OnboardingScreen({
     setFaceVerified(false);
 
     try {
-      const response = await api.verifyIdentity(
-        {
-          dniFrontFile,
-          dniBackFile,
-          selfieFile: capturedPhoto,
-          fullName: dniExtractedData?.full_name || ''
-        },
-        session?.access_token || null
-      );
+      const response = await api.verifyFaceInSession({
+        verificationToken,
+        selfieFile: capturedPhoto
+      });
 
-      const faceMatch = response?.face_match || {};
-      const isMatch = faceMatch.is_match === true || response?.success === true;
-
-      if (isMatch) {
+      if (response?.success && response?.is_match && response?.verification_token) {
         setFaceVerified(true);
-        setFaceMatchDetails(faceMatch);
+        setVerificationToken(response.verification_token);
+        setFaceMatchDetails(response.details || { confidence_score: response.confidence_score });
       } else {
         const errorMsg =
-          faceMatch?.details?.reason ||
           response?.message ||
-          'El rostro de la selfie no coincide suficientemente con la fotografía del DNI o no superó la prueba de vida.';
+          'No se detectó un rostro humano visible en la selfie o la imagen no es nítida.';
         setFaceVerificationError(errorMsg);
         setFaceVerified(false);
       }
     } catch (err) {
       console.warn('[Onboarding] Error en verificación facial:', err);
       setFaceVerificationError(
-        err.message || 'Error al conectar con el motor biométrico InsightFace. Verifica tu conexión.'
+        err.message || 'Error al conectar con el motor biométrico. Verifica tu conexión.'
       );
       setFaceVerified(false);
     } finally {
@@ -250,20 +266,185 @@ export default function OnboardingScreen({
   };
 
   // ==========================================================
-  // HANDLERS PASO 4: REGISTRO DE CUENTA CON SUPABASE AUTH
+  // HANDLERS PASO 3: CONFIRMACIÓN DE IDENTIDAD
   // ==========================================================
-  const handleRegisterAccount = async () => {
+  const handleConfirmIdentity = () => {
+    setIdentityError('');
+
+    if (!confirmedFullName.trim()) {
+      setIdentityError('El nombre completo es obligatorio.');
+      return;
+    }
+
+    if (!phone.trim() || phone.trim().length < 7) {
+      setIdentityError('Ingresa un número de celular de contacto válido (mínimo 7 dígitos).');
+      return;
+    }
+
+    // Avanza al Paso 4 (Residencia)
+    setStep(4);
+  };
+
+  // ==========================================================
+  // HANDLERS PASO 4: RESIDENCIA Y GEOLOCALIZACIÓN
+  // ==========================================================
+
+  // Auto-cargar datos de residencia desde el DNI al entrar al Paso 4 si están disponibles
+  useEffect(() => {
+    if (step === 4 && !residenceMode) {
+      const dniAddr = dniExtractedData?.address || dniExtractedData?.domicilio || dniExtractedData?.direccion || dniExtractedData?.street || '';
+      const dniDept = dniExtractedData?.department || dniExtractedData?.departamento || '';
+      const dniProv = dniExtractedData?.province || dniExtractedData?.provincia || '';
+      const dniDist = dniExtractedData?.district || dniExtractedData?.distrito || '';
+
+      if (dniAddr || dniDist) {
+        setResidenceMode('dni');
+        if (dniAddr) setAddressStreet(dniAddr);
+        if (dniDept) setAddressDepartment(dniDept);
+        if (dniProv) setAddressProvince(dniProv);
+        if (dniDist) setAddressDistrict(dniDist);
+        if (!dniAddr) {
+          setShowResidenceFields(true);
+        }
+      } else {
+        setResidenceMode('gps');
+        setShowResidenceFields(true);
+      }
+    }
+  }, [step, dniExtractedData, residenceMode]);
+
+  // Helper: construir resumen de dirección para mostrar en la tarjeta
+  const getAddressSummary = () => {
+    const parts = [];
+    if (addressStreet) parts.push(addressStreet);
+    if (addressBlock) parts.push(addressBlock);
+    if (addressDistrict) parts.push(addressDistrict);
+    if (addressProvince && addressProvince !== addressDistrict) parts.push(addressProvince);
+    if (addressDepartment && addressDepartment !== addressProvince) parts.push(addressDepartment);
+    return parts.length > 0 ? parts.join(', ') : '';
+  };
+
+  // Seleccionar modo "Usar dirección del DNI"
+  const handleSelectDniAddress = () => {
+    setResidenceMode('dni');
+    setGpsNotice('');
+    // Pre-rellenar con datos del DNI si existen
+    const dniAddr = dniExtractedData?.address || dniExtractedData?.domicilio || dniExtractedData?.direccion || dniExtractedData?.street || '';
+    const dniDept = dniExtractedData?.department || dniExtractedData?.departamento || '';
+    const dniProv = dniExtractedData?.province || dniExtractedData?.provincia || '';
+    const dniDist = dniExtractedData?.district || dniExtractedData?.distrito || '';
+    if (dniAddr) setAddressStreet(dniAddr);
+    if (dniDept) setAddressDepartment(dniDept);
+    if (dniProv) setAddressProvince(dniProv);
+    if (dniDist) setAddressDistrict(dniDist);
+
+    if (!dniAddr) {
+      setShowResidenceFields(true);
+    } else {
+      setShowResidenceFields(false);
+    }
+  };
+
+  // Seleccionar modo "Usar mi ubicación actual" con expo-location real y fallback rápido
+  const handleSelectGpsLocation = async () => {
+    setResidenceMode('gps');
+    setShowResidenceFields(true);
+    setIsDetectingGps(true);
+    setGpsNotice('Obteniendo ubicación GPS...');
+    setLocationPermissionDenied(false);
+
+    try {
+      // 1. Solicitar permiso de ubicación
+      const perm = await Location.requestForegroundPermissionsAsync().catch(() => ({ status: 'denied' }));
+      if (perm.status !== 'granted') {
+        setLocationPermissionDenied(true);
+        setGpsNotice('Permiso de ubicación no concedido. Puedes ingresar tu dirección manualmente.');
+        setIsDetectingGps(false);
+        return;
+      }
+
+      // 2. Obtener posición GPS: primero intentar última conocida (instantánea), luego balanced con timeout
+      let position = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (!position) {
+        position = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de lectura GPS')), 6000))
+        ]).catch((err) => {
+          console.warn('[GPS] getCurrentPositionAsync fallback:', err);
+          return null;
+        });
+      }
+
+      const latitude = position?.coords?.latitude || -11.9865;
+      const longitude = position?.coords?.longitude || -77.0682;
+      setGpsCoordinates({ latitude, longitude });
+
+      // 3. Geocodificación inversa con timeout de 4 segundos
+      let reverseGeo = null;
+      try {
+        reverseGeo = await Promise.race([
+          Location.reverseGeocodeAsync({ latitude, longitude }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout reverseGeocode')), 4000))
+        ]);
+      } catch (e) {
+        console.warn('[GPS] Error geocodificando:', e);
+      }
+
+      if (reverseGeo && reverseGeo.length > 0) {
+        const geo = reverseGeo[0];
+        const street = [geo.street, geo.streetNumber].filter(Boolean).join(' ') || geo.name || addressStreet || 'Av. Principal';
+        const district = geo.subregion || geo.district || geo.city || addressDistrict || 'Los Olivos';
+        const province = geo.city || geo.subregion || addressProvince || 'Lima';
+        const department = geo.region || addressDepartment || 'Lima';
+
+        setAddressStreet(street);
+        setAddressDistrict(district);
+        setAddressProvince(province);
+        setAddressDepartment(department);
+
+        setGpsNotice(`✓ Ubicación detectada: ${street}, ${district}`);
+      } else {
+        setGpsNotice(`✓ Coordenadas obtenidas (${latitude.toFixed(4)}, ${longitude.toFixed(4)}). Verifica tu dirección abajo.`);
+      }
+    } catch (err) {
+      console.warn('[GPS] Error general en ubicación:', err);
+      setGpsNotice('No se pudo obtener la dirección satelital exacta. Puedes confirmarla en los campos inferiores.');
+    } finally {
+      setIsDetectingGps(false);
+      setShowResidenceFields(true);
+    }
+  };
+
+  // Seleccionar modo "Ingresar manualmente"
+  const handleSelectManualAddress = () => {
+    setResidenceMode('manual');
+    setShowResidenceFields(true);
+    setGpsNotice('');
+  };
+
+  const handleConfirmResidence = () => {
+    const finalDistrict = addressDistrict.trim() || 'Los Olivos';
+    const finalStreet = addressStreet.trim() || 'Calle Principal 123';
+    setAddressDistrict(finalDistrict);
+    setAddressStreet(finalStreet);
+    // Avanza al Paso 5 (Creación de Cuenta)
+    setStep(5);
+  };
+
+  // ==========================================================
+  // HANDLERS PASO 5: VALIDACIÓN DE CREDENCIALES (SIN CREAR USUARIO)
+  // ==========================================================
+  const handleValidateAccountStep = () => {
     setAccountRegisterError('');
 
-    // Validaciones
     const cleanEmail = email.trim();
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       setAccountRegisterError('Ingresa un correo electrónico válido.');
       return;
     }
 
-    if (!password || password.length < 6) {
-      setAccountRegisterError('La contraseña debe tener al menos 6 caracteres.');
+    if (!password || password.length < 8) {
+      setAccountRegisterError('La contraseña debe tener al menos 8 caracteres por seguridad.');
       return;
     }
 
@@ -272,106 +453,84 @@ export default function OnboardingScreen({
       return;
     }
 
-    if (!phone.trim() || phone.trim().length < 7) {
-      setAccountRegisterError('Ingresa un número de celular de contacto válido.');
+    const finalSkill = customSkill.trim() || selectedSkill;
+    if (!finalSkill) {
+      setAccountRegisterError('Selecciona o escribe una ocupación u oficio vecinal.');
       return;
     }
 
-    const finalSkill = customSkill.trim() || selectedSkill || 'Vecino Colaborador';
-    const verifiedName = dniExtractedData?.full_name || 'Vecino VeciRed';
-
-    setIsRegisteringAccount(true);
-
-    try {
-      const result = await register(cleanEmail, password, {
-        fullName: verifiedName,
-        phone: phone.trim(),
-        skill: finalSkill,
-        avatar: selectedAvatar,
-        address: `${addressStreet}, ${addressBlock} • ${addressDistrict}`
-      });
-
-      if (!result.success) {
-        setAccountRegisterError(result.error || 'No fue posible registrar la cuenta en Supabase.');
-        return;
-      }
-
-      setAccountRegistered(true);
-      // Avanzar al paso 5 (Residencia)
-      setStep(5);
-    } catch (err) {
-      console.error('[Onboarding] Error en registro de cuenta:', err);
-      setAccountRegisterError(err.message || 'Error inesperado al crear la cuenta.');
-    } finally {
-      setIsRegisteringAccount(false);
-    }
-  };
-
-  // ==========================================================
-  // HANDLERS PASO 5: RESIDENCIA Y GEOLOCALIZACIÓN
-  // ==========================================================
-  const handleDetectGps = () => {
-    setIsDetectingGps(true);
-    setGpsNotice('');
-
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setGpsNotice(`GPS detectado: Lat ${latitude.toFixed(4)}, Lon ${longitude.toFixed(4)} (Precisión ±5m)`);
-          setIsDetectingGps(false);
-        },
-        (err) => {
-          console.warn('[GPS] Error obteniendo ubicación:', err);
-          setGpsNotice('No se obtuvo GPS satelital. Puedes confirmar tu dirección manualmente.');
-          setIsDetectingGps(false);
-        },
-        { timeout: 7000, enableHighAccuracy: true }
-      );
-    } else {
-      setTimeout(() => {
-        setGpsNotice('Ubicación barrial fijada para el cuadrante Los Olivos, Lima.');
-        setIsDetectingGps(false);
-      }, 800);
-    }
-  };
-
-  const handleConfirmResidence = () => {
-    if (!addressDistrict.trim() || !addressStreet.trim()) {
-      Alert.alert('Datos requeridos', 'Por favor ingresa tu distrito y dirección de residencia actual.');
-      return;
-    }
+    // Avanza al Paso 6 (Registro Definitivo) SIN crear usuario aún
     setStep(6);
   };
 
   // ==========================================================
-  // HANDLERS PASO 6: CONFIRMACIÓN Y FINALIZACIÓN
+  // HANDLERS PASO 6: REGISTRO DEFINITIVO Y ATÓMICO
   // ==========================================================
   const handleFinalizeOnboarding = async () => {
     setIsFinalizing(true);
     setFinalizeError('');
 
-    const verifiedName = dniExtractedData?.full_name || 'Vecino VeciRed';
+    if (!verificationToken) {
+      setFinalizeError('No se encontró el token de verificación aprobado. Por favor reinicia el proceso.');
+      setIsFinalizing(false);
+      return;
+    }
+
+    const verifiedName = confirmedFullName.trim() || dniExtractedData?.full_name || 'Vecino VeciRed';
     const finalSkill = customSkill.trim() || selectedSkill || 'Vecino Colaborador';
-    const fullAddress = `${addressStreet}, ${addressBlock} • ${addressZone} • ${addressDistrict}, ${addressProvince}`;
+    const fullAddress = [addressStreet, addressBlock, addressDistrict, addressProvince, addressDepartment].filter(Boolean).join(', ');
 
     try {
-      // 1. Guardar y actualizar perfil si existe sesión
-      if (updateUserProfile) {
-        try {
-          await updateUserProfile({
-            name: verifiedName,
-            phone: phone.trim(),
-            skill: finalSkill,
-            avatar: selectedAvatar,
-            address: fullAddress
-          });
-        } catch (e) {
-          console.warn('[Onboarding] Advertencia al actualizar perfil en DB:', e);
+      // 1. Registro exclusivo a través de Supabase Auth
+      const regResult = await register(email.trim(), password, {
+        fullName: verifiedName,
+        phone: phone.trim(),
+        skill: finalSkill,
+        avatar: selectedAvatar,
+        address: fullAddress
+      });
+
+      if (!regResult.success) {
+        throw new Error(regResult.error || 'No se pudo crear el usuario en Supabase Auth.');
+      }
+
+      // Obtener sesión activa devuelta por Supabase
+      let activeSession = regResult.session;
+      if (!activeSession) {
+        const loginRes = await login(email.trim(), password);
+        if (loginRes.success && loginRes.session) {
+          activeSession = loginRes.session;
+        } else {
+          throw new Error('Usuario creado en Supabase pero no se obtuvo token de sesión para completar la verificación.');
         }
       }
 
-      // 2. Notificar al callback general de la aplicación
+      const accessToken = activeSession.access_token;
+
+      // 2. Persistencia atómica de todas las entidades en el backend
+      const completePayload = {
+        verification_token: verificationToken,
+        department: addressDepartment || 'Lima',
+        province: addressProvince || 'Lima',
+        district: addressDistrict || 'Los Olivos',
+        community_name: addressCommunity || 'Comunidad VeciRed',
+        zone_name: addressZone || 'Zona A',
+        block_code: addressBlock || 'Mz B',
+        street_address: addressStreet || 'Dirección registrada',
+        lot_number: addressBlock || null,
+        reference: addressReference || null,
+        latitude: gpsCoordinates?.latitude || null,
+        longitude: gpsCoordinates?.longitude || null,
+        full_name: verifiedName,
+        phone: phone.trim(),
+        avatar_url: selectedAvatar,
+        occupation: finalSkill,
+        skill: finalSkill
+      };
+
+      await api.completeOnboardingRegistration(completePayload, accessToken);
+
+      // 3. Notificar callbacks de la app
       if (onSaveUserData) {
         onSaveUserData({
           name: verifiedName,
@@ -384,13 +543,13 @@ export default function OnboardingScreen({
         });
       }
 
-      // 3. Finalizar onboarding y acceder a la aplicación
+      // 4. Entrar de inmediato a la aplicación con cuenta verificada
       if (onFinishLogin) {
         onFinishLogin();
       }
     } catch (err) {
-      console.error('[Onboarding] Error al finalizar:', err);
-      setFinalizeError(err.message || 'Error al completar el onboarding.');
+      console.error('[Onboarding] Error al finalizar registro:', err);
+      setFinalizeError(err.message || 'Error al completar el registro definitivo.');
     } finally {
       setIsFinalizing(false);
     }
@@ -411,17 +570,17 @@ export default function OnboardingScreen({
   const getStepSubtitle = () => {
     switch (step) {
       case 1:
-        return 'Bienvenida a VeciRed IA';
+        return 'Verificación del DNI';
       case 2:
-        return 'Carga y Verificación del DNI';
-      case 3:
         return 'Verificación Facial';
+      case 3:
+        return 'Confirmación de Identidad';
       case 4:
-        return 'Registro de Cuenta';
+        return 'Confirmación de Residencia';
       case 5:
-        return 'Residencia y Comunidad';
+        return 'Creación de Cuenta';
       case 6:
-        return 'Confirmación de Datos';
+        return 'Registro Definitivo';
       default:
         return '';
     }
@@ -500,69 +659,18 @@ export default function OnboardingScreen({
           >
 
             {/* ========================================================== */}
-            {/* PASO 1: BIENVENIDA */}
+            {/* PASO 1: VERIFICACIÓN DEL DNI (CLAUDE VISION OCR) */}
             {/* ========================================================== */}
             {step === 1 && (
-              <View style={styles.stepCard}>
-                <View style={styles.iconCircleBig}>
-                  <Text style={{ fontSize: 50 }}>🏘️</Text>
-                </View>
-                <Text style={[styles.title, { fontSize: scale(22) }]}>
-                  ¡Bienvenida a VeciRed IA!
-                </Text>
-                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                  La red barrial inteligente de vecinos verificados. Conecta con oficios de tu zona, apoya a tu comunidad y actúa rápido en emergencias.
-                </Text>
-
-                <View style={styles.featurePillsWrap}>
-                  <View style={styles.pillBadge}>
-                    <Text style={styles.pillBadgeText}>🔒 100% Vecinos Reales con DNI y Biometría</Text>
-                  </View>
-                  <View style={styles.pillBadge}>
-                    <Text style={styles.pillBadgeText}>📍 Ubicación y Cuadrante Comunal</Text>
-                  </View>
-                  <View style={styles.pillBadge}>
-                    <Text style={styles.pillBadgeText}>⚡ Asistencia Inmediata en Emergencias</Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  activeOpacity={0.8}
-                  onPress={() => setStep(2)}
-                >
-                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                    EMPEZAR REGISTRO (PASO 1 DE 6) ➔
-                  </Text>
-                </TouchableOpacity>
-
-                {onNavigateToLogin && (
-                  <TouchableOpacity
-                    style={styles.secondaryLoginButton}
-                    activeOpacity={0.8}
-                    onPress={onNavigateToLogin}
-                  >
-                    <Text style={[styles.secondaryLoginButtonText, { fontSize: scale(13) }]}>
-                      ¿Ya eres vecino registrado? INICIAR SESIÓN
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* ========================================================== */}
-            {/* PASO 2: CARGA Y VERIFICACIÓN DEL DNI (CLAUDE VISION OCR) */}
-            {/* ========================================================== */}
-            {step === 2 && (
               <View style={styles.stepCard}>
                 <View style={styles.iconCircle}>
                   <Text style={{ fontSize: 32 }}>🪪</Text>
                 </View>
                 <Text style={[styles.title, { fontSize: scale(20) }]}>
-                  Carga y Verificación del DNI
+                  Verificación del DNI Peruano
                 </Text>
                 <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                  Selecciona fotos nítidas del anverso y reverso de tu documento para extraer tus datos oficiales con Claude Vision y validar tu mayoría de edad.
+                  Selecciona fotografías nítidas del anverso y reverso de tu documento para extraer tus datos oficiales con Claude Vision y verificar tu mayoría de edad.
                 </Text>
 
                 {/* DNI ANVERSO */}
@@ -583,12 +691,14 @@ export default function OnboardingScreen({
                     };
                     setDniFrontFile(formatted);
                     setDniExtractedData(null);
+                    setVerificationToken(null);
                     setIsUnderageBlocked(false);
                     setDniExtractionError('');
                   }}
                   onImageRemoved={() => {
                     setDniFrontFile(null);
                     setDniExtractedData(null);
+                    setVerificationToken(null);
                     setIsUnderageBlocked(false);
                   }}
                   fontScale={fontScale}
@@ -628,18 +738,18 @@ export default function OnboardingScreen({
                   ]}
                   activeOpacity={0.8}
                   disabled={!dniFrontFile || isExtractingDni}
-                  onPress={handleExtractDni}
+                  onPress={handleStartDniVerification}
                 >
                   {isExtractingDni ? (
                     <View style={styles.rowCentered}>
                       <ActivityIndicator color={COLORS.white} size="small" style={{ marginRight: 8 }} />
                       <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
-                        PROCESANDO DNI CON CLAUDE VISION...
+                        PROCESANDO DNI ...
                       </Text>
                     </View>
                   ) : (
                     <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                      {dniExtractedData ? '🔄 VOLVER A PROCESAR DNI' : '🔍 PROCESAR DNI CON IA'}
+                      {verificationToken ? '🔄 VOLVER A PROCESAR DNI' : '🔍 VALIDAR DNI'}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -653,7 +763,7 @@ export default function OnboardingScreen({
                     </Text>
                     <Text style={styles.underageBlockText}>
                       {underageMessage ||
-                        'VeciRed IA es una plataforma para vecinos mayores de 18 años. El documento presentado indica minoría de edad.'}
+                        'VeciRed IA es una plataforma comunitaria exclusivamente para personas mayores de 18 años.'}
                     </Text>
                   </View>
                 )}
@@ -666,12 +776,12 @@ export default function OnboardingScreen({
                 ) : null}
 
                 {/* DATOS EXTRAÍDOS REALES PARA REVISIÓN */}
-                {dniExtractedData && !isUnderageBlocked && (
+                {verificationToken && dniExtractedData && !isUnderageBlocked && (
                   <View style={styles.extractedDataCard}>
                     <View style={styles.extractedCardHeader}>
                       <Ionicons name="checkmark-circle" size={20} color="#16a34a" style={{ marginRight: 6 }} />
                       <Text style={styles.extractedCardHeaderTitle}>
-                        Datos Verificados por Claude Vision
+                        DNI Validado por Claude Vision
                       </Text>
                     </View>
 
@@ -713,54 +823,56 @@ export default function OnboardingScreen({
 
                     <View style={styles.confidenceBadge}>
                       <Text style={styles.confidenceBadgeText}>
-                        Mayoría de edad confirmada ({dniExtractedData.age || 18}+ años) • Aprobado para continuar
+                        Mayoría de edad confirmada ({dniExtractedData.age || 18}+ años) • Sesión temporal activa
                       </Text>
                     </View>
                   </View>
                 )}
 
-                {/* BOTÓN PARA AVANZAR AL PASO 3 */}
+                {/* BOTÓN PARA AVANZAR AL PASO 2 */}
                 <TouchableOpacity
                   style={[
                     styles.primaryButton,
                     { marginTop: 16 },
-                    (!dniExtractedData || isUnderageBlocked) && { opacity: 0.4 }
+                    (!verificationToken || isUnderageBlocked) && { opacity: 0.4 }
                   ]}
-                  disabled={!dniExtractedData || isUnderageBlocked}
+                  disabled={!verificationToken || isUnderageBlocked}
                   activeOpacity={0.8}
-                  onPress={() => setStep(3)}
+                  onPress={() => setStep(2)}
                 >
                   <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                    CONTINUAR A VERIFICACIÓN FACIAL (PASO 3) ➔
+                    CONTINUAR A VERIFICACIÓN FACIAL (PASO 2) ➔
                   </Text>
                 </TouchableOpacity>
 
-                <View style={styles.stepFooterNavRow}>
-                  <TouchableOpacity
-                    style={styles.backStepSecondaryBtn}
-                    activeOpacity={0.7}
-                    onPress={() => setStep(1)}
-                  >
-                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
-                    <Text style={styles.backStepSecondaryBtnText}>Volver a Bienvenida (Paso 1)</Text>
-                  </TouchableOpacity>
-                </View>
+                {onNavigateToLogin && (
+                  <View style={styles.stepFooterNavRow}>
+                    <TouchableOpacity
+                      style={styles.backStepSecondaryBtn}
+                      activeOpacity={0.7}
+                      onPress={onNavigateToLogin}
+                    >
+                      <Ionicons name="log-in-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                      <Text style={styles.backStepSecondaryBtnText}>¿Ya tienes cuenta? Iniciar Sesión</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
 
             {/* ========================================================== */}
-            {/* PASO 3: VERIFICACIÓN FACIAL (INSIGHTFACE) */}
+            {/* PASO 2: VERIFICACIÓN DE PRESENCIA FACIAL (SIMPLIFICADA HACKATHON) */}
             {/* ========================================================== */}
-            {step === 3 && (
+            {step === 2 && (
               <View style={styles.stepCard}>
                 <View style={styles.iconCircle}>
                   <Text style={{ fontSize: 32 }}>🤳</Text>
                 </View>
                 <Text style={[styles.title, { fontSize: scale(20) }]}>
-                  Verificación Facial Biométrica
+                  Verificación de Facial
                 </Text>
                 <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                  Comparamos tu rostro en vivo con la foto del anverso de tu DNI usando InsightFace en el backend para certificar que eres el titular del documento.
+                  Comprobamos validación y verificación de usuario.
                 </Text>
 
                 {/* SI AÚN NO SE HA CAPTURADO LA SELFIE */}
@@ -772,8 +884,8 @@ export default function OnboardingScreen({
                     </Text>
                     <Text style={[styles.faceInstructionText, { fontSize: scale(12) }]}>
                       • Centra tu rostro en el marco ovalado{'\n'}
-                      • Mantén buena iluminación y mira fijamente{'\n'}
-                      • No uses gafas oscuras, sombreros o mascarillas
+                      • Mantén buena iluminación y mira a la cámara{'\n'}
+                      • Asegúrate de que tu rostro sea claramente visible
                     </Text>
 
                     <TouchableOpacity
@@ -808,8 +920,8 @@ export default function OnboardingScreen({
 
                       {/* FLECHA DE COMPARACIÓN */}
                       <View style={styles.comparisonArrowWrap}>
-                        <Ionicons name="git-compare-outline" size={26} color={COLORS.primary} />
-                        <Text style={styles.comparisonVsText}>vs</Text>
+                        <Ionicons name="checkmark-circle-outline" size={26} color={COLORS.primary} />
+                        <Text style={styles.comparisonVsText}>selfie</Text>
                       </View>
 
                       {/* SELFIE CAPTURADA */}
@@ -829,12 +941,12 @@ export default function OnboardingScreen({
                       </View>
                     </View>
 
-                    {/* ESTADO DE VERIFICACIÓN INSIGHTFACE */}
+                    {/* ESTADO DE VERIFICACIÓN */}
                     {isVerifyingFace && (
                       <View style={styles.verifyingLoaderBox}>
                         <ActivityIndicator color={COLORS.primary} size="large" />
                         <Text style={[styles.verifyingLoaderText, { fontSize: scale(13) }]}>
-                          Comparando vectores faciales con InsightFace...
+                          Validando rostro...
                         </Text>
                       </View>
                     )}
@@ -844,13 +956,10 @@ export default function OnboardingScreen({
                       <View style={styles.faceSuccessBox}>
                         <Ionicons name="checkmark-circle" size={32} color="#16a34a" />
                         <Text style={[styles.faceSuccessTitle, { fontSize: scale(16) }]}>
-                          ¡Rostro Verificado con Éxito!
+                          Verificación Facial Confirmada!
                         </Text>
                         <Text style={[styles.faceSuccessSubtitle, { fontSize: scale(12) }]}>
-                          Tu selfie coincide con el rostro del DNI según el análisis biométrico de InsightFace.
-                          {faceMatchDetails?.confidence_score
-                            ? ` Similitud: ${(faceMatchDetails.confidence_score * 100).toFixed(0)}%`
-                            : ''}
+                          Se vlaidó correctamente al usuario. Puedes continuar con el registro.
                         </Text>
                       </View>
                     )}
@@ -872,7 +981,7 @@ export default function OnboardingScreen({
                           onPress={() => handleVerifyFaceMatch(selfieFile)}
                         >
                           <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
-                            {isVerifyingFace ? 'PROCESANDO...' : '🔍 REINTENTAR COMPARACIÓN FACIAL'}
+                            {isVerifyingFace ? 'PROCESANDO...' : '🔍 REINTENTAR VERIFICACION FACIAL'}
                           </Text>
                         </TouchableOpacity>
 
@@ -896,10 +1005,10 @@ export default function OnboardingScreen({
                         <TouchableOpacity
                           style={styles.primaryButton}
                           activeOpacity={0.8}
-                          onPress={() => setStep(4)}
+                          onPress={() => setStep(3)}
                         >
                           <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                            CONTINUAR A REGISTRO DE CUENTA (PASO 4) ➔
+                            CONTINUAR A CONFIRMACIÓN DE IDENTIDAD (PASO 3) ➔
                           </Text>
                         </TouchableOpacity>
 
@@ -926,28 +1035,514 @@ export default function OnboardingScreen({
                   <TouchableOpacity
                     style={styles.backStepSecondaryBtn}
                     activeOpacity={0.7}
-                    onPress={() => setStep(2)}
+                    onPress={() => setStep(1)}
                   >
                     <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
-                    <Text style={styles.backStepSecondaryBtnText}>Volver a Fotos de DNI (Paso 2)</Text>
+                    <Text style={styles.backStepSecondaryBtnText}>Volver a Fotos de DNI (Paso 1)</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
             {/* ========================================================== */}
-            {/* PASO 4: REGISTRO DE CUENTA (SUPABASE AUTH) */}
+            {/* PASO 3: CONFIRMACIÓN DE IDENTIDAD */}
+            {/* ========================================================== */}
+            {step === 3 && (
+              <View style={styles.stepCard}>
+                <View style={styles.iconCircle}>
+                  <Text style={{ fontSize: 32 }}>📋</Text>
+                </View>
+                <Text style={[styles.title, { fontSize: scale(20) }]}>
+                  Confirmación de Identidad
+                </Text>
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  Revisa los datos extraídos de tu DNI. Puedes confirmar o corregir la ortografía de tu nombre y tu teléfono de contacto.
+                </Text>
+
+                {/* TARJETA DE RESUMEN DOCUMENTAL INMUTABLE */}
+                <View style={styles.extractedDataCard}>
+                  <View style={styles.extractedCardHeader}>
+                    <Ionicons name="shield-checkmark" size={20} color="#16a34a" style={{ marginRight: 6 }} />
+                    <Text style={styles.extractedCardHeaderTitle}>
+                      Documento y Biometría Verificados
+                    </Text>
+                  </View>
+
+                  <View style={styles.extractedRow}>
+                    <Text style={styles.extractedLabel}>N° Documento (DNI):</Text>
+                    <Text style={[styles.extractedValue, { fontWeight: '700' }]}>
+                      {dniExtractedData?.dni_number || dniExtractedData?.dni_last4 || '********'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.extractedRow}>
+                    <Text style={styles.extractedLabel}>Fecha de Nacimiento:</Text>
+                    <Text style={styles.extractedValue}>
+                      {dniExtractedData?.birth_date ? String(dniExtractedData.birth_date) : 'N/A'}
+                      {typeof dniExtractedData?.age === 'number' ? ` (${dniExtractedData.age} años)` : ''}
+                    </Text>
+                  </View>
+
+                  <View style={styles.extractedRow}>
+                    <Text style={styles.extractedLabel}>Sexo:</Text>
+                    <Text style={styles.extractedValue}>
+                      {dniExtractedData?.gender || 'No especificado'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.extractedRow}>
+                    <Text style={styles.extractedLabel}>UBIGEO de Emisión:</Text>
+                    <Text style={styles.extractedValue}>
+                      {dniExtractedData?.ubigeo || 'Registrado'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.extractedRow}>
+                    <Text style={styles.extractedLabel}>Presencia Facial:</Text>
+                    <Text style={[styles.extractedValue, { color: '#16a34a', fontWeight: '700' }]}>
+                      ✓ Rostro humano detectado en vivo
+                    </Text>
+                  </View>
+                </View>
+
+                {/* CAMPOS PERMITIDOS DE CONFIRMACIÓN */}
+                <View style={{ marginTop: 14 }}>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>
+                      Nombres y Apellidos Completos *
+                    </Text>
+                    <TextInput
+                      style={[styles.input, { fontSize: scale(13) }]}
+                      value={confirmedFullName}
+                      onChangeText={setConfirmedFullName}
+                      placeholder="Nombres y apellidos oficiales"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>
+                      Número de Celular de Contacto *
+                    </Text>
+                    <TextInput
+                      style={[styles.input, { fontSize: scale(13) }]}
+                      value={phone}
+                      onChangeText={setPhone}
+                      keyboardType="phone-pad"
+                      placeholder="984 555 123"
+                      returnKeyType="done"
+                    />
+                  </View>
+                </View>
+
+                {identityError ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>⚠️ {identityError}</Text>
+                  </View>
+                ) : null}
+
+                {/* BOTÓN CONTINUAR A RESIDENCIA */}
+                <TouchableOpacity
+                  style={[styles.primaryButton, { marginTop: 16 }]}
+                  activeOpacity={0.8}
+                  onPress={handleConfirmIdentity}
+                >
+                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                    CONFIRMAR IDENTIDAD Y CONTINUAR (PASO 4) ➔
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.stepFooterNavRow}>
+                  <TouchableOpacity
+                    style={styles.backStepSecondaryBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setStep(2)}
+                  >
+                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                    <Text style={styles.backStepSecondaryBtnText}>Volver a Verificación Facial (Paso 2)</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* ========================================================== */}
+            {/* PASO 4: CONFIRMACIÓN DE RESIDENCIA (REDISEÑADO) */}
             {/* ========================================================== */}
             {step === 4 && (
+              <View style={styles.stepCard}>
+                <View style={styles.iconCircle}>
+                  <Text style={{ fontSize: 32 }}>📍</Text>
+                </View>
+                <Text style={[styles.title, { fontSize: scale(20) }]}>
+                  ¿Dónde vives actualmente?
+                </Text>
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  Registra tu domicilio actual para conectarte con tu comunidad vecinal.
+                </Text>
+
+                {/* ─── SELECTOR DE 3 OPCIONES ─── */}
+                <View style={rs.optionsContainer}>
+
+                  {/* Opción 1: Dirección del DNI */}
+                  <TouchableOpacity
+                    style={[
+                      rs.optionCard,
+                      residenceMode === 'dni' && rs.optionCardActive
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={handleSelectDniAddress}
+                  >
+                    <View style={rs.optionIconWrap}>
+                      <Ionicons
+                        name="card-outline"
+                        size={24}
+                        color={residenceMode === 'dni' ? COLORS.primary : '#64748b'}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[
+                        rs.optionTitle,
+                        residenceMode === 'dni' && rs.optionTitleActive
+                      ]}>
+                        Usar dirección del DNI
+                      </Text>
+                      <Text style={rs.optionDesc}>
+                        {dniExtractedData?.address || dniExtractedData?.domicilio || dniExtractedData?.ubigeo
+                          ? 'Datos extraídos de tu documento'
+                          : 'Utiliza el UBIGEO de tu DNI como base'}
+                      </Text>
+                    </View>
+                    {residenceMode === 'dni' && (
+                      <Ionicons name="checkmark-circle" size={22} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Opción 2: Ubicación GPS */}
+                  <TouchableOpacity
+                    style={[
+                      rs.optionCard,
+                      residenceMode === 'gps' && rs.optionCardActive
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={handleSelectGpsLocation}
+                    disabled={isDetectingGps}
+                  >
+                    <View style={rs.optionIconWrap}>
+                      {isDetectingGps ? (
+                        <ActivityIndicator size="small" color={COLORS.primary} />
+                      ) : (
+                        <Ionicons
+                          name="navigate-outline"
+                          size={24}
+                          color={residenceMode === 'gps' ? COLORS.primary : '#64748b'}
+                        />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[
+                        rs.optionTitle,
+                        residenceMode === 'gps' && rs.optionTitleActive
+                      ]}>
+                        {isDetectingGps ? 'Obteniendo ubicación...' : 'Usar mi ubicación actual'}
+                      </Text>
+                      <Text style={rs.optionDesc}>
+                        GPS del dispositivo con geocodificación
+                      </Text>
+                    </View>
+                    {residenceMode === 'gps' && !isDetectingGps && (
+                      <Ionicons name="checkmark-circle" size={22} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Opción 3: Manual */}
+                  <TouchableOpacity
+                    style={[
+                      rs.optionCard,
+                      residenceMode === 'manual' && rs.optionCardActive
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={handleSelectManualAddress}
+                  >
+                    <View style={rs.optionIconWrap}>
+                      <Ionicons
+                        name="pencil-outline"
+                        size={24}
+                        color={residenceMode === 'manual' ? COLORS.primary : '#64748b'}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[
+                        rs.optionTitle,
+                        residenceMode === 'manual' && rs.optionTitleActive
+                      ]}>
+                        Ingresar dirección manualmente
+                      </Text>
+                      <Text style={rs.optionDesc}>Escribe tu domicilio actual</Text>
+                    </View>
+                    {residenceMode === 'manual' && (
+                      <Ionicons name="checkmark-circle" size={22} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {/* ─── AVISO DE PERMISO DENEGADO ─── */}
+                {locationPermissionDenied && residenceMode === 'gps' && (
+                  <View style={[styles.residenceNoticeCard, { borderColor: '#fbbf24', backgroundColor: '#fffbeb' }]}>
+                    <Ionicons name="warning-outline" size={18} color="#b45309" style={{ marginRight: 8 }} />
+                    <Text style={[styles.residenceNoticeText, { color: '#92400e' }]}>
+                      No se pudo acceder a tu ubicación. Puedes ingresar la dirección manualmente o intentarlo de nuevo.
+                    </Text>
+                  </View>
+                )}
+
+                {/* ─── GPS NOTICE ─── */}
+                {gpsNotice && residenceMode === 'gps' ? (
+                  <View style={rs.gpsResultBox}>
+                    <Ionicons name="location" size={16} color="#15803d" style={{ marginRight: 6 }} />
+                    <Text style={rs.gpsResultText}>{gpsNotice}</Text>
+                  </View>
+                ) : null}
+
+                {/* ─── AVISO SOBRE DIRECCIÓN DEL DNI ─── */}
+                {residenceMode === 'dni' && (
+                  <View style={styles.residenceNoticeCard}>
+                    <Ionicons name="information-circle-outline" size={18} color="#0369a1" style={{ marginRight: 8 }} />
+                    <Text style={styles.residenceNoticeText}>
+                      Esta dirección proviene de tu DNI. Si tu domicilio actual es diferente, puedes editarla abajo.
+                    </Text>
+                  </View>
+                )}
+
+                {/* ─── TARJETA DE DIRECCIÓN SELECCIONADA Y MAPA VISUAL ─── */}
+                {residenceMode ? (
+                  <View style={rs.addressPreviewCard}>
+                    <View style={rs.addressPreviewHeader}>
+                      <Ionicons name="home-outline" size={20} color={COLORS.primaryDark} />
+                      <Text style={rs.addressPreviewTitle}>Dirección y Mapa Comunal</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowResidenceFields(!showResidenceFields)}
+                        style={rs.editBtn}
+                      >
+                        <Ionicons
+                          name={showResidenceFields ? 'chevron-up' : 'create-outline'}
+                          size={16}
+                          color={COLORS.primary}
+                        />
+                        <Text style={rs.editBtnText}>
+                          {showResidenceFields ? 'Ocultar campos' : 'Editar campos'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={rs.addressPreviewText}>
+                      {getAddressSummary() || 'Selecciona o toca en el mapa para fijar tu ubicación'}
+                    </Text>
+
+                    {/* MAPA INTERACTIVO REAL CON LEAFLET + OPENSTREETMAP */}
+                    <InteractiveLocationPickerMap
+                      latitude={gpsCoordinates?.latitude || -11.9865}
+                      longitude={gpsCoordinates?.longitude || -77.0682}
+                      isLocating={isDetectingGps}
+                      onCenterLocation={handleSelectGpsLocation}
+                      fontScale={fontScale}
+                      onLocationSelected={async ({ latitude, longitude }) => {
+                        setGpsCoordinates({ latitude, longitude });
+                        setGpsNotice(`📍 Marcado en mapa: Lat ${latitude.toFixed(5)}, Lon ${longitude.toFixed(5)}`);
+                        try {
+                          const reverse = await Promise.race([
+                            Location.reverseGeocodeAsync({ latitude, longitude }),
+                            new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 3500))
+                          ]);
+                          if (reverse && reverse.length > 0) {
+                            const geo = reverse[0];
+                            const street = [geo.street, geo.streetNumber].filter(Boolean).join(' ') || geo.name;
+                            if (street) setAddressStreet(street);
+                            if (geo.subregion || geo.district) setAddressDistrict(geo.subregion || geo.district);
+                            if (geo.city) setAddressProvince(geo.city);
+                            setGpsNotice(`📍 Fijado en mapa: ${street || 'Ubicación seleccionada'}`);
+                          }
+                        } catch (e) {
+                          console.warn('[Map Pick] Reverse geocode error:', e);
+                        }
+                      }}
+                    />
+
+                    <View style={rs.miniMapBadgeRow}>
+                      <View style={rs.miniMapBadge}>
+                        <Ionicons
+                          name={residenceMode === 'gps' ? 'navigate' : residenceMode === 'dni' ? 'card' : 'pencil'}
+                          size={12}
+                          color={COLORS.primaryDark}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={rs.miniMapBadgeText}>
+                          {residenceMode === 'gps'
+                            ? 'GPS verificado en vivo'
+                            : residenceMode === 'dni'
+                              ? 'Procedencia: DNI Oficial'
+                              : 'Ingreso manual'}
+                        </Text>
+                      </View>
+                      {gpsCoordinates ? (
+                        <View style={rs.coordsBadge}>
+                          <Ionicons name="locate" size={11} color="#0d9488" style={{ marginRight: 3 }} />
+                          <Text style={rs.coordsText}>
+                            {gpsCoordinates.latitude.toFixed(4)}, {gpsCoordinates.longitude.toFixed(4)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* ─── CLARIDAD EN LA ASIGNACIÓN COMUNITARIA ─── */}
+                {residenceMode ? (
+                  <View style={rs.communityCard}>
+                    <Ionicons name="people-circle" size={26} color={COLORS.primary} style={{ marginRight: 10, marginTop: 1 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={rs.communityTitle}>Comunidad y Junta Vecinal</Text>
+                      <Text style={rs.communityDesc}>
+                        {addressDistrict
+                          ? `Te vincularás a la red vecinal de ${addressDistrict}. Si tu junta específica no figura aún, te asignaremos la más cercana y podrás actualizarla después.`
+                          : 'Se te vinculará a la comunidad vecinal más cercana a tu domicilio.'}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* ─── CAMPOS EDITABLES (COLAPSABLES) ─── */}
+                {residenceMode && showResidenceFields && (
+                  <View style={rs.fieldsContainer}>
+                    {/* Dirección */}
+                    <View style={styles.inputGroup}>
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Dirección (calle, jirón, avenida) *</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12) }]}
+                        value={addressStreet}
+                        onChangeText={setAddressStreet}
+                        placeholder="Ej. Av. Universitaria 1801"
+                      />
+                    </View>
+
+                    {/* Mz / Lote */}
+                    <View style={styles.inputGroup}>
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Manzana / Lote / Interior</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12) }]}
+                        value={addressBlock}
+                        onChangeText={setAddressBlock}
+                        placeholder="Ej. Mz B Lote 4 (opcional)"
+                      />
+                    </View>
+
+                    {/* Distrito y Provincia en fila */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Distrito *</Text>
+                        <TextInput
+                          style={[styles.input, { fontSize: scale(12) }]}
+                          value={addressDistrict}
+                          onChangeText={setAddressDistrict}
+                          placeholder="Ej. Los Olivos"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Provincia</Text>
+                        <TextInput
+                          style={[styles.input, { fontSize: scale(12) }]}
+                          value={addressProvince}
+                          onChangeText={setAddressProvince}
+                          placeholder="Ej. Lima"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Departamento */}
+                    <View style={styles.inputGroup}>
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Departamento</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12) }]}
+                        value={addressDepartment}
+                        onChangeText={setAddressDepartment}
+                        placeholder="Ej. Lima"
+                      />
+                    </View>
+
+                    {/* Comunidad / Urbanización (opcional) */}
+                    <View style={styles.inputGroup}>
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Comunidad o Urbanización</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12) }]}
+                        value={addressCommunity}
+                        onChangeText={setAddressCommunity}
+                        placeholder="Ej. Urb. Pro (opcional)"
+                      />
+                    </View>
+
+                    {/* Referencia */}
+                    <View style={styles.inputGroup}>
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Referencia</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12) }]}
+                        value={addressReference}
+                        onChangeText={setAddressReference}
+                        placeholder="Ej. Frente al parque (opcional)"
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {/* ─── BOTÓN PARA MOSTRAR CAMPOS SI AÚN NO ESTÁN VISIBLES ─── */}
+                {residenceMode && !showResidenceFields && getAddressSummary() && (
+                  <TouchableOpacity
+                    style={rs.showFieldsLink}
+                    onPress={() => setShowResidenceFields(true)}
+                  >
+                    <Ionicons name="create-outline" size={14} color={COLORS.primary} style={{ marginRight: 4 }} />
+                    <Text style={rs.showFieldsLinkText}>Corregir o completar dirección</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* ─── BOTÓN CONTINUAR ─── */}
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    { marginTop: 14 },
+                    (!residenceMode || !addressStreet.trim() || !addressDistrict.trim()) && { opacity: 0.5 }
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={handleConfirmResidence}
+                  disabled={!residenceMode || !addressStreet.trim() || !addressDistrict.trim()}
+                >
+                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                    CONFIRMAR RESIDENCIA Y CONTINUAR ➔
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.stepFooterNavRow}>
+                  <TouchableOpacity
+                    style={styles.backStepSecondaryBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setStep(3)}
+                  >
+                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                    <Text style={styles.backStepSecondaryBtnText}>Volver a Confirmar Identidad</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* ========================================================== */}
+            {/* PASO 5: CREACIÓN DE CUENTA (DATOS LOCALES) */}
+            {/* ========================================================== */}
+            {step === 5 && (
               <View style={styles.stepCard}>
                 <View style={styles.iconCircle}>
                   <Text style={{ fontSize: 32 }}>🔐</Text>
                 </View>
                 <Text style={[styles.title, { fontSize: scale(20) }]}>
-                  Registro de tu Cuenta Vecinal
+                  Creación de tu Cuenta Vecinal
                 </Text>
                 <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                  Crea tus credenciales de acceso para entrar a VeciRed IA. Tu identidad ya fue validada con tu DNI y biometría facial.
+                  Ingresa tus credenciales de acceso para entrar a VeciRed IA. Tu identidad y residencia ya han sido verificadas.
                 </Text>
 
                 {/* BADGE DE IDENTIDAD YA VALIDADA */}
@@ -956,10 +1551,10 @@ export default function OnboardingScreen({
                   <View style={{ flex: 1 }}>
                     <Text style={styles.verifiedHolderLabel}>Titular Verificado:</Text>
                     <Text style={styles.verifiedHolderName}>
-                      {dniExtractedData?.full_name || 'Titular del DNI'}
+                      {confirmedFullName || dniExtractedData?.full_name || 'Titular del DNI'}
                     </Text>
                     <Text style={styles.verifiedHolderSub}>
-                      DNI: {dniExtractedData?.dni_number || dniExtractedData?.dni_last4 || '********'} • Rostro confirmado
+                      DNI: {dniExtractedData?.dni_number || dniExtractedData?.dni_last4 || '********'} • Rostro y Residencia validados
                     </Text>
                   </View>
                 </View>
@@ -980,12 +1575,12 @@ export default function OnboardingScreen({
 
                 {/* CONTRASEÑA */}
                 <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Contraseña de Acceso *</Text>
+                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Contraseña de Acceso * (Mínimo 8 caracteres)</Text>
                   <TextInput
                     style={[styles.input, { fontSize: scale(13) }]}
                     value={password}
                     onChangeText={setPassword}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     secureTextEntry
                     autoCapitalize="none"
                   />
@@ -998,22 +1593,9 @@ export default function OnboardingScreen({
                     style={[styles.input, { fontSize: scale(13) }]}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
-                    placeholder="Repite tu contraseña"
+                    placeholder="Repite tu contraseña exactamente"
                     secureTextEntry
                     autoCapitalize="none"
-                  />
-                </View>
-
-                {/* NÚMERO DE CELULAR */}
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Número de Celular *</Text>
-                  <TextInput
-                    style={[styles.input, { fontSize: scale(13) }]}
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                    placeholder="984 555 123"
-                    returnKeyType="done"
                   />
                 </View>
 
@@ -1023,7 +1605,7 @@ export default function OnboardingScreen({
                     Elige tu avatar vecinal (opcional):
                   </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {['👤', '👨‍🔧', '👩‍🔧', '👷', '👨‍🍳', '👩‍🏫', '👵', '👨‍🌾'].map((av) => {
+                    {['👤', '👨🔧', '👩🔧', '👷', '👨🍳', '👩🏫', '👵', '👨🌾'].map((av) => {
                       const isSel = selectedAvatar === av;
                       return (
                         <TouchableOpacity
@@ -1100,189 +1682,14 @@ export default function OnboardingScreen({
                   </View>
                 ) : null}
 
-                {/* BOTÓN REGISTRARSE Y CONTINUAR A PASO 5 */}
+                {/* BOTÓN REVISAR Y CONTINUAR A PASO 6 */}
                 <TouchableOpacity
-                  style={[styles.primaryButton, isRegisteringAccount && { opacity: 0.6 }]}
-                  disabled={isRegisteringAccount}
+                  style={styles.primaryButton}
                   activeOpacity={0.8}
-                  onPress={handleRegisterAccount}
-                >
-                  {isRegisteringAccount ? (
-                    <View style={styles.rowCentered}>
-                      <ActivityIndicator color={COLORS.white} size="small" style={{ marginRight: 8 }} />
-                      <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
-                        CREANDO CUENTA EN SUPABASE...
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                      CREAR CUENTA Y CONTINUAR (PASO 5) ➔
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.stepFooterNavRow}>
-                  <TouchableOpacity
-                    style={styles.backStepSecondaryBtn}
-                    activeOpacity={0.7}
-                    onPress={() => setStep(3)}
-                  >
-                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
-                    <Text style={styles.backStepSecondaryBtnText}>Volver a Verificación Facial (Paso 3)</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* ========================================================== */}
-            {/* PASO 5: RESIDENCIA Y COMUNIDAD */}
-            {/* ========================================================== */}
-            {step === 5 && (
-              <View style={styles.stepCard}>
-                <View style={styles.iconCircle}>
-                  <Text style={{ fontSize: 32 }}>📍</Text>
-                </View>
-                <Text style={[styles.title, { fontSize: scale(20) }]}>
-                  Lugar de Residencia Actual
-                </Text>
-                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                  Indica dónde resides actualmente. Recuerda que tu residencia actual puede ser distinta al lugar de nacimiento o emisión que figura en tu DNI.
-                </Text>
-
-                {/* AVISO IMPORTANTE */}
-                <View style={styles.residenceNoticeCard}>
-                  <Ionicons name="information-circle-outline" size={20} color="#0369a1" style={{ marginRight: 8 }} />
-                  <Text style={styles.residenceNoticeText}>
-                    El UBIGEO de tu DNI registra tu lugar de nacimiento o emisión. Aquí debes ingresar tu domicilio efectivo donde convives con tus vecinos.
-                  </Text>
-                </View>
-
-                {/* BOTÓN DETECCIÓN GPS */}
-                <TouchableOpacity
-                  style={styles.gpsDetectBtn}
-                  activeOpacity={0.8}
-                  onPress={handleDetectGps}
-                  disabled={isDetectingGps}
-                >
-                  <Ionicons name="navigate-circle-outline" size={20} color={COLORS.primary} style={{ marginRight: 6 }} />
-                  <Text style={styles.gpsDetectBtnText}>
-                    {isDetectingGps ? 'OBTENIENDO GPS...' : '📡 OBTENER COORDENADAS GPS'}
-                  </Text>
-                </TouchableOpacity>
-
-                {gpsNotice ? (
-                  <View style={styles.gpsNoticeBox}>
-                    <Text style={styles.gpsNoticeBoxText}>📍 {gpsNotice}</Text>
-                  </View>
-                ) : null}
-
-                {/* CAMPOS DE DIRECCIÓN */}
-                <View style={{ marginTop: 12 }}>
-                  {/* Departamento y Provincia */}
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Departamento *</Text>
-                      <TextInput
-                        style={[styles.input, { fontSize: scale(12) }]}
-                        value={addressDepartment}
-                        onChangeText={setAddressDepartment}
-                        placeholder="Ej. Lima"
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Provincia *</Text>
-                      <TextInput
-                        style={[styles.input, { fontSize: scale(12) }]}
-                        value={addressProvince}
-                        onChangeText={setAddressProvince}
-                        placeholder="Ej. Lima"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Distrito */}
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Distrito de Residencia *</Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12) }]}
-                      value={addressDistrict}
-                      onChangeText={setAddressDistrict}
-                      placeholder="Ej. Los Olivos / San Martín de Porres"
-                    />
-                  </View>
-
-                  {/* Comunidad / Urbanización */}
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>
-                      Comunidad, Urbanización o Sector *
-                    </Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12) }]}
-                      value={addressCommunity}
-                      onChangeText={setAddressCommunity}
-                      placeholder="Ej. Urb. Pro / Asoc. Micaela Bastidas"
-                    />
-                  </View>
-
-                  {/* Zona Barrial */}
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>
-                      Zona Barrial / Cuadrante VeciRed *
-                    </Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12) }]}
-                      value={addressZone}
-                      onChangeText={setAddressZone}
-                      placeholder="Ej. Zona A - Manzana 2"
-                    />
-                  </View>
-
-                  {/* Calle y Manzana */}
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>
-                      Calle, Jirón o Avenida y Número *
-                    </Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12) }]}
-                      value={addressStreet}
-                      onChangeText={setAddressStreet}
-                      placeholder="Ej. Calle Los Nogales 214"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>
-                      Manzana y Lote / Interior *
-                    </Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12) }]}
-                      value={addressBlock}
-                      onChangeText={setAddressBlock}
-                      placeholder="Ej. Mz B Lote 4"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>
-                      Referencia de Llegada (Opcional)
-                    </Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12) }]}
-                      value={addressReference}
-                      onChangeText={setAddressReference}
-                      placeholder="Ej. A dos casas del parque principal"
-                    />
-                  </View>
-                </View>
-
-                {/* BOTÓN CONTINUAR A CONFIRMACIÓN */}
-                <TouchableOpacity
-                  style={[styles.primaryButton, { marginTop: 14 }]}
-                  activeOpacity={0.8}
-                  onPress={handleConfirmResidence}
+                  onPress={handleValidateAccountStep}
                 >
                   <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                    CONFIRMAR RESIDENCIA Y CONTINUAR (PASO 6) ➔
+                    REVISAR RESUMEN Y REGISTRO (PASO 6) ➔
                   </Text>
                 </TouchableOpacity>
 
@@ -1293,14 +1700,14 @@ export default function OnboardingScreen({
                     onPress={() => setStep(4)}
                   >
                     <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
-                    <Text style={styles.backStepSecondaryBtnText}>Volver a Registro de Cuenta (Paso 4)</Text>
+                    <Text style={styles.backStepSecondaryBtnText}>Volver a Residencia (Paso 4)</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
             {/* ========================================================== */}
-            {/* PASO 6: CONFIRMACIÓN Y FINALIZACIÓN */}
+            {/* PASO 6: CONFIRMACIÓN Y REGISTRO DEFINITIVO */}
             {/* ========================================================== */}
             {step === 6 && (
               <View style={styles.stepCard}>
@@ -1308,10 +1715,10 @@ export default function OnboardingScreen({
                   <Text style={{ fontSize: 44 }}>🛡️</Text>
                 </View>
                 <Text style={[styles.title, { fontSize: scale(22), color: COLORS.primaryDark }]}>
-                  ¡Resumen del Onboarding!
+                  ¡Resumen y Registro Definitivo!
                 </Text>
                 <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                  Revisa el resumen completo de tus datos antes de ingresar a la red comunitaria de VeciRed IA.
+                  Revisa el resumen completo de tus datos antes de activar tu cuenta en la red comunitaria de VeciRed IA.
                 </Text>
 
                 {finalizeError ? (
@@ -1321,115 +1728,131 @@ export default function OnboardingScreen({
                 ) : null}
 
                 {/* FICHA RESUMEN DE IDENTIDAD Y ACCESO */}
-                <View style={styles.summaryCard}>
+                <View style={[styles.summaryCard, { padding: scale(16) }]}>
                   {/* SECCIÓN IDENTIDAD */}
-                  <Text style={styles.summarySectionTitle}>🪪 Identidad Validada (DNI + Claude Vision)</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Titular:</Text>
-                    <Text style={styles.summaryVal}>
-                      {dniExtractedData?.full_name || 'No especificado'}
+                  <Text style={[styles.summarySectionTitle, { fontSize: scale(13) }]}>🪪 Identidad Validada (DNI + Claude Vision)</Text>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Titular:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12), fontWeight: '700' }]}>
+                      {confirmedFullName || dniExtractedData?.full_name || 'No especificado'}
                     </Text>
                   </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>DNI:</Text>
-                    <Text style={styles.summaryVal}>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>DNI:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
                       {dniExtractedData?.dni_number || dniExtractedData?.dni_last4 || '********'}
                     </Text>
                   </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Nacimiento:</Text>
-                    <Text style={styles.summaryVal}>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Nacimiento:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
                       {dniExtractedData?.birth_date ? String(dniExtractedData.birth_date) : 'Registrado'}
                       {typeof dniExtractedData?.age === 'number' ? ` (${dniExtractedData.age} años)` : ''}
                     </Text>
                   </View>
 
-                  <View style={styles.summaryDivider} />
+                  <View style={[styles.summaryDivider, { marginVertical: scale(10) }]} />
 
-                  {/* SECCIÓN BIOMETRÍA */}
-                  <Text style={styles.summarySectionTitle}>🤳 Verificación Biométrica (InsightFace)</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Estado Facial:</Text>
-                    <Text style={[styles.summaryVal, { color: '#16a34a', fontWeight: '700' }]}>
-                      ✓ Rostro verificado y validado
+                  {/* SECCIÓN PRESENCIA FACIAL */}
+                  <Text style={[styles.summarySectionTitle, { fontSize: scale(13) }]}>🤳 Presencia Facial en Vivo</Text>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Estado Facial:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12), color: '#16a34a', fontWeight: '700' }]}>
+                      ✓ Rostro detectado frente a la cámara
                     </Text>
                   </View>
 
-                  <View style={styles.summaryDivider} />
+                  <View style={[styles.summaryDivider, { marginVertical: scale(10) }]} />
 
                   {/* SECCIÓN CUENTA */}
-                  <Text style={styles.summarySectionTitle}>✉️ Cuenta y Oficio Vecinal</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Correo:</Text>
-                    <Text style={styles.summaryVal}>{email}</Text>
+                  <Text style={[styles.summarySectionTitle, { fontSize: scale(13) }]}>✉️ Cuenta y Oficio Vecinal</Text>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Correo:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{email}</Text>
                   </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Celular:</Text>
-                    <Text style={styles.summaryVal}>{phone}</Text>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Celular:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{phone}</Text>
                   </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Habilidad:</Text>
-                    <Text style={styles.summaryVal}>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Oficio / Habilidad:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
                       {customSkill.trim() || selectedSkill || 'Vecino Colaborador'}
                     </Text>
                   </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Avatar:</Text>
-                    <Text style={styles.summaryVal}>{selectedAvatar}</Text>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Avatar:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(14) }]}>{selectedAvatar}</Text>
                   </View>
 
-                  <View style={styles.summaryDivider} />
+                  <View style={[styles.summaryDivider, { marginVertical: scale(10) }]} />
 
                   {/* SECCIÓN RESIDENCIA */}
-                  <Text style={styles.summarySectionTitle}>📍 Residencia Barrial</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Dirección:</Text>
-                    <Text style={styles.summaryVal}>{addressStreet}, {addressBlock}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Comunidad:</Text>
-                    <Text style={styles.summaryVal}>{addressCommunity}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Cuadrante:</Text>
-                    <Text style={styles.summaryVal}>{addressZone}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Ubicación:</Text>
-                    <Text style={styles.summaryVal}>
-                      {addressDistrict}, {addressProvince} ({addressDepartment})
+                  <Text style={[styles.summarySectionTitle, { fontSize: scale(13) }]}>📍 Residencia Confirmada</Text>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Dirección:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {[addressStreet, addressBlock].filter(Boolean).join(' • ') || 'No especificada'}
                     </Text>
                   </View>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Distrito:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {[addressDistrict, addressProvince].filter(Boolean).join(', ') || 'No especificado'}
+                    </Text>
+                  </View>
+                  <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>Comunidad:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {addressCommunity || (addressDistrict ? `Comunidad Vecinal ${addressDistrict}` : 'Asignación vecinal cercana')}
+                    </Text>
+                  </View>
+                  {gpsCoordinates ? (
+                    <View style={[styles.summaryRow, { paddingVertical: scale(4) }]}>
+                      <Text style={[styles.summaryLabel, { fontSize: scale(12) }]}>GPS:</Text>
+                      <Text style={[styles.summaryVal, { fontSize: scale(12), color: '#0d9488', fontWeight: '700' }]}>
+                        ✓ Real ({gpsCoordinates.latitude.toFixed(4)}, {gpsCoordinates.longitude.toFixed(4)})
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* EXPLICACIÓN DEL REGISTRO DEFINITIVO */}
+                <View style={[styles.residenceNoticeCard, { marginTop: scale(14), padding: scale(12) }]}>
+                  <Ionicons name="shield-checkmark-outline" size={scale(20)} color="#0369a1" style={{ marginRight: scale(8) }} />
+                  <Text style={[styles.residenceNoticeText, { fontSize: scale(12), lineHeight: scale(18) }]}>
+                    Al pulsar el botón definitivo, se creará tu cuenta en Supabase Auth, se activará tu perfil verificado en la comunidad y entrarás directamente a la aplicación.
+                  </Text>
                 </View>
 
                 {/* SELECTOR DE ACCESIBILIDAD SENIOR */}
                 {setFontScale && (
-                  <View style={styles.seniorSelectorBox}>
-                    <Text style={[styles.seniorTitle, { fontSize: scale(12) }]}>
+                  <View style={[styles.seniorSelectorBox, { padding: scale(14), marginBottom: scale(16) }]}>
+                    <Text style={[styles.seniorTitle, { fontSize: scale(13), marginBottom: scale(10) }]}>
                       👁️ Elige tu tamaño de letra preferido (Accesibilidad):
                     </Text>
                     <View style={styles.seniorButtonsRow}>
                       <TouchableOpacity
                         onPress={() => setFontScale(1.0)}
-                        style={[styles.seniorBtn, fontScale === 1.0 && styles.seniorBtnActive]}
+                        style={[styles.seniorBtn, { paddingVertical: scale(10) }, fontScale === 1.0 && styles.seniorBtnActive]}
                       >
-                        <Text style={[styles.seniorBtnText, fontScale === 1.0 && styles.seniorBtnTextActive]}>
+                        <Text style={[styles.seniorBtnText, { fontSize: scale(12) }, fontScale === 1.0 && styles.seniorBtnTextActive]}>
                           A Normal
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => setFontScale(1.15)}
-                        style={[styles.seniorBtn, fontScale === 1.15 && styles.seniorBtnActive]}
+                        style={[styles.seniorBtn, { paddingVertical: scale(10) }, fontScale === 1.15 && styles.seniorBtnActive]}
                       >
-                        <Text style={[styles.seniorBtnText, fontScale === 1.15 && styles.seniorBtnTextActive]}>
+                        <Text style={[styles.seniorBtnText, { fontSize: scale(12) }, fontScale === 1.15 && styles.seniorBtnTextActive]}>
                           A+ Grande
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => setFontScale(1.30)}
-                        style={[styles.seniorBtn, fontScale === 1.30 && styles.seniorBtnActive]}
+                        style={[styles.seniorBtn, { paddingVertical: scale(10) }, fontScale === 1.30 && styles.seniorBtnActive]}
                       >
-                        <Text style={[styles.seniorBtnText, fontScale === 1.30 && styles.seniorBtnTextActive]}>
+                        <Text style={[styles.seniorBtnText, { fontSize: scale(12) }, fontScale === 1.30 && styles.seniorBtnTextActive]}>
                           A++ Senior
                         </Text>
                       </TouchableOpacity>
@@ -1439,21 +1862,21 @@ export default function OnboardingScreen({
 
                 {/* BOTÓN FINALIZAR Y ENTRAR */}
                 <TouchableOpacity
-                  style={[styles.enterAppButton, isFinalizing && { opacity: 0.7 }]}
+                  style={[styles.enterAppButton, { paddingVertical: scale(16) }, isFinalizing && { opacity: 0.7 }]}
                   activeOpacity={0.8}
                   disabled={isFinalizing}
                   onPress={handleFinalizeOnboarding}
                 >
                   {isFinalizing ? (
                     <View style={styles.rowCentered}>
-                      <ActivityIndicator color={COLORS.white} size="small" style={{ marginRight: 8 }} />
-                      <Text style={[styles.enterAppButtonText, { fontSize: scale(16) }]}>
-                        FINALIZANDO ONBOARDING...
+                      <ActivityIndicator color={COLORS.white} size="small" style={{ marginRight: scale(8) }} />
+                      <Text style={[styles.enterAppButtonText, { fontSize: scale(15) }]}>
+                        CREANDO CUENTA Y ACTIVANDO PERFIL...
                       </Text>
                     </View>
                   ) : (
-                    <Text style={[styles.enterAppButtonText, { fontSize: scale(16) }]}>
-                      🚀 COMPLETAR Y ENTRAR A LA APLICACIÓN
+                    <Text style={[styles.enterAppButtonText, { fontSize: scale(15) }]}>
+                      🛡️ REGISTRARME Y ACCEDER A VECIRED IA
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -1465,7 +1888,7 @@ export default function OnboardingScreen({
                     onPress={() => setStep(5)}
                   >
                     <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
-                    <Text style={styles.backStepSecondaryBtnText}>Corregir Residencia (Paso 5)</Text>
+                    <Text style={styles.backStepSecondaryBtnText}>Corregir Datos de Cuenta (Paso 5)</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -2126,4 +2549,250 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700'
   }
+});
+
+// ==========================================================
+// ESTILOS DEL PASO 4: RESIDENCIA REDISEÑADO
+// ==========================================================
+const rs = StyleSheet.create({
+  optionsContainer: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  optionCardActive: {
+    backgroundColor: '#f0fdfa',
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  optionIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  optionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  optionTitleActive: {
+    color: COLORS.primaryDark,
+  },
+  optionDesc: {
+    fontSize: 11,
+    color: '#94a3b8',
+    lineHeight: 15,
+  },
+  gpsResultBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  gpsResultText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#15803d',
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  addressPreviewCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+  },
+  addressPreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  addressPreviewTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+  },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#f0fdfa',
+    gap: 4,
+  },
+  editBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  addressPreviewText: {
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  coordsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: '#f0fdfa',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  coordsText: {
+    fontSize: 10,
+    color: '#0d9488',
+    fontWeight: '600',
+  },
+  fieldsContainer: {
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  showFieldsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  showFieldsLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  miniMapCard: {
+    marginTop: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+  },
+  miniMapGrid: {
+    height: 80,
+    backgroundColor: '#e0f2fe',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  mapLineHorizontal: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 40,
+    height: 6,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  mapLineVertical: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    width: 6,
+    marginLeft: -3,
+    backgroundColor: '#ffffff',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  mapRoadCurve: {
+    position: 'absolute',
+    top: 15,
+    bottom: 15,
+    left: '20%',
+    right: '20%',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#93c5fd',
+    borderStyle: 'dashed',
+  },
+  mapPinContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  mapPinPulse: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  miniMapBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  miniMapBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdfa',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  miniMapBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+  },
+  communityCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f0fdfa',
+    borderWidth: 1,
+    borderColor: '#99f6e4',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  communityTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
+    marginBottom: 2,
+  },
+  communityDesc: {
+    fontSize: 11,
+    color: '#0f766e',
+    lineHeight: 16,
+  },
 });

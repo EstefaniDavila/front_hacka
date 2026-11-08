@@ -3,16 +3,47 @@
 // ==========================================================
 import { Platform } from 'react-native';
 
-export const LOCAL_PC_IP = '192.168.1.33';
+// export const LOCAL_PC_IP = '192.168.1.33';
+export const LOCAL_PC_IP = '10.160.244.226';
 
 export const API_BASE_URL = Platform.OS === 'web'
   ? ((typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
-     (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
-     'http://localhost:8000/api/v1')
+    (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
+    'http://localhost:8000/api/v1')
   : 'http://' + LOCAL_PC_IP + ':8000/api/v1';
 
 let isBackendConnected = false;
 
+// Generador y validador de UUID v4 conforme a RFC 4122
+let currentTestUserId = null;
+
+export function isValidUUID(uuidStr) {
+  if (typeof uuidStr !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuidStr.trim()) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuidStr.trim());
+}
+
+export function getOrCreateTestUserId() {
+  if (currentTestUserId && isValidUUID(currentTestUserId)) {
+    return currentTestUserId;
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    currentTestUserId = crypto.randomUUID();
+  } else {
+    currentTestUserId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+  return currentTestUserId;
+}
+
+export function setTestUserId(id) {
+  if (id && isValidUUID(String(id))) {
+    currentTestUserId = String(id).trim();
+  }
+}
 
 function createReactNativeFilePart(file, defaultName) {
   if (!file) return null;
@@ -53,18 +84,37 @@ function sendFormDataWithXHR(url, formData, headers = {}, token = null, timeoutM
     xhr.open('POST', url, true);
     xhr.timeout = timeoutMs;
 
-    // Asignar cabeceras requeridas
-    xhr.setRequestHeader('Accept', 'application/json');
+    // Consolidar cabeceras en un solo objeto para prevenir duplicación accidental de setRequestHeader
+    const finalHeaders = {
+      Accept: 'application/json'
+    };
+
     if (token) {
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      finalHeaders['Authorization'] = `Bearer ${token}`;
     } else {
-      xhr.setRequestHeader('X-Test-User-Id', 'a0000000-0000-0000-0000-000000000001');
+      const testUid = getOrCreateTestUserId();
+      finalHeaders['X-Test-User-Id'] = testUid;
+      finalHeaders['X-User-Id'] = testUid;
     }
 
-    // Cabeceras adicionales (excluyendo estrictamente Content-Type para permitir multipart boundary automático)
+    // Incorporar cualquier cabecera adicional provista en el argumento headers (omitiendo Content-Type)
     for (const [key, val] of Object.entries(headers)) {
-      if (key.toLowerCase() !== 'content-type' && val) {
-        xhr.setRequestHeader(key, val);
+      const lower = key.toLowerCase();
+      if (lower === 'content-type') continue; // Dejar que el runtime configure el multipart boundary
+      if (lower === 'x-test-user-id' || lower === 'x-user-id') {
+        if (val && isValidUUID(String(val))) {
+          finalHeaders['X-Test-User-Id'] = String(val).trim();
+          finalHeaders['X-User-Id'] = String(val).trim();
+        }
+      } else if (val) {
+        finalHeaders[key] = val;
+      }
+    }
+
+    // Asignar cada cabecera exactamente UNA sola vez para evitar concatenación por comas
+    for (const [key, val] of Object.entries(finalHeaders)) {
+      if (val) {
+        xhr.setRequestHeader(key, String(val).trim());
       }
     }
 
@@ -111,8 +161,14 @@ async function request(endpoint, options = {}, token = null) {
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+    delete headers['X-Test-User-Id'];
+    delete headers['X-User-Id'];
   } else {
-    headers['X-Test-User-Id'] = 'a0000000-0000-0000-0000-000000000001';
+    const testUid = getOrCreateTestUserId();
+    if (!headers['X-Test-User-Id'] || !isValidUUID(headers['X-Test-User-Id'])) {
+      headers['X-Test-User-Id'] = testUid;
+    }
+    headers['X-User-Id'] = headers['X-Test-User-Id'];
   }
 
   // Detección robusta de FormData en React Native Android / iOS / Web
@@ -205,7 +261,7 @@ export const api = {
   },
 
   // Subir DNI y Selfie para verificación biométrica con IA (compatible con React Native Android y Web)
-  async verifyIdentity({ dniFrontFile, dniBackFile, selfieFile, fullName }, token = null) {
+  async verifyIdentity({ dniFrontFile, dniBackFile, selfieFile, fullName, userId }, token = null) {
     const formData = new FormData();
 
     const frontPart = createReactNativeFilePart(dniFrontFile, 'dni_front.jpg');
@@ -229,17 +285,63 @@ export const api = {
       formData.append('full_name', String(fullName));
     }
 
+    const targetUserId = userId && isValidUUID(String(userId)) ? String(userId).trim() : getOrCreateTestUserId();
+    if (targetUserId) {
+      formData.append('user_id', targetUserId);
+    }
+
+    const extraHeaders = {};
+    if (!token && targetUserId) {
+      extraHeaders['X-Test-User-Id'] = targetUserId;
+      extraHeaders['X-User-Id'] = targetUserId;
+    }
+
     return request(
       '/users/verify-identity',
       {
         method: 'POST',
+        headers: extraHeaders,
         body: formData
       },
       token
     );
   },
 
-  async extractDni({ dniFrontFile, dniBackFile }, token = null) {
+  async extractDni({ dniFrontFile, dniBackFile, userId }, token = null) {
+    const formData = new FormData();
+
+    const frontPart = createReactNativeFilePart(dniFrontFile, 'dni_front.jpg');
+    if (!frontPart) {
+      throw new Error('La fotografía del anverso del DNI es obligatoria.');
+    }
+    formData.append('dni_front', frontPart);
+
+    if (dniBackFile) {
+      const backPart = createReactNativeFilePart(dniBackFile, 'dni_back.jpg');
+      if (backPart) {
+        formData.append('dni_back', backPart);
+      }
+    }
+
+    const targetUserId = userId && isValidUUID(String(userId)) ? String(userId).trim() : getOrCreateTestUserId();
+    const extraHeaders = {};
+    if (!token && targetUserId) {
+      extraHeaders['X-Test-User-Id'] = targetUserId;
+      extraHeaders['X-User-Id'] = targetUserId;
+    }
+
+    return request(
+      '/users/extract-dni',
+      {
+        method: 'POST',
+        headers: extraHeaders,
+        body: formData
+      },
+      token
+    );
+  },
+
+  async startDniVerificationSession({ dniFrontFile, dniBackFile }) {
     const formData = new FormData();
 
     const frontPart = createReactNativeFilePart(dniFrontFile, 'dni_front.jpg');
@@ -256,10 +358,52 @@ export const api = {
     }
 
     return request(
-      '/users/extract-dni',
+      '/users/verification-session/start-dni',
       {
         method: 'POST',
         body: formData
+      }
+    );
+  },
+
+  // Paso 2: Verificación Facial contra el DNI con InsightFace en backend
+  async verifyFaceInSession({ verificationToken, selfieFile }) {
+    if (!verificationToken) {
+      throw new Error('Token de verificación requerido.');
+    }
+    if (!selfieFile) {
+      throw new Error('Fotografía selfie requerida.');
+    }
+
+    const formData = new FormData();
+    formData.append('verification_token', String(verificationToken));
+
+    const selfiePart = createReactNativeFilePart(selfieFile, 'selfie.jpg');
+    if (!selfiePart) {
+      throw new Error('Archivo de imagen selfie inválido.');
+    }
+    formData.append('selfie', selfiePart);
+
+    return request(
+      '/users/verification-session/verify-face',
+      {
+        method: 'POST',
+        body: formData
+      }
+    );
+  },
+
+  // Paso 6: Registro Definitivo y persistencia atómica en base de datos
+  async completeOnboardingRegistration(registrationData, token) {
+    if (!token) {
+      throw new Error('Token de autenticación de Supabase requerido para el registro definitivo.');
+    }
+
+    return request(
+      '/users/complete-onboarding-registration',
+      {
+        method: 'POST',
+        body: JSON.stringify(registrationData)
       },
       token
     );
@@ -404,7 +548,7 @@ export const api = {
   },
 
   async deleteProduct(productId, token) {
-    return request(/products/, { method: 'DELETE' }, token);
+    return request(`/products/${productId}`, { method: 'DELETE' }, token);
   },
 
   // ==========================================================
