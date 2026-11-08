@@ -185,12 +185,16 @@ function MainApp() {
               <View style={styles.appLogoCircle}>
                 <Text style={{ fontSize: 20 }}>🏡</Text>
               </View>
-              <View>
+              <View style={styles.headerTextContainer}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Text style={[styles.appBrandText, { fontSize: scale(16) }]}>VeciRed </Text>
                   <Text style={[styles.appBrandIa, { fontSize: scale(16) }]}>IA</Text>
                 </View>
-                <Text style={[styles.appLocationText, { fontSize: scale(11) }]}>
+                <Text
+                  style={[styles.appLocationText, { fontSize: scale(11) }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   📍 {userProfile.address || 'Mi comunidad • Zona A'}
                 </Text>
                 {backendOnline ? (
@@ -407,7 +411,9 @@ export default function App() {
   );
 }
 
-const STATUSBAR_HEIGHT = Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0;
+const STATUSBAR_HEIGHT = Platform.OS === 'android'
+  ? (StatusBar.currentHeight || 28)
+  : (Platform.OS === 'web' ? 8 : 0);
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -427,18 +433,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: Platform.OS === 'android' ? 12 : 14,
+    paddingBottom: 12,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border
   },
   appHeaderLeft: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10
+  },
+  headerTextContainer: {
+    flex: 1,
+    justifyContent: 'center'
   },
   appLogoCircle: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 12,
     backgroundColor: COLORS.primarySurface,
     borderWidth: 1,
@@ -457,12 +470,14 @@ const styles = StyleSheet.create({
   },
   appLocationText: {
     fontWeight: '700',
-    color: COLORS.textSecondary
+    color: COLORS.textSecondary,
+    maxWidth: '100%'
   },
   appHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 8,
+    flexShrink: 0
   },
   headerIconButton: {
     width: 36,
