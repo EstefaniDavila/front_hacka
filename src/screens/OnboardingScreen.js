@@ -85,6 +85,11 @@ export default function OnboardingScreen({
 
   const scale = (val) => Math.round(val * fontScale);
 
+  // Asegurar que al cambiar de paso el scroll vuelva al inicio de la tarjeta
+  useEffect(() => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
+
   // Detectar ubicación real vía Geolocation del navegador si está en Web
   useEffect(() => {
     if (step === 5 && typeof navigator !== 'undefined' && navigator.geolocation) {

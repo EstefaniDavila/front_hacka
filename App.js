@@ -1,4 +1,5 @@
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import './src/utils/domSafePatch';
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -291,36 +292,36 @@ function MainApp() {
   const userIsActive = isAuthenticated || isLoggedIn;
 
   if (!userIsActive) {
-    if (authView === 'login') {
-      return (
-        <LoginScreen
-          onNavigateToRegister={() => setAuthView('register')}
-          onNavigateToForgotPassword={() => setAuthView('forgot_password')}
-          fontScale={fontScale}
-        />
-      );
-    }
-
-    if (authView === 'forgot_password') {
-      return (
-        <ForgotPasswordScreen
-          onBackToLogin={() => setAuthView('login')}
-          fontScale={fontScale}
-        />
-      );
-    }
-
     return (
-      <OnboardingScreen
-        onFinishLogin={() => {
-          setIsLoggedIn(true);
-          setAuthView('login');
-        }}
-        onNavigateToLogin={() => setAuthView('login')}
-        fontScale={fontScale}
-        setFontScale={setFontScale}
-        onSaveUserData={handleSaveUserProfile}
-      />
+      <ScreenErrorBoundary>
+        {authView === 'login' && (
+          <LoginScreen
+            onNavigateToRegister={() => setAuthView('register')}
+            onNavigateToForgotPassword={() => setAuthView('forgot_password')}
+            fontScale={fontScale}
+          />
+        )}
+
+        {authView === 'forgot_password' && (
+          <ForgotPasswordScreen
+            onBackToLogin={() => setAuthView('login')}
+            fontScale={fontScale}
+          />
+        )}
+
+        {authView !== 'login' && authView !== 'forgot_password' && (
+          <OnboardingScreen
+            onFinishLogin={() => {
+              setIsLoggedIn(true);
+              setAuthView('login');
+            }}
+            onNavigateToLogin={() => setAuthView('login')}
+            fontScale={fontScale}
+            setFontScale={setFontScale}
+            onSaveUserData={handleSaveUserProfile}
+          />
+        )}
+      </ScreenErrorBoundary>
     );
   }
 
