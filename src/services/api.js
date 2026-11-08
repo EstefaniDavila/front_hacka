@@ -47,6 +47,61 @@ function createReactNativeFilePart(file, defaultName) {
   };
 }
 
+function sendFormDataWithXHR(url, formData, headers = {}, token = null, timeoutMs = 45000) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.timeout = timeoutMs;
+
+    // Asignar cabeceras requeridas
+    xhr.setRequestHeader('Accept', 'application/json');
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    } else {
+      xhr.setRequestHeader('X-Test-User-Id', 'a0000000-0000-0000-0000-000000000001');
+    }
+
+    // Cabeceras adicionales (excluyendo estrictamente Content-Type para permitir multipart boundary automático)
+    for (const [key, val] of Object.entries(headers)) {
+      if (key.toLowerCase() !== 'content-type' && val) {
+        xhr.setRequestHeader(key, val);
+      }
+    }
+
+    xhr.onload = () => {
+      isBackendConnected = true;
+      try {
+        const contentType = xhr.getResponseHeader('content-type') || '';
+        const isJson = contentType.includes('application/json');
+        const data = isJson ? JSON.parse(xhr.responseText) : xhr.responseText;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data);
+        } else {
+          const errMsg = data?.message || data?.detail || `Error del servidor (${xhr.status})`;
+          const err = new Error(errMsg);
+          err.status = xhr.status;
+          err.data = data;
+          reject(err);
+        }
+      } catch (parseErr) {
+        reject(new Error(`Respuesta inválida (${xhr.status}): ${xhr.responseText || parseErr.message}`));
+      }
+    };
+
+    xhr.onerror = () => {
+      isBackendConnected = false;
+      reject(new Error('No fue posible contactar al servidor de VeciRed. Verifica tu conexión.'));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error('Tiempo de espera agotado al procesar las fotografías del DNI.'));
+    };
+
+    // Envío directo a través del canal nativo de React Native (OkHttp en Android)
+    xhr.send(formData);
+  });
+}
+
 async function request(endpoint, options = {}, token = null) {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
@@ -69,19 +124,19 @@ async function request(endpoint, options = {}, token = null) {
       (typeof options.body === 'object' && Object.prototype.toString.call(options.body) === '[object FormData]') ||
       (typeof options.body?.append === 'function' && typeof options.body?.delete === 'function'));
 
+  // Para envíos multipart de FormData en React Native, utilizar directamente XMLHttpRequest.
+  // Esto evita que expo/fetch (WinterCG) intente serializar erróneamente los objetos { uri, name, type }
+  // y previene el error "Unsupported FormDataPart implementation".
   if (isFormData) {
-    // REGLA CRÍTICA PARA REACT NATIVE ANDROID:
-    // NUNCA establecer manualmente Content-Type cuando el body es FormData.
-    // Al eliminarlo, fetch y el motor nativo OkHttp establecen automáticamente
-    // 'multipart/form-data; boundary=...' sin romper la serialización de FormDataPart.
-    delete headers['Content-Type'];
-    delete headers['content-type'];
-  } else if (!headers['Content-Type'] && !headers['content-type']) {
+    const timeoutMs = 45000;
+    return sendFormDataWithXHR(url, options.body, headers, token, timeoutMs);
+  }
+
+  if (!headers['Content-Type'] && !headers['content-type']) {
     headers['Content-Type'] = 'application/json';
   }
 
-  // Aumentar el timeout para peticiones con imágenes multipart (OCR Claude Vision)
-  const timeoutMs = isFormData ? 45000 : 12000;
+  const timeoutMs = 12000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 

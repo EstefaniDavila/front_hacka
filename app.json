@@ -39,6 +39,9 @@
     ],
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "EXPO_PUBLIC_USE_RN_FETCH": "true"
     }
   }
 }
