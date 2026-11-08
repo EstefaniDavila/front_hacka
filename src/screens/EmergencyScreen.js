@@ -14,6 +14,27 @@ import { useAuth } from '../context/AuthContext';
 import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 import { getOrDetectUserLocation } from '../services/locationService';
 
+
+function getEmgIcon(type) {
+  const t = (type || '').toLowerCase();
+  if (t.includes('inund') || t.includes('agua') || t.includes('aniego')) return '🌊';
+  if (t.includes('incend') || t.includes('fuego') || t.includes('humo')) return '🔥';
+  if (t.includes('med') || t.includes('salud') || t.includes('ambulan')) return '🚑';
+  if (t.includes('sismo') || t.includes('vivien') || t.includes('estruct')) return '🏚️';
+  if (t.includes('luz') || t.includes('recurs') || t.includes('corte') || t.includes('suministr')) return '📦';
+  return '🚨';
+}
+
+function getEmgBgColor(type) {
+  const t = (type || '').toLowerCase();
+  if (t.includes('inund') || t.includes('agua') || t.includes('aniego')) return '#e0f2fe';
+  if (t.includes('incend') || t.includes('fuego')) return '#ffedd5';
+  if (t.includes('med') || t.includes('salud')) return '#fee2e2';
+  if (t.includes('sismo') || t.includes('vivien')) return '#fef3c7';
+  if (t.includes('luz') || t.includes('corte')) return '#f1f5f9';
+  return '#fee2e2';
+}
+
 export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered, userProfile, onDismissBanner }) {
   const { session, profile, user } = useAuth();
   const token = session?.access_token;
@@ -312,32 +333,74 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       {/* VISTA 1: ACTIVAR ALERTA */}
       {activeTab === 'alert' && (
         <View>
-          {/* Selector de Alertas Activas si hay más de una */}
-          {activeEmergenciesList && activeEmergenciesList.length > 1 && (
-            <View style={styles.alertSelectorCard}>
-              <Text style={[styles.alertSelectorTitle, { fontSize: scale(12) }]}>
-                📋 Alertas Activas en tu Zona ({activeEmergenciesList.length}) — Selecciona una:
+          {/* Listado Completo de Alertas Comunitarias Activas */}
+          {activeEmergenciesList && activeEmergenciesList.length > 0 && (
+            <View style={styles.alertListCard}>
+              <View style={styles.alertListHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 16 }}>🚨</Text>
+                  <Text style={[styles.alertListTitle, { fontSize: scale(13) }]}>
+                    Alertas Comunitarias Activas ({activeEmergenciesList.length})
+                  </Text>
+                </View>
+                <View style={styles.liveIndicator}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>EN VIVO</Text>
+                </View>
+              </View>
+
+              <Text style={[styles.alertListSub, { fontSize: scale(11) }]}>
+                Toca cualquier alerta para ver su brigada, mapa satelital y detalles:
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-                {activeEmergenciesList.map((emg) => {
+
+              <View style={styles.alertRowsContainer}>
+                {activeEmergenciesList.map((emg, idx) => {
                   const isSelected = String(emg.id) === String(activeEmergency?.id);
+                  const icon = getEmgIcon(emg.emergency_type || emg.type || emg.title);
+                  const bgColor = getEmgBgColor(emg.emergency_type || emg.type || emg.title);
+
                   return (
                     <TouchableOpacity
-                      key={emg.id}
-                      style={[styles.alertPill, isSelected && styles.alertPillActive]}
+                      key={emg.id || idx}
+                      style={[styles.alertRowItem, isSelected && styles.alertRowItemSelected]}
                       onPress={() => {
                         setActiveEmergency(emg);
                         loadVolunteersForEmergency(emg.id);
                       }}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.alertPillText, isSelected && styles.alertPillTextActive]}>
-                        {isSelected ? '🔴 ' : '⚠️ '}{emg.title}
-                      </Text>
+                      <View style={[styles.alertIconBadge, { backgroundColor: bgColor }]}>
+                        <Text style={{ fontSize: 18 }}>{icon}</Text>
+                      </View>
+
+                      <View style={{ flex: 1, marginHorizontal: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <Text
+                            style={[styles.alertItemTitle, isSelected && styles.alertItemTitleSelected, { fontSize: scale(12) }]}
+                            numberOfLines={1}
+                          >
+                            {emg.title}
+                          </Text>
+                          <View style={[styles.itemStatusBadge, isSelected ? styles.itemStatusBadgeActive : null]}>
+                            <Text style={[styles.itemStatusText, isSelected ? styles.itemStatusTextActive : null]}>
+                              {isSelected ? 'SELECCIONADA' : 'EN CURSO'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.alertItemSub, { fontSize: scale(10.5) }]} numberOfLines={1}>
+                          📍 {emg.community_name || emg.location || 'Zona A – Manzana 2'} • {emg.description || 'Alerta vecinal'}
+                        </Text>
+                      </View>
+
+                      <Ionicons
+                        name={isSelected ? "radio-button-on" : "chevron-forward"}
+                        size={18}
+                        color={isSelected ? "#dc2626" : "#cbd5e1"}
+                      />
                     </TouchableOpacity>
                   );
                 })}
-              </ScrollView>
+              </View>
             </View>
           )}
 
@@ -584,37 +647,144 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     fontWeight: '900'
   },
-  alertSelectorCard: {
-    backgroundColor: '#fff1f2',
+  alertListCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#fecdd3',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 14,
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2
+  },
+  alertListHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4
+  },
+  alertListTitle: {
+    fontWeight: '900',
+    color: '#9f1239'
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#dc2626'
+  },
+  liveText: {
+    color: '#dc2626',
+    fontWeight: '900',
+    fontSize: 9.5
+  },
+  alertListSub: {
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 10
+  },
+  alertRowsContainer: {
+    gap: 8
+  },
+  alertRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  alertRowItemSelected: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#f87171',
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  alertIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  alertItemTitle: {
+    fontWeight: '800',
+    color: '#1e293b'
+  },
+  alertItemTitleSelected: {
+    color: '#9f1239'
+  },
+  itemStatusBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  itemStatusBadgeActive: {
+    backgroundColor: '#dc2626'
+  },
+  itemStatusText: {
+    color: '#64748b',
+    fontWeight: '800',
+    fontSize: 9
+  },
+  itemStatusTextActive: {
+    color: '#ffffff'
+  },
+  alertItemSub: {
+    color: '#64748b',
+    fontWeight: '500'
+  },
+  mapAlertSelector: {
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#fecdd3',
     borderRadius: 14,
-    padding: 12,
-    marginBottom: 12
+    padding: 10,
+    marginBottom: 10
   },
-  alertSelectorTitle: {
+  mapAlertSelectorTitle: {
     fontWeight: '800',
     color: '#9f1239'
   },
-  alertPill: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8
+  mapAlertPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginRight: 6
   },
-  alertPillActive: {
+  mapAlertPillActive: {
     backgroundColor: '#dc2626',
     borderColor: '#b91c1c'
   },
-  alertPillText: {
+  mapAlertPillText: {
     fontWeight: '700',
-    color: '#475569',
-    fontSize: 12
+    fontSize: 11,
+    color: '#475569'
   },
-  alertPillTextActive: {
+  mapAlertPillTextActive: {
     color: '#ffffff'
   },
   activeEmergencyBox: {
