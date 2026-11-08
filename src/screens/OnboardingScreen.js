@@ -32,6 +32,7 @@ export default function OnboardingScreen({
   const [password, setPassword] = useState('');
   const [selectedSkill, setSelectedSkill] = useState('');
   const [customSkill, setCustomSkill] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState('');
 
   // DNI: Frente y Reverso
   const [dniFrontScanned, setDniFrontScanned] = useState(false);
@@ -188,6 +189,7 @@ export default function OnboardingScreen({
         fullName: name,
         phone,
         skill: finalSkill,
+        avatar: selectedAvatar || '👤',
         address: `${detectedAddress} • ${detectedZone}`
       });
 
@@ -234,6 +236,7 @@ export default function OnboardingScreen({
           phone,
           email,
           skill: finalSkill,
+          avatar: selectedAvatar || '👤',
           address: `${detectedAddress} • ${detectedZone}`
         });
       }
@@ -400,7 +403,37 @@ export default function OnboardingScreen({
                     Si no tienes un oficio específico, elige la opción de "Apoyo general".
                   </Text>
 
-                  <View style={styles.skillsSelectorWrap}>
+                                  {/* Selector de Avatar Vecinal */}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={[styles.fieldLabel, { fontSize: scale(12), marginBottom: 6 }]}>
+                    Elige tu avatar vecinal (opcional):
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {['👤', '👨‍🔧', '👩‍🔧', '👷', '👨‍🍳', '👩‍🏫', '👵', '👨‍🌾'].map((av) => {
+                      const isSel = selectedAvatar === av;
+                      return (
+                        <TouchableOpacity
+                          key={av}
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 22,
+                            backgroundColor: isSel ? '#dcfce7' : '#f8fafc',
+                            borderWidth: 1.5,
+                            borderColor: isSel ? COLORS.primary : '#cbd5e1',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          onPress={() => setSelectedAvatar(selectedAvatar === av ? '' : av)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ fontSize: 22 }}>{av}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+<View style={styles.skillsSelectorWrap}>
                     {SKILL_OPTIONS.map((opt, idx) => {
                       const isSelected = selectedSkill === opt && !customSkill.trim();
                       return (

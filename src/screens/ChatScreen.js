@@ -20,112 +20,29 @@ export default function ChatScreen({
   const scale = (val) => Math.round(val * fontScale);
 
   // Lista de conversaciones comunitarias
-  const [conversations, setConversations] = useState([
-    {
-      id: 'chat-1',
-      name: 'Rosa L.',
-      avatar: '👵',
-      badge: 'Vecina verificada',
-      zone: 'Zona A - Mz. 2',
-      topic: 'Apoyo para mudanza',
-      lastMessage: '¡Muchas gracias vecina! Te espero el sábado a las 10:00 a.m.',
-      time: '10:45 a. m.',
-      unread: 1,
-      phone: '987 654 321',
-      messages: [
-        {
-          id: 'm1',
-          sender: 'them',
-          text: 'Hola vecina Martha, vi que te ofreciste a apoyarme con la mudanza de los muebles.',
-          time: '10:30 a. m.'
-        },
-        {
-          id: 'm2',
-          sender: 'me',
-          text: '¡Hola Rosa! Sí, con gusto puedo ayudarte este sábado por la mañana.',
-          time: '10:38 a. m.'
-        },
-        {
-          id: 'm3',
-          sender: 'them',
-          text: '¡Muchas gracias vecina! Te espero el sábado a las 10:00 a.m. En Calle Los Nogales 180.',
-          time: '10:45 a. m.'
-        }
-      ]
-    },
-    {
-      id: 'chat-2',
-      name: 'Luis G.',
-      avatar: '👨',
-      badge: 'Voluntario Brigada',
-      zone: 'Zona A - Mz. 2',
-      topic: 'Emergencia Inundación',
-      lastMessage: 'Tengo 4 botellas de agua listas para el centro de acopio comunal.',
-      time: '09:15 a. m.',
+    const [conversations, setConversations] = useState(() => {
+    if (!initialContact) return [];
+    return [{
+      id: 'chat-new-' + Date.now(),
+      name: initialContact.name || 'Vecino',
+      avatar: initialContact.avatar || '👤',
+      badge: initialContact.badge || 'Vecino Verificado',
+      zone: initialContact.zone || 'Zona A',
+      topic: initialContact.topic || 'Coordinación Vecinal',
+      lastMessage: 'Iniciaste una conversación.',
+      time: 'Ahora',
       unread: 0,
-      phone: '984 112 334',
+      phone: initialContact.phone || 'Número coordinado',
       messages: [
         {
-          id: 'm20',
+          id: 'init-1',
           sender: 'them',
-          text: 'Hola Martha, estamos en el punto de encuentro en la Mz 2 apoyando con agua.',
-          time: '09:00 a. m.'
-        },
-        {
-          id: 'm21',
-          sender: 'them',
-          text: 'Tengo 4 botellas de agua listas para el centro de acopio comunal.',
-          time: '09:15 a. m.'
+          text: `Hola, conversemos sobre ${initialContact.topic || 'la coordinación comunitaria'}.`,
+          time: 'Ahora'
         }
       ]
-    },
-    {
-      id: 'chat-3',
-      name: 'Marcos Soto',
-      avatar: '👨‍🔧',
-      badge: 'Gasfitero Verificado',
-      zone: 'Zona A - Mz. 2',
-      topic: 'Servicio de Gasfitería',
-      lastMessage: 'Paso a las 4:00 p.m. a revisar la fuga del caño vecina.',
-      time: 'Ayer',
-      unread: 0,
-      phone: '991 223 344',
-      messages: [
-        {
-          id: 'm30',
-          sender: 'me',
-          text: 'Buenas tardes Marcos, tengo una pequeña fuga en la llave de paso.',
-          time: 'Ayer 03:20 p. m.'
-        },
-        {
-          id: 'm31',
-          sender: 'them',
-          text: 'Paso a las 4:00 p.m. a revisar la fuga del caño vecina.',
-          time: 'Ayer 03:45 p. m.'
-        }
-      ]
-    },
-    {
-      id: 'chat-4',
-      name: 'VeciRed Alertas',
-      avatar: '🛡️',
-      badge: 'Seguridad Comunal',
-      zone: 'Zona A',
-      topic: 'Notificación del Barrio',
-      lastMessage: 'Alerta vecinal resuelta en Mz 2. Gracias por tu reporte.',
-      time: 'Ayer',
-      unread: 0,
-      phone: 'Central 105',
-      messages: [
-        {
-          id: 'm40',
-          sender: 'them',
-          text: 'Alerta vecinal resuelta en Mz 2. Gracias por tu reporte.',
-          time: 'Ayer 11:00 a. m.'
-        }
-      ]
-    }
-  ]);
+    }];
+  });
 
   // Si se envió un contacto inicial, abrir ese chat de inmediato
   const [selectedChat, setSelectedChat] = useState(() => {
@@ -369,7 +286,18 @@ export default function ChatScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {conversations.map((conv) => (
+        {conversations.length === 0 ? (
+          <View style={styles.emptyListBox}>
+            <Text style={{ fontSize: 44, marginBottom: 12 }}>💬</Text>
+            <Text style={[styles.emptyListTitle, { fontSize: scale(15) }]}>
+              No tienes mensajes comunitarios
+            </Text>
+            <Text style={[styles.emptyListSub, { fontSize: scale(12) }]}>
+              Cuando te comuniques con un vecino desde Servicios o el Muro Solidario, tus conversaciones aparecerán aquí para coordinar directamente.
+            </Text>
+          </View>
+        ) : (
+          conversations.map((conv) => (
           <TouchableOpacity
             key={conv.id}
             style={styles.conversationCard}
@@ -416,13 +344,36 @@ export default function ChatScreen({
               </View>
             )}
           </TouchableOpacity>
-        ))}
+        ))
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  emptyListBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    marginTop: 20
+  },
+  emptyListTitle: {
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 8
+  },
+  emptyListSub: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18
+  },
+
   container: {
     flex: 1,
     backgroundColor: COLORS.background

@@ -256,7 +256,7 @@ function MainApp() {
                 activeOpacity={0.8}
                 onPress={() => handleNavigate('profile')}
               >
-                <Text style={{ fontSize: 20 }}>👵</Text>
+                <Text style={{ fontSize: 20 }}>{userProfile.avatar || '👤'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -290,6 +290,7 @@ function MainApp() {
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
               onOpenDetail={handleOpenDetail}
+              userProfile={userProfile}
             />
           )}
 

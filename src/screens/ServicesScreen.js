@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
-export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail }) {
+export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail, userProfile }) {
+  const { user, profile } = useAuth();
   const [categories, setCategories] = useState([
     { id: 'all', name: 'Todos', icon: '▦' }
   ]);
@@ -283,15 +285,18 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
             onPress={() => handleServiceSelect(service)}
           >
             <View style={styles.serviceItemTop}>
-              <Image
-                source={{
-                  uri:
-                    service.provider_avatar ||
-                    service.image_url ||
-                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'
-                }}
-                style={styles.providerAvatar}
-              />
+              {service.provider_avatar && service.provider_avatar.startsWith('http') && !service.provider_avatar.includes('unsplash.com') ? (
+                <Image
+                  source={{ uri: service.provider_avatar }}
+                  style={styles.providerAvatar}
+                />
+              ) : (
+                <View style={styles.avatarCircleWrap}>
+                  <Text style={{ fontSize: 24 }}>
+                    {service.provider_avatar && !service.provider_avatar.startsWith('http') ? service.provider_avatar : '👤'}
+                  </Text>
+                </View>
+              )}
               <View style={styles.providerInfo}>
                 <View style={styles.vistoBuenoBadge}>
                   <Text style={styles.vistoBuenoText}>★ Visto Bueno Vecinal</Text>
@@ -325,7 +330,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                   : 'A coordinar con el vecino'}
               </Text>
 
-              <View style={{ flexDirection: 'row', gap: 6 }}>
+              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                 <TouchableOpacity
                   style={styles.detailButton}
                   onPress={() => handleServiceSelect(service)}
@@ -333,23 +338,39 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                   <Text style={[styles.detailButtonText, { fontSize: scale(11) }]}>Ficha</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.whatsappButton}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    if (onOpenChat) {
-                      onOpenChat({
-                        name: service.provider_name || service.user?.full_name || 'Vecino',
-                        topic: service.title,
-                        avatar: '👨‍🔧',
-                        zone: 'Zona A',
-                        badge: 'Proveedor Verificado'
-                      });
-                    }
-                  }}
-                >
-                  <Text style={[styles.whatsappButtonText, { fontSize: scale(11) }]}>Contactar</Text>
-                </TouchableOpacity>
+                {(() => {
+                  const myId = user?.id || profile?.id;
+                  const myName = (profile?.full_name || userProfile?.name || '').toLowerCase().trim();
+                  const pName = (service.provider_name || service.user?.full_name || '').toLowerCase().trim();
+                  const isMyService = (myId && (service.provider_id === myId || service.user_id === myId)) ||
+                                      (myName && pName && (myName === pName || myName.includes(pName) || pName.includes(myName)));
+                  if (isMyService) {
+                    return (
+                      <View style={styles.myServiceBadge}>
+                        <Text style={[styles.myServiceBadgeText, { fontSize: scale(11) }]}>👤 Tu publicación</Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <TouchableOpacity
+                      style={styles.whatsappButton}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        if (onOpenChat) {
+                          onOpenChat({
+                            name: service.provider_name || service.user?.full_name || 'Vecino',
+                            topic: service.title,
+                            avatar: service.provider_avatar && !service.provider_avatar.startsWith('http') ? service.provider_avatar : '👤',
+                            zone: 'Zona A',
+                            badge: 'Proveedor Verificado'
+                          });
+                        }
+                      }}
+                    >
+                      <Text style={[styles.whatsappButtonText, { fontSize: scale(11) }]}>Contactar</Text>
+                    </TouchableOpacity>
+                  );
+                })()}
               </View>
             </View>
           </TouchableOpacity>
@@ -360,6 +381,30 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
 }
 
 const styles = StyleSheet.create({
+  avatarCircleWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0'
+  },
+  myServiceBadge: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe'
+  },
+  myServiceBadgeText: {
+    color: '#1d4ed8',
+    fontWeight: '800'
+  },
+
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 16, paddingBottom: 90 },
   headerBox: {

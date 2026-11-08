@@ -158,21 +158,8 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
           availability: availability.trim() || null
         };
 
-        const created = await api.createService(payload, token);
-        Alert.alert(
-          '🎉 ¡Servicio publicado con éxito!',
-          `Tu servicio "${created?.title || title}" ya está visible para los vecinos de tu comunidad en la base de datos.`,
-          [
-            {
-              text: 'Ver en mis servicios',
-              onPress: () => onNavigate('my_services')
-            },
-            {
-              text: 'Ir a Servicios',
-              onPress: () => onNavigate('services')
-            }
-          ]
-        );
+        await api.createService(payload, token);
+        onNavigate('services');
       } else if (formType === 'producto') {
         const payload = {
           name: title.trim(),

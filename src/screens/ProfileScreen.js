@@ -32,7 +32,7 @@ export default function ProfileScreen({
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
           <View style={styles.avatarWrap}>
-            <Text style={{ fontSize: 40 }}>👵</Text>
+            <Text style={{ fontSize: 40 }}>{userProfile?.avatar || '👤'}</Text>
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>

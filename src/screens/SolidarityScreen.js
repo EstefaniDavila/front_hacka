@@ -16,7 +16,7 @@ import { mockSolidarityPosts } from '../data/mockData';
 export default function SolidarityScreen({
   onNavigate,
   fontScale = 1.0,
-  helpedCount = 12,
+  helpedCount = 0,
   onIncrementHelped,
   onOpenChat
 }) {
@@ -191,7 +191,7 @@ export default function SolidarityScreen({
               Veces que has recibido ayuda
             </Text>
             <Text style={[styles.balanceNumberReceived, { fontSize: scale(22) }]}>
-              4
+              0
             </Text>
             <Text style={[styles.balanceSub, { fontSize: scale(9) }]}>
               apoyo de vecinos

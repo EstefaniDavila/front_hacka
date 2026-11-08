@@ -14,7 +14,7 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
   const [activeEmergency, setActiveEmergency] = useState(null);
   const [volunteers, setVolunteers] = useState([]);
   const [isVolunteering, setIsVolunteering] = useState(false);
-  const [selectedType, setSelectedType] = useState('inundacion');
+  const [selectedType, setSelectedType] = useState(null);
 
   useEffect(() => {
     loadEmergencyData();
@@ -60,6 +60,10 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
   };
 
   const handleTriggerAlert = async () => {
+    if (!selectedType) {
+      Alert.alert('Selecciona una opción', 'Por favor selecciona el tipo de evento que está ocurriendo para alertar a tu manzana.');
+      return;
+    }
     const chosen = emergencyTypes.find(t => t.id === selectedType) || emergencyTypes[0];
     const newAlert = await api.reportEmergency({
       title: `${chosen.name} en Manzana 2`,
