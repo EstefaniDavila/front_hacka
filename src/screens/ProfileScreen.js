@@ -7,7 +7,8 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { getOrDetectUserLocation } from '../services/locationService';

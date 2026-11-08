@@ -11,6 +11,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { getOrDetectUserLocation } from '../services/locationService';
+import { WebView } from 'react-native-webview';
 
 /**
  * InteractiveCommunityMap
@@ -150,17 +151,20 @@ export default function InteractiveCommunityMap({
             allowFullScreen
           />
         ) : (
-          <TouchableOpacity
-            style={styles.mobileFallback}
-            activeOpacity={0.9}
-            onPress={handleOpenExternalGoogleMaps}
-          >
-            <MaterialCommunityIcons name="map-marker-radius" size={44} color={COLORS.primaryDark} />
-            <Text style={styles.mobileFallbackTitle}>Toca para explorar en Google Maps</Text>
-            <Text style={styles.mobileFallbackSub}>
-              Coordenadas: {Number(currentLat).toFixed(4)}, {Number(currentLng).toFixed(4)}
-            </Text>
-          </TouchableOpacity>
+          <WebView
+            source={{ uri: embedUrl }}
+            style={{ flex: 1, borderRadius: 14 }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            scalesPageToFit={true}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' }]}>
+                <ActivityIndicator size="small" color={COLORS.primaryDark} />
+                <Text style={{ marginTop: 6, fontSize: 11, color: '#64748b', fontWeight: '700' }}>Cargando Mapa Satelital...</Text>
+              </View>
+            )}
+          />
         )}
 
         {/* Botonera Flotante de Controles sobre el Mapa */}

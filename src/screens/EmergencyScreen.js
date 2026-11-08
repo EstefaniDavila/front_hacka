@@ -588,6 +588,52 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       {/* VISTA 2: MAPA DE EMERGENCIA Y BRIGADA VECINAL */}
       {activeTab === 'map' && (
         <View>
+          {/* Selector de alerta en mapa */}
+          {activeEmergenciesList && activeEmergenciesList.length > 1 && (
+            <View style={[styles.alertListCard, { marginBottom: 14 }]}>
+              <View style={styles.alertListHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16, marginRight: 6 }}>🗺️</Text>
+                  <Text style={[styles.alertListTitle, { fontSize: scale(13) }]}>
+                    Coordinar en el mapa ({activeEmergenciesList.length})
+                  </Text>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {activeEmergenciesList.map((emg) => {
+                  const isSelected = String(emg.id) === String(activeEmergency?.id);
+                  const icon = getEmgIcon(emg.emergency_type || emg.type || emg.title);
+                  return (
+                    <TouchableOpacity
+                      key={emg.id}
+                      style={[
+                        styles.tagBtn,
+                        isSelected && styles.tagBtnActive,
+                        { marginRight: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }
+                      ]}
+                      onPress={() => {
+                        setActiveEmergency(emg);
+                        loadVolunteersForEmergency(emg.id);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 13, marginRight: 4 }}>{icon}</Text>
+                      <Text
+                        style={[
+                          styles.tagBtnText,
+                          isSelected && styles.tagBtnTextActive,
+                          { fontSize: scale(11), fontWeight: isSelected ? '800' : '600' }
+                        ]}
+                      >
+                        {emg.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Mapa Satelital Interactivo de Google Maps con Epicentro y Brigada */}
           <InteractiveCommunityMap
             latitude={activeEmergency?.latitude || userCoords.lat}
@@ -615,7 +661,28 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
             </Text>
 
             <View style={styles.volunteerList}>
-              {volunteers.map((vol) => (
+              {volunteers.length === 0 ? (
+                <View style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 18,
+                  paddingHorizontal: 12,
+                  backgroundColor: '#f8fafc',
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: '#e2e8f0',
+                  marginVertical: 8
+                }}>
+                  <Text style={{ fontSize: 24, marginBottom: 4 }}>🤝</Text>
+                  <Text style={{ fontWeight: '800', color: '#334155', textAlign: 'center', fontSize: scale(12) }}>
+                    Aún no hay brigadistas registrados para esta alerta
+                  </Text>
+                  <Text style={{ color: '#64748b', textAlign: 'center', marginTop: 3, fontSize: scale(11) }}>
+                    ¡Sé el primero en sumarte a la brigada para coordinar auxilio vecinal inmediato!
+                  </Text>
+                </View>
+              ) : (
+                volunteers.map((vol) => (
                 <View key={vol.id} style={styles.volunteerItem}>
                   <View style={styles.volunteerAvatarCircle}>
                     <Text style={{ fontSize: 22 }}>{vol.avatar}</Text>
@@ -628,7 +695,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                     <Text style={[styles.volSkill, { fontSize: scale(11) }]}>{vol.skill}</Text>
                   </View>
                 </View>
-              ))}
+              ))
+              )}
             </View>
 
             <TouchableOpacity
