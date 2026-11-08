@@ -18,6 +18,14 @@ import { useAuth } from '../context/AuthContext';
 
 const SHARED_CONV_ID = '69dea660-5b73-455e-8d7c-70577c624542';
 
+
+function cleanNeighborName(str) {
+  return (str || '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 export default function ChatScreen({
   fontScale = 1.0,
   onBack,
@@ -278,9 +286,18 @@ export default function ChatScreen({
 
         let targetChat = list.find(
           (c) =>
-            (initialContact.userId && c.other_user_id === initialContact.userId) ||
-            (c.name && c.name.trim().toLowerCase() === contactName.toLowerCase())
+            (initialContact.userId && (String(c.other_user_id) === String(initialContact.userId) || String(c.userId) === String(initialContact.userId))) ||
+            (c.name && cleanNeighborName(c.name) === cleanNeighborName(contactName))
         );
+
+        if (targetChat) {
+          if (initialContact.topic) {
+            targetChat.topic = initialContact.topic;
+          }
+          if (initialContact.userId && !targetChat.other_user_id) {
+            targetChat.other_user_id = initialContact.userId;
+          }
+        }
 
         if (!targetChat) {
           let resolvedId = 'chat-' + (initialContact.id || Date.now());
@@ -319,7 +336,7 @@ export default function ChatScreen({
               }
             ]
           };
-          list = [targetChat, ...list.filter((c) => c.name.trim().toLowerCase() !== contactName.toLowerCase())];
+          list = [targetChat, ...list.filter((c) => c !== targetChat && cleanNeighborName(c.name) !== cleanNeighborName(contactName))];
         }
 
         if (mounted) {

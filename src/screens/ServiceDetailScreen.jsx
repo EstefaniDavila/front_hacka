@@ -14,6 +14,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 
 export default function ServiceDetailScreen({
   serviceId,
@@ -217,6 +218,7 @@ export default function ServiceDetailScreen({
                 if (onOpenChat) {
                   onOpenChat({
                     name: provider.full_name || service.provider_name,
+                    userId: service.provider_id || provider.id,
                     topic: service.title,
                     avatar: '👨‍🔧',
                     zone: 'Zona A',
@@ -251,29 +253,16 @@ export default function ServiceDetailScreen({
         )}
       </View>
 
-      {/* Mapa y Ubicación Comunitaria del Servicio */}
-      <View style={styles.mapCard}>
-        <View style={styles.mapHeader}>
-          <Ionicons name="map" size={18} color="#0d9488" style={{ marginRight: 6 }} />
-          <Text style={[styles.mapHeaderTitle, { fontSize: scale(12) }]}>
-            Ubicación del Servicio en el Barrio
-          </Text>
-        </View>
-        <View style={styles.mapCanvas}>
-          <View style={styles.radarRing} />
-          <View style={styles.mapPinContainer}>
-            <Ionicons name="location" size={28} color="#ef4444" />
-            <View style={styles.mapPinBadge}>
-              <Text style={styles.mapPinBadgeText}>
-                {service.community_name || 'Zona A'} • Manzana 2
-              </Text>
-            </View>
-          </View>
-        </View>
-        <Text style={styles.mapCoordinatesText}>
-          📍 Cobertura directa: Manzanas 1 a 4 • A ~150 metros
-        </Text>
-      </View>
+      {/* Mapa Satelital Interactivo de Google Maps del Servicio */}
+      <InteractiveCommunityMap
+        latitude={service?.latitude || -12.0463}
+        longitude={service?.longitude || -77.0427}
+        title={service?.title || 'Ubicación del Servicio en el Barrio'}
+        subtitle={(service.community_name || 'Zona A') + ' • Manzana 2'}
+        height={210}
+        mode="service"
+        fontScale={fontScale}
+      />
 
       {/* Sección de Reputación y Reseñas con Medias Estrellas */}
       <View style={styles.reviewsCard}>

@@ -11,30 +11,91 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
+import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
+import { getOrDetectUserLocation } from '../services/locationService';
 
-export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered }) {
-  const { session } = useAuth();
+export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered, userProfile, onDismissBanner }) {
+  const { session, profile, user } = useAuth();
   const token = session?.access_token;
+
+  useEffect(() => {
+    if (onDismissBanner) onDismissBanner();
+  }, []);
+
+  const calculateDistanceMeters = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return 45;
+    const R = 6371e3;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = Math.round(R * c);
+    return d < 15 ? 15 : d;
+  };
   const [activeTab, setActiveTab] = useState('alert'); // 'alert' | 'map'
   const [activeEmergency, setActiveEmergency] = useState(null);
-  const [volunteers, setVolunteers] = useState([
-    { id: '1', name: 'Martha Quispe', skill: 'Primeros Auxilios / Enfermería', avatar: '👵', distance: '50m', status: 'En guardia' },
-    { id: '2', name: 'Carlos Ramos', skill: 'Electricidad y Gasfitería', avatar: '👨‍🔧', distance: '120m', status: 'Disponible' },
-    { id: '3', name: 'Lucía Mendoza', skill: 'Apoyo Logístico / Agua', avatar: '👩', distance: '180m', status: 'En guardia' }
-  ]);
+  const [activeEmergenciesList, setActiveEmergenciesList] = useState([]);
+  const [volunteers, setVolunteers] = useState([]);
   const [isVolunteering, setIsVolunteering] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
+  const [userCoords, setUserCoords] = useState({ lat: -12.0463, lng: -77.0427, zone: 'Zona A • Manzana 2' });
+
+  useEffect(() => {
+    getOrDetectUserLocation().then((loc) => {
+      if (loc) {
+        setUserCoords({ lat: loc.latitude, lng: loc.longitude, zone: loc.zone });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     loadEmergencyData();
+    const interval = setInterval(loadEmergencyData, 4500);
+    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'map') {
+      loadEmergencyData();
+    }
+  }, [activeTab]);
+
+  const loadVolunteersForEmergency = async (emgId) => {
+    if (!emgId) return;
+    try {
+      const vols = await api.getEmergencyVolunteers(emgId);
+      setVolunteers(Array.isArray(vols) ? vols : []);
+    } catch {
+      setVolunteers([]);
+    }
+  };
 
   const loadEmergencyData = async () => {
     try {
-      const emg = await api.getActiveEmergency();
-      if (emg) setActiveEmergency(emg);
-      const vols = await api.getEmergencyVolunteers();
-      if (vols && vols.length > 0) setVolunteers(vols);
+      const list = await api.getActiveEmergencies();
+      if (Array.isArray(list) && list.length > 0) {
+        setActiveEmergenciesList(list);
+        setActiveEmergency((prev) => {
+          if (!prev) {
+            loadVolunteersForEmergency(list[0].id);
+            return list[0];
+          }
+          const matched = list.find((e) => String(e.id) === String(prev.id));
+          const chosen = matched || list[0];
+          loadVolunteersForEmergency(chosen.id);
+          return chosen;
+        });
+      } else {
+        const emg = await api.getActiveEmergency();
+        if (emg) {
+          setActiveEmergency(emg);
+          setActiveEmergenciesList([emg]);
+          loadVolunteersForEmergency(emg.id);
+        }
+      }
     } catch {
       // mantener estado inicial limpio
     }
@@ -51,19 +112,72 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     { id: 'recursos', name: 'Corte masivo de agua / luz', sub: 'Falta de suministros vitales', icon: '📦', color: '#475569' }
   ];
 
+  const myName = userProfile?.name || profile?.full_name || (user?.email ? user.email.split('@')[0] : 'Vecino Solidario');
+  const mySkill = userProfile?.skill || profile?.skill || 'Apoyo Comunitario Inmediato';
+  const myAvatar = userProfile?.avatar || profile?.avatar_url || '👤';
+
+  const emgLat = activeEmergency?.latitude || userCoords.lat;
+  const emgLng = activeEmergency?.longitude || userCoords.lng;
+  const calculatedMeters = calculateDistanceMeters(userCoords.lat, userCoords.lng, emgLat, emgLng);
+  const isAlreadyInBrigade = isVolunteering || volunteers.some(v => v.name === myName);
+
   const handleJoinVolunteers = async () => {
-    if (isVolunteering) {
-      Alert.alert('✅ Ya estás en la brigada', 'Tu apoyo está registrado para la Manzana 2.');
+    if (isAlreadyInBrigade) {
+      Alert.alert('✅ Ya estás en la brigada', `Tu apoyo está registrado como brigadista activo a ${calculatedMeters} metros.`);
       return;
     }
 
     setIsVolunteering(true);
-    const newVol = { id: Date.now().toString(), name: 'Tú (Vecino)', skill: 'Apoyo Comunitario Inmediato', avatar: '👤', distance: 'Tu casa', status: 'Activo' };
-    setVolunteers(prev => [newVol, ...prev]);
+    let freshMeters = calculatedMeters;
+    try {
+      const freshLoc = await getOrDetectUserLocation(true);
+      if (freshLoc) {
+        freshMeters = calculateDistanceMeters(freshLoc.latitude, freshLoc.longitude, emgLat, emgLng);
+        setUserCoords({ lat: freshLoc.latitude, lng: freshLoc.longitude, zone: freshLoc.zone });
+      }
+    } catch {}
+
+    try {
+      const updatedVols = await api.joinEmergencyBrigade({
+        emergency_id: activeEmergency?.id,
+        name: myName,
+        skill: mySkill,
+        avatar: myAvatar,
+        distance_m: freshMeters,
+        status: 'En camino'
+      }, token);
+
+      if (updatedVols && Array.isArray(updatedVols) && updatedVols.length > 0) {
+        setVolunteers(updatedVols);
+      } else {
+        const newVol = {
+          id: Date.now().toString(),
+          name: myName,
+          skill: mySkill,
+          avatar: myAvatar,
+          distance: `${calculatedMeters}m`,
+          distance_m: calculatedMeters,
+          status: 'En camino'
+        };
+        setVolunteers(prev => [newVol, ...prev.filter(v => v.name !== myName)]);
+      }
+    } catch (err) {
+      console.warn('Error uniéndose a brigada:', err);
+      const newVol = {
+        id: Date.now().toString(),
+        name: myName,
+        skill: mySkill,
+        avatar: myAvatar,
+        distance: `${calculatedMeters}m`,
+        distance_m: calculatedMeters,
+        status: 'En camino'
+      };
+      setVolunteers(prev => [newVol, ...prev.filter(v => v.name !== myName)]);
+    }
 
     Alert.alert(
       '🎉 ¡Gracias Vecino!',
-      'Te has sumado a la brigada de respuesta comunitaria de Zona A.'
+      `Te has sumado a la brigada de respuesta comunitaria de Zona A. Distancia calculada: ${calculatedMeters} metros.`
     );
   };
 
@@ -94,15 +208,10 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       severity: 'critical'
     };
 
-    setActiveEmergency(newAlert);
-    if (onAlertTriggered) {
-      onAlertTriggered(newAlert);
-    }
-
     // Persistir de inmediato en el Backend PostgreSQL y notificar a la comunidad
     if (token) {
       try {
-        await api.reportEmergency(
+        const created = await api.reportEmergency(
           {
             type: mappedType,
             title: newAlert.title,
@@ -111,9 +220,20 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
           },
           token
         );
+        if (created && created.id) {
+          newAlert.id = created.id;
+        }
       } catch (err) {
         console.warn('[EmergencyScreen] Error reportando emergencia al backend:', err);
       }
+    }
+
+    setActiveEmergency(newAlert);
+    setActiveEmergenciesList((prev) => [newAlert, ...prev.filter((e) => String(e.id) !== String(newAlert.id))]);
+    setVolunteers([]); // La nueva alerta empieza con su propia brigada independiente
+
+    if (onAlertTriggered) {
+      onAlertTriggered(newAlert);
     }
 
     // Disparar Web Notification si está habilitada en el navegador
@@ -192,6 +312,35 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       {/* VISTA 1: ACTIVAR ALERTA */}
       {activeTab === 'alert' && (
         <View>
+          {/* Selector de Alertas Activas si hay más de una */}
+          {activeEmergenciesList && activeEmergenciesList.length > 1 && (
+            <View style={styles.alertSelectorCard}>
+              <Text style={[styles.alertSelectorTitle, { fontSize: scale(12) }]}>
+                📋 Alertas Activas en tu Zona ({activeEmergenciesList.length}) — Selecciona una:
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {activeEmergenciesList.map((emg) => {
+                  const isSelected = String(emg.id) === String(activeEmergency?.id);
+                  return (
+                    <TouchableOpacity
+                      key={emg.id}
+                      style={[styles.alertPill, isSelected && styles.alertPillActive]}
+                      onPress={() => {
+                        setActiveEmergency(emg);
+                        loadVolunteersForEmergency(emg.id);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.alertPillText, isSelected && styles.alertPillTextActive]}>
+                        {isSelected ? '🔴 ' : '⚠️ '}{emg.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Alerta Activa si existe */}
           {activeEmergency ? (
             <View style={styles.activeEmergencyBox}>
@@ -301,39 +450,19 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       {/* VISTA 2: MAPA DE EMERGENCIA Y BRIGADA VECINAL */}
       {activeTab === 'map' && (
         <View>
-          {/* Espacio para el Mapa Satelital Comunitario del Backend */}
-          <View style={styles.mapContainerCard}>
-            <View style={styles.mapContainerHeader}>
-              <Ionicons name="map" size={18} color="#dc2626" style={{ marginRight: 6 }} />
-              <Text style={[styles.mapContainerTitle, { fontSize: scale(13) }]}>
-                Mapa Satelital de la Emergencia (En vivo)
-              </Text>
-            </View>
-
-            <View style={styles.satelliteMapCanvas}>
-              <View style={styles.satelliteRadarWave} />
-              <View style={styles.satelliteRadarWaveInner} />
-              <View style={styles.mapCenterPin}>
-                <MaterialCommunityIcons name="alert-decagram" size={36} color="#dc2626" />
-                <View style={styles.pinLabel}>
-                  <Text style={styles.pinLabelText}>Zona A • Mz 2 (Epicentro)</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Banner de integración listo para el backend */}
-            <View style={styles.backendReadyBanner}>
-              <Ionicons name="hardware-chip-outline" size={16} color="#0f766e" />
-              <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={styles.backendReadyTitle}>
-                  Módulo Geoespacial VeciRed Activo
-                </Text>
-                <Text style={styles.backendReadySub}>
-                  Coordenadas: -12.0463, -77.0427 • Radio de cobertura: 500 metros
-                </Text>
-              </View>
-            </View>
-          </View>
+          {/* Mapa Satelital Interactivo de Google Maps con Epicentro y Brigada */}
+          <InteractiveCommunityMap
+            latitude={activeEmergency?.latitude || userCoords.lat}
+            longitude={activeEmergency?.longitude || userCoords.lng}
+            title={activeEmergency?.title || 'Epicentro de Emergencia Comunitaria'}
+            subtitle="Zona A • Manzana 2 (Cuadrante Barrial)"
+            height={260}
+            mode="emergency"
+            radiusMeters={500}
+            volunteers={volunteers}
+            fontScale={fontScale}
+            onOpenChat={onOpenChat}
+          />
 
           {/* Vecinos en Guardia / Brigada Vecinal */}
           <View style={styles.brigadeCard}>
@@ -356,7 +485,7 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={[styles.volName, { fontSize: scale(12) }]}>{vol.name}</Text>
-                      <Text style={styles.volDistance}>📍 {vol.distance}</Text>
+                      <Text style={styles.volDistance}>📍 {vol.distance_m ? `${vol.distance_m}m` : (vol.distance || '50m')}</Text>
                     </View>
                     <Text style={[styles.volSkill, { fontSize: scale(11) }]}>{vol.skill}</Text>
                   </View>
@@ -365,13 +494,13 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
             </View>
 
             <TouchableOpacity
-              style={[styles.joinBrigadeBtn, isVolunteering && { backgroundColor: '#059669' }]}
+              style={[styles.joinBrigadeBtn, isAlreadyInBrigade && { backgroundColor: '#059669' }]}
               activeOpacity={0.85}
               onPress={handleJoinVolunteers}
             >
               <Ionicons name="hand-right" size={18} color="#ffffff" style={{ marginRight: 6 }} />
               <Text style={styles.joinBrigadeBtnText}>
-                {isVolunteering ? '✓ YA ESTÁS EN LA BRIGADA' : '🤝 UNIRME A LA BRIGADA DE GUARDIA'}
+                {isAlreadyInBrigade ? '✋ ✓ YA ESTÁS EN LA BRIGADA' : '✋ 💛 UNIRME A LA BRIGADA DE GUARDIA'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -454,6 +583,39 @@ const styles = StyleSheet.create({
   tabBtnTextActive: {
     color: '#dc2626',
     fontWeight: '900'
+  },
+  alertSelectorCard: {
+    backgroundColor: '#fff1f2',
+    borderWidth: 1,
+    borderColor: '#fecdd3',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12
+  },
+  alertSelectorTitle: {
+    fontWeight: '800',
+    color: '#9f1239'
+  },
+  alertPill: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8
+  },
+  alertPillActive: {
+    backgroundColor: '#dc2626',
+    borderColor: '#b91c1c'
+  },
+  alertPillText: {
+    fontWeight: '700',
+    color: '#475569',
+    fontSize: 12
+  },
+  alertPillTextActive: {
+    color: '#ffffff'
   },
   activeEmergencyBox: {
     backgroundColor: '#fff1f2',

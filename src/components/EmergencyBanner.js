@@ -5,31 +5,53 @@ import { COLORS } from '../theme/colors';
 export default function EmergencyBanner({
   onOpenEmergency,
   onPressView,
+  onDismiss,
   emergencyTitle,
   emergency,
   fontScale = 1.0
 }) {
   const scale = (val) => Math.round(val * fontScale);
   const titleText = emergencyTitle || emergency?.title || emergency?.name || 'Emergencia en Mz 2 (Zona A)';
-  const handlePress = onOpenEmergency || onPressView;
+  const handlePress = () => {
+    if (onOpenEmergency) onOpenEmergency();
+    else if (onPressView) onPressView();
+  };
 
   return (
     <View style={styles.bannerContainer}>
-      <View style={styles.leftContent}>
+      <TouchableOpacity
+        style={styles.leftContent}
+        activeOpacity={0.85}
+        onPress={handlePress}
+      >
         <View style={styles.pulseDot} />
         <Text style={[styles.bannerText, { fontSize: scale(11) }]} numberOfLines={1}>
           🚨 Alerta: {titleText}
         </Text>
-      </View>
-      <TouchableOpacity
-        style={styles.actionButton}
-        activeOpacity={0.8}
-        onPress={handlePress}
-      >
-        <Text style={[styles.actionButtonText, { fontSize: scale(11) }]}>
-          Ver auxilio ›
-        </Text>
       </TouchableOpacity>
+
+      <View style={styles.rightActionsRow}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          activeOpacity={0.8}
+          onPress={handlePress}
+        >
+          <Text style={[styles.actionButtonText, { fontSize: scale(11) }]}>
+            Ver auxilio ›
+          </Text>
+        </TouchableOpacity>
+
+        {onDismiss && (
+          <TouchableOpacity
+            style={styles.dismissBtn}
+            activeOpacity={0.7}
+            onPress={onDismiss}
+            accessibilityLabel="Descartar alerta"
+          >
+            <Text style={styles.dismissBtnText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -37,7 +59,7 @@ export default function EmergencyBanner({
 const styles = StyleSheet.create({
   bannerContainer: {
     backgroundColor: COLORS.emergency,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     flexDirection: 'row',
     alignItems: 'center',
@@ -64,6 +86,11 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '800'
   },
+  rightActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
   actionButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: 9,
@@ -73,5 +100,20 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: COLORS.white,
     fontWeight: '900'
+  },
+  dismissBtn: {
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4
+  },
+  dismissBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 14
   }
 });

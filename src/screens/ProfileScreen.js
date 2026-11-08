@@ -10,6 +10,8 @@ import {
   Alert
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { getOrDetectUserLocation } from '../services/locationService';
+import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 import { customStorage } from '../services/supabase';
 
 export default function ProfileScreen({
@@ -37,6 +39,7 @@ export default function ProfileScreen({
   const [editSkill, setEditSkill] = useState(userProfile.skill || '');
   const [editAddress, setEditAddress] = useState(userProfile.address || '');
   const [editAvatar, setEditAvatar] = useState(userProfile.avatar || '👤');
+  const [isSyncingLocation, setIsSyncingLocation] = useState(false);
 
   useEffect(() => {
     setEditName(userProfile.name || '');
@@ -45,6 +48,38 @@ export default function ProfileScreen({
     setEditAddress(userProfile.address || '');
     setEditAvatar(userProfile.avatar || '👤');
   }, [userProfile]);
+
+  useEffect(() => {
+    // Si la dirección es la genérica por defecto, jalar la ubicación del mapa en vivo
+    if (!userProfile.address || userProfile.address === 'Zona A • Manzana 2') {
+      getOrDetectUserLocation().then((loc) => {
+        if (loc && loc.fullAddress && onSaveProfile) {
+          onSaveProfile({
+            ...userProfile,
+            address: loc.fullAddress
+          });
+        }
+      });
+    }
+  }, []);
+
+  const handleSyncLocationFromMap = async () => {
+    setIsSyncingLocation(true);
+    try {
+      const loc = await getOrDetectUserLocation(true);
+      if (loc && (loc.fullAddress || loc.street)) {
+        const detected = loc.fullAddress || `${loc.street}, ${loc.district || loc.city}`;
+        setEditAddress(detected);
+        Alert.alert('📍 Ubicación Detectada del Mapa', `Se cargó tu dirección exacta:\n\n${detected}`);
+      } else {
+        Alert.alert('Ubicación GPS', 'No se pudo obtener la dirección del mapa. Verifica que tengas los permisos de ubicación habilitados.');
+      }
+    } catch (e) {
+      console.warn('Error sincronizando GPS en perfil:', e);
+    } finally {
+      setIsSyncingLocation(false);
+    }
+  };
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -168,6 +203,23 @@ export default function ProfileScreen({
                   ****8921 (Validado)
                 </Text>
               </View>
+
+            {/* Mi Ubicación en el Mapa Comunitario */}
+            <View style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="map" size={16} color="#0f766e" style={{ marginRight: 6 }} />
+                <Text style={{ fontWeight: '800', fontSize: scale(12), color: COLORS.textPrimary }}>
+                  Mi Ubicación en el Mapa Comunitario
+                </Text>
+              </View>
+              <InteractiveCommunityMap
+                title="Mi Residencia Comunitaria"
+                subtitle={userProfile.address || "Zona A • Manzana 3"}
+                height={170}
+                mode="simple"
+                fontScale={fontScale}
+              />
+            </View>
             </View>
           </>
         ) : (
@@ -229,7 +281,24 @@ export default function ProfileScreen({
               placeholderTextColor="#94a3b8"
             />
 
-            <Text style={[styles.editInputLabel, { fontSize: scale(11) }]}>Dirección / Manzana Comunitaria *</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={[styles.editInputLabel, { fontSize: scale(11) }]}>Dirección / Manzana Comunitaria *</Text>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdfa', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#ccfbf1', marginBottom: 4 }}
+                activeOpacity={0.8}
+                onPress={handleSyncLocationFromMap}
+                disabled={isSyncingLocation}
+              >
+                {isSyncingLocation ? (
+                  <ActivityIndicator size="small" color="#0f766e" />
+                ) : (
+                  <>
+                    <Ionicons name="location" size={13} color="#0f766e" style={{ marginRight: 3 }} />
+                    <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#0f766e' }}>📍 Jalar del Mapa GPS</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={[styles.editInput, { fontSize: scale(13) }]}
               value={editAddress}
@@ -455,16 +524,6 @@ export default function ProfileScreen({
 
       {/* Acciones de Cuenta */}
       <View style={styles.accountCard}>
-        <TouchableOpacity
-          style={styles.accountBtn}
-          onPress={onRestartOnboarding}
-          activeOpacity={0.8}
-        >
-          <Feather name="refresh-cw" size={15} color={COLORS.primaryDark} style={{ marginRight: 8 }} />
-          <Text style={[styles.accountBtnText, { fontSize: scale(12) }]}>
-            Completar nuevo registro vecinal
-          </Text>
-        </TouchableOpacity>
 
         {onLogout && (
           <TouchableOpacity

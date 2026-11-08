@@ -12,6 +12,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 
 export default function ItemDetailScreen({
   item,
@@ -229,27 +230,16 @@ export default function ItemDetailScreen({
           </View>
         </View>
 
-        {/* Mapa y Ubicación Comunitaria */}
-        <View style={styles.mapCard}>
-          <View style={styles.mapHeader}>
-            <Ionicons name="map" size={18} color="#0d9488" style={{ marginRight: 6 }} />
-            <Text style={[styles.mapHeaderTitle, { fontSize: scale(12) }]}>
-              Ubicación en Zona A
-            </Text>
-          </View>
-          <View style={styles.mapCanvas}>
-            <View style={styles.radarRing} />
-            <View style={styles.mapPinContainer}>
-              <Ionicons name="location" size={28} color="#ef4444" />
-              <View style={styles.mapPinBadge}>
-                <Text style={styles.mapPinBadgeText}>{address}</Text>
-              </View>
-            </View>
-          </View>
-          <Text style={styles.mapCoordinatesText}>
-            📡 Coordenadas de entrega: -12.0463, -77.0427 • Mz 2
-          </Text>
-        </View>
+        {/* Mapa Satelital Interactivo de Google Maps y Ubicación Comunitaria */}
+        <InteractiveCommunityMap
+          latitude={item?.latitude || -12.0463}
+          longitude={item?.longitude || -77.0427}
+          title={item?.title || 'Punto de Entrega / Servicio'}
+          subtitle={address || 'Zona A • Manzana 2'}
+          height={210}
+          mode={isProduct ? 'product' : 'service'}
+          fontScale={fontScale}
+        />
 
         {/* Opciones del Dueño o Acciones de Compra */}
         {isOwner ? (
@@ -280,6 +270,7 @@ export default function ItemDetailScreen({
                 if (onOpenChat) {
                   onOpenChat({
                     name: personName,
+                    userId: item.seller_id || item.provider_id || item.user_id,
                     topic: `${isProduct ? 'Producto' : 'Servicio'}: ${title}`,
                     avatar: personAvatar && !personAvatar.startsWith('http') ? personAvatar : '👤',
                     zone: item.block_code || 'Zona A',

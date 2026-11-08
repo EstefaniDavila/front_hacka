@@ -19,6 +19,8 @@ import {
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
+import { getOrDetectUserLocation } from '../services/locationService';
 
 export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType = null }) {
   const { session } = useAuth();
@@ -567,28 +569,16 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
                 />
               )}
 
-              {/* Mapa Interactivo con Pin */}
-              <View style={styles.publishMapCard}>
-                <View style={styles.publishMapCanvas}>
-                  <View style={styles.mapRadarPulse} />
-                  <View style={styles.mapPinWrap}>
-                    <Ionicons name="location" size={32} color="#ef4444" />
-                    <View style={styles.mapPinBubble}>
-                      <Text style={styles.mapPinBubbleText}>
-                        {locationMode === 'custom' && customAddress.trim() ? customAddress : 'Zona A • Mz 2 (Fijado)'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.publishMapFooter}>
-                  <Text style={styles.publishMapCoords}>
-                    🗺️ GPS: -12.0463, -77.0427 • Visible para vecinos en 500m
-                  </Text>
-                  <Text style={styles.publishMapHelp}>
-                    Toca en el mapa para ajustar la posición
-                  </Text>
-                </View>
-              </View>
+              {/* Mapa Satelital Interactivo de Google Maps con Punto Vecinal */}
+              <InteractiveCommunityMap
+                latitude={currentCoords.lat}
+                longitude={currentCoords.lng}
+                title={locationMode === 'custom' && customAddress.trim() ? customAddress : 'Ubicación de la Publicación'}
+                subtitle="Zona A • Manzana 2 (Visible a vecinos en 500m)"
+                height={210}
+                mode="picker"
+                fontScale={fontScale}
+              />
             </View>
 
             {/* Switch de visibilidad */}
