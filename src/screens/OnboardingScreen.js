@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import BiometricFaceScanner from '../components/BiometricFaceScanner';
+import DniPhotoPickerCard from '../components/DniPhotoPickerCard';
 
 export default function OnboardingScreen({
   onFinishLogin,
@@ -479,37 +480,37 @@ export default function OnboardingScreen({
                     Si no tienes un oficio específico, elige la opción de "Apoyo general".
                   </Text>
 
-                                  {/* Selector de Avatar Vecinal */}
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={[styles.fieldLabel, { fontSize: scale(12), marginBottom: 6 }]}>
-                    Elige tu avatar vecinal (opcional):
-                  </Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {['👤', '👨‍🔧', '👩‍🔧', '👷', '👨‍🍳', '👩‍🏫', '👵', '👨‍🌾'].map((av) => {
-                      const isSel = selectedAvatar === av;
-                      return (
-                        <TouchableOpacity
-                          key={av}
-                          style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 22,
-                            backgroundColor: isSel ? '#dcfce7' : '#f8fafc',
-                            borderWidth: 1.5,
-                            borderColor: isSel ? COLORS.primary : '#cbd5e1',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          onPress={() => setSelectedAvatar(selectedAvatar === av ? '' : av)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={{ fontSize: 22 }}>{av}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+                  {/* Selector de Avatar Vecinal */}
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={[styles.fieldLabel, { fontSize: scale(12), marginBottom: 6 }]}>
+                      Elige tu avatar vecinal (opcional):
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {['👤', '👨‍🔧', '👩‍🔧', '👷', '👨‍🍳', '👩‍🏫', '👵', '👨‍🌾'].map((av) => {
+                        const isSel = selectedAvatar === av;
+                        return (
+                          <TouchableOpacity
+                            key={av}
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 22,
+                              backgroundColor: isSel ? '#dcfce7' : '#f8fafc',
+                              borderWidth: 1.5,
+                              borderColor: isSel ? COLORS.primary : '#cbd5e1',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            onPress={() => setSelectedAvatar(selectedAvatar === av ? '' : av)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontSize: 22 }}>{av}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
-                </View>
-<View style={styles.skillsSelectorWrap}>
+                  <View style={styles.skillsSelectorWrap}>
                     {SKILL_OPTIONS.map((opt, idx) => {
                       const isSelected = selectedSkill === opt && !customSkill.trim();
                       return (
