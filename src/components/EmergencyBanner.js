@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS } from '../theme/colors';
 
-export default function EmergencyBanner({ onOpenEmergency, fontScale = 1.0 }) {
+export default function EmergencyBanner({ onOpenEmergency, emergencyTitle, fontScale = 1.0 }) {
   const scale = (val) => Math.round(val * fontScale);
 
   return (
@@ -10,7 +10,7 @@ export default function EmergencyBanner({ onOpenEmergency, fontScale = 1.0 }) {
       <View style={styles.leftContent}>
         <View style={styles.pulseDot} />
         <Text style={[styles.bannerText, { fontSize: scale(11) }]} numberOfLines={1}>
-          🚨 Alerta Activa: Inundación en Mz 2 (Zona A)
+          🚨 Alerta: {emergencyTitle || 'Emergencia en Mz 2 (Zona A)'}
         </Text>
       </View>
       <TouchableOpacity

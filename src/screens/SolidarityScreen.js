@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,7 +26,20 @@ export default function SolidarityScreen({
   const [publishModalVisible, setPublishModalVisible] = useState(false);
 
   // Lista local de posts con persistencia durante la sesión
-  const [postsList, setPostsList] = useState(mockSolidarityPosts);
+  const [postsList, setPostsList] = useState([]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [activeCategory]);
+
+  const loadPosts = async () => {
+    try {
+      const data = await api.getSolidarityPosts({ category: activeCategory });
+      setPostsList(data || []);
+    } catch {
+      setPostsList([]);
+    }
+  };
 
   // Formulario de publicación directa en Ayuda Solidaria
   const [newPostType, setNewPostType] = useState('Necesito ayuda'); // 'Necesito ayuda' | 'Puedo apoyar' | 'Donación' | 'Intercambio'
@@ -63,7 +76,7 @@ export default function SolidarityScreen({
     );
   };
 
-  const handlePublishSolidarity = () => {
+  const handlePublishSolidarity = async () => {
     if (!newPostTitle.trim()) {
       Alert.alert('Campo obligatorio', 'Por favor ingresa un título para la publicación.');
       return;
@@ -91,7 +104,13 @@ export default function SolidarityScreen({
       icon: iconsMap[newPostType] || '🤝'
     };
 
-    setPostsList([createdPost, ...postsList]);
+    const serverPost = await api.createSolidarityPost({
+      title: newPostTitle.trim(),
+      desc: newPostDesc.trim(),
+      category: newPostCategory,
+      type: newPostType
+    });
+    setPostsList(prev => [serverPost || createdPost, ...prev]);
     setPublishModalVisible(false);
     setNewPostTitle('');
     setNewPostDesc('');
@@ -235,7 +254,24 @@ export default function SolidarityScreen({
       </View>
 
       {/* Listado de Publicaciones del Muro */}
-      {filteredPosts.map((post) => (
+      {filteredPosts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={{ fontSize: 44, marginBottom: 10 }}>🤝</Text>
+          <Text style={[styles.emptyTitle, { fontSize: scale(15) }]}>
+            Aún no hay publicaciones en el muro
+          </Text>
+          <Text style={[styles.emptySub, { fontSize: scale(11) }]}>
+            Sé el primero en compartir un favor, préstamo de herramientas o apoyo vecinal.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyActionBtn}
+            onPress={() => setPublishModalVisible(true)}
+          >
+            <Text style={styles.emptyActionBtnText}>+ Crear primera publicación</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        filteredPosts.map((post) => (
         <TouchableOpacity
           key={post.id}
           style={styles.postCard}
@@ -279,7 +315,7 @@ export default function SolidarityScreen({
             </View>
           </View>
         </TouchableOpacity>
-      ))}
+      )))}
 
       {/* MODAL 1: DETALLE DE PUBLICACIÓN CON BOTÓN DE ENVIAR MENSAJE / CHAT */}
       <Modal visible={detailModalVisible} transparent animationType="slide">
@@ -714,6 +750,39 @@ const styles = StyleSheet.create({
   blockTag: {
     color: COLORS.primaryDark,
     fontWeight: '700'
+  },
+  emptyContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    marginVertical: 14
+  },
+  emptyTitle: {
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 6
+  },
+  emptySub: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 18
+  },
+  emptyActionBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 14
+  },
+  emptyActionBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 13
   },
   postCard: {
     backgroundColor: COLORS.white,

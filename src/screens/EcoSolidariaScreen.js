@@ -16,11 +16,13 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
   const [selectedNeed, setSelectedNeed] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [hasContributed, setHasContributed] = useState(false);
+  const [contributionQty, setContributionQty] = useState(1);
 
   const scale = (val) => Math.round(val * fontScale);
 
   const openNeedDetail = (need) => {
     setSelectedNeed(need);
+    setContributionQty(1);
     setModalVisible(true);
   };
 
@@ -282,13 +284,44 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
                   </View>
                 </View>
 
+                {/* Selector Interactivo de Cantidad para Aportar */}
+                <View style={styles.quantityPickerRow}>
+                  <Text style={[styles.quantityLabel, { fontSize: scale(12) }]}>
+                    ¿Cuántas unidades deseas aportar?
+                  </Text>
+                  <View style={styles.quantityControls}>
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() => setContributionQty(prev => Math.max(1, prev - 1))}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.quantityBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <View style={styles.quantityValueBox}>
+                      <Text style={[styles.quantityValueText, { fontSize: scale(16) }]}>
+                        {contributionQty}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.quantityBtn}
+                      onPress={() => {
+                        const remaining = Math.max(1, selectedNeed.quantity_required - selectedNeed.quantity_committed);
+                        setContributionQty(prev => Math.min(remaining, prev + 1));
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.quantityBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 <TouchableOpacity
                   style={[styles.modalPledgeBtn, hasContributed && { backgroundColor: COLORS.primaryDark }]}
                   activeOpacity={0.8}
                   onPress={handlePledgeContribution}
                 >
                   <Text style={[styles.modalPledgeBtnText, { fontSize: scale(14) }]}>
-                    {hasContributed ? '✅ APORTE CONFIRMADO (+2)' : `🤝 QUIERO APORTAR 2 ${selectedNeed.unit.toUpperCase()}`}
+                    {hasContributed ? `✅ APORTE CONFIRMADO (+${contributionQty})` : `🤝 APORTAR ${contributionQty} ${selectedNeed.unit.toUpperCase()}`}
                   </Text>
                 </TouchableOpacity>
 
@@ -612,6 +645,51 @@ const styles = StyleSheet.create({
   volunteersListTitle: { fontWeight: '800', color: COLORS.textPrimary },
   volunteerRow: { flexDirection: 'row', alignItems: 'center' },
   volunteerName: { fontWeight: '700', color: COLORS.textSecondary },
+  quantityPickerRow: {
+    backgroundColor: COLORS.primarySurface,
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: COLORS.primaryPale
+  },
+  quantityLabel: {
+    fontWeight: '800',
+    color: COLORS.primaryDeep
+  },
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  quantityBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  quantityBtnText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.primaryDark,
+    lineHeight: 22
+  },
+  quantityValueBox: {
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  quantityValueText: {
+    fontWeight: '900',
+    color: COLORS.textPrimary
+  },
   modalPledgeBtn: {
     backgroundColor: COLORS.emerald,
     paddingVertical: 14,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -41,6 +41,7 @@ export default function OnboardingScreen({
   const [detectedAddress, setDetectedAddress] = useState('Calle Los Nogales 214, Mz B Lote 4');
   const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2');
   const [addressConfirmed, setAddressConfirmed] = useState(true);
+  const scrollViewRef = useRef(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
@@ -131,14 +132,15 @@ export default function OnboardingScreen({
 
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 25}
         >
           <ScrollView
+            ref={scrollViewRef}
             style={{ flex: 1 }}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 50 }
+              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 140 : 60 }
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -256,12 +258,19 @@ export default function OnboardingScreen({
                 <TextInput
                   style={[styles.input, { fontSize: scale(13), marginTop: 4 }]}
                   placeholder="Ej: Conductor, Cuidador de adultos, etc."
+                  placeholderTextColor="#94a3b8"
                   returnKeyType="done"
                   value={customSkill}
                   onChangeText={(val) => {
                     setCustomSkill(val);
                     if (val.trim()) setSelectedSkill('');
                   }}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 200);
+                  }}
+                  onSubmitEditing={() => Keyboard.dismiss()}
                 />
               </View>
 
@@ -792,14 +801,14 @@ const styles = StyleSheet.create({
     marginBottom: 6
   },
   input: {
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.white,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    color: COLORS.textPrimary,
-    fontWeight: '600'
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    color: '#0f172a',
+    fontWeight: '700'
   },
   skillsSelectorWrap: {
     gap: 6,

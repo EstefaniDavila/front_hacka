@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   Platform
 } from 'react-native';
 import { COLORS } from './src/theme/colors';
+import { api } from './src/api/apiClient';
 
 // Componentes y Pantallas Principales (100% Frontend React Native)
 import EmergencyBanner from './src/components/EmergencyBanner';
@@ -39,19 +40,31 @@ export default function App() {
   // Artículo seleccionado para vista de detalle (Producto o Servicio)
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('product'); // 'product' | 'service'
+  const [backendOnline, setBackendOnline] = useState(false);
+
+  useEffect(() => {
+    api.checkHealth()
+      .then(res => setBackendOnline(res?.connected || false))
+      .catch(() => setBackendOnline(false));
+
+    api.getActiveEmergency()
+      .then(setActiveEmergency)
+      .catch(() => setActiveEmergency(null));
+  }, []);
 
   // Accesibilidad Senior (Escala de fuente: 1.0 Normal, 1.15 Grande, 1.30 Senior)
   const [fontScale, setFontScale] = useState(1.0);
   
-  // Contador de Solidaridad Activa (12 iniciales, incrementa en vivo)
-  const [helpedCount, setHelpedCount] = useState(12);
+  // Contador de Solidaridad Activa
+  const [helpedCount, setHelpedCount] = useState(0);
+  const [activeEmergency, setActiveEmergency] = useState(null);
 
   // Datos del perfil registrados en el Login/Onboarding inicial
   const [userProfile, setUserProfile] = useState({
-    name: 'Doña Martha Quispe',
-    phone: '984 555 123',
-    skill: '🩺 Enfermería / Primeros auxilios',
-    address: 'Calle Los Nogales 214, Mz B Lote 4 • Zona A'
+    name: 'Vecino',
+    phone: '',
+    skill: '',
+    address: 'Zona A • Manzana 2'
   });
 
   const scale = (val) => Math.round(val * fontScale);
@@ -111,6 +124,12 @@ export default function App() {
                 <Text style={[styles.appLocationText, { fontSize: scale(10) }]}>
                   📍 Mi comunidad • Zona A
                 </Text>
+                <View style={backendOnline ? styles.onlineBadge : styles.offlineBadge}>
+                  <View style={backendOnline ? styles.greenDot : styles.grayDot} />
+                  <Text style={styles.badgeStatusText}>
+                    {backendOnline ? 'FastAPI Conectada' : 'Modo Conectado'}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -143,15 +162,16 @@ export default function App() {
                 style={[styles.avatarButton, currentTab === 'profile' && styles.avatarButtonActive]}
                 onPress={() => handleNavigate('profile')}
               >
-                <Text style={{ fontSize: 18 }}>👵</Text>
+                <Text style={{ fontSize: 18 }}>👤</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* Barra de Alerta Permanente en Rojo (salvo en chat o detalle) */}
-        {currentTab !== 'chat' && currentTab !== 'detail' && (
+        {/* Barra de Alerta (se muestra únicamente si existe una emergencia activa) */}
+        {currentTab !== 'chat' && currentTab !== 'detail' && activeEmergency && (
           <EmergencyBanner
+            emergencyTitle={activeEmergency.title}
             onOpenEmergency={() => handleNavigate('emergency')}
             fontScale={fontScale}
           />
@@ -362,6 +382,45 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 9,
     fontWeight: '900'
+  },
+  onlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 2,
+    alignSelf: 'flex-start'
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 2,
+    alignSelf: 'flex-start'
+  },
+  greenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10b981'
+  },
+  grayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#64748b'
+  },
+  badgeStatusText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#334155'
   },
   avatarButton: {
     width: 36,

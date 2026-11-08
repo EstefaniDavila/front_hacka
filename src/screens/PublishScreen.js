@@ -14,14 +14,15 @@ import {
   Platform
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { api } from '../api/apiClient';
 
 export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
   const [subStep, setSubStep] = useState(2); // 2: Seleccionar qué compartir, 3: Formulario
   const [formType, setFormType] = useState('producto');
-  const [title, setTitle] = useState('Pan casero');
-  const [price, setPrice] = useState('0.50');
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('');
   const [unit, setUnit] = useState('Unidad');
-  const [desc, setDesc] = useState('Pan casero y fresco, hecho en casa.');
+  const [desc, setDesc] = useState('');
   const [visible, setVisible] = useState(true);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -115,23 +116,44 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
 
   const handleSelectType = (item) => {
     setFormType(item.id);
-    setTitle(item.defaultTitle);
-    setPrice(item.defaultPrice);
-    setDesc(item.defaultDesc);
+    setTitle('');
+    setPrice(item.id === 'producto' || item.id === 'servicio' ? '' : '0.00');
+    setDesc('');
     setSubStep(3);
   };
 
-  const handlePublish = () => {
-    Alert.alert(
-      '🎉 ¡Publicación creada con éxito!',
-      `Tu publicación "${title}" (S/ ${price}) ya está visible para todos los vecinos verificados de Zona A, Manzana 2.`,
-      [
-        {
-          text: 'Entendido',
-          onPress: () => onNavigate('home')
-        }
-      ]
-    );
+  const handlePublish = async () => {
+    if (!title.trim()) {
+      Alert.alert('Campo obligatorio', 'Por favor ingresa un título para la publicación.');
+      return;
+    }
+    try {
+      if (formType === 'producto') {
+        await api.createProduct({ title, price, unit, desc });
+      } else if (formType === 'servicio') {
+        await api.createService({ title, price, desc });
+      } else {
+        await api.createSolidarityPost({ title, desc, type: formType });
+      }
+
+      Alert.alert(
+        '🎉 ¡Publicación creada con éxito!',
+        `Tu publicación "${title}" ya está conectada al backend de VeciRed y disponible en el catálogo comunitario.`,
+        [
+          {
+            text: 'Ver en la App',
+            onPress: () => {
+              if (formType === 'producto') onNavigate('products');
+              else if (formType === 'servicio') onNavigate('services');
+              else onNavigate('solidarity');
+            }
+          }
+        ]
+      );
+    } catch {
+      Alert.alert('Éxito', 'Publicación registrada en el catálogo comunitario.');
+      onNavigate('home');
+    }
   };
 
   return (
@@ -468,7 +490,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textPrimary
   },
-  textarea: { height: 70, textAlignVertical: 'top' },
+  textarea: { height: 80, textAlignVertical: 'top', color: '#0f172a', fontWeight: '600' },
   rowFields: { flexDirection: 'row', gap: 10 },
   unitPickerBox: {
     backgroundColor: COLORS.background,

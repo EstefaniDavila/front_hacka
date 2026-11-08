@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Image
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { mockProducts } from '../data/mockData';
+import { api } from '../api/apiClient';
 
 export default function ProductsScreen({
   onNavigate,
@@ -24,21 +24,37 @@ export default function ProductsScreen({
 
   const categories = [
     { id: 'all', name: 'Todos', icon: '▦' },
-    { id: 'Panadería', name: 'Panadería', icon: '🍞' },
-    { id: 'Comida Casera', name: 'Comida Casera', icon: '🍲' },
-    { id: 'Alimentos Naturales', name: 'Naturales / Miel', icon: '🍯' },
-    { id: 'Huerto y Jardín', name: 'Plantas / Huerto', icon: '🌱' }
+    { id: 'Panadería y Masas', name: 'Panadería', icon: '🍞' },
+    { id: 'Comida Casera y Menú', name: 'Comida Casera', icon: '🍲' },
+    { id: 'Verduras, Frutas y Abarrotes', name: 'Abarrotes', icon: '🥦' },
+    { id: 'Repostería y Postres', name: 'Repostería', icon: '🍰' },
+    { id: 'Artesanía y Confección', name: 'Confección', icon: '🧵' }
   ];
 
-  const filteredProducts = mockProducts.filter((prod) => {
-    const matchesCategory =
-      activeCategory === 'all' || prod.category === activeCategory;
-    const matchesQuery =
-      prod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prod.seller_name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesQuery;
-  });
+  const [productsList, setProductsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadProducts();
+  }, [searchQuery, activeCategory]);
+
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getProducts({ q: searchQuery });
+      const filtered = (data || []).filter((prod) => {
+        const cat = prod.category || prod.category_name;
+        return activeCategory === 'all' || cat === activeCategory;
+      });
+      setProductsList(filtered);
+    } catch {
+      setProductsList([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredProducts = productsList;
 
   return (
     <ScrollView
@@ -91,12 +107,12 @@ export default function ProductsScreen({
         </View>
       </View>
 
-      {/* Selector de Categorías Horizontal */}
+      {/* Categorías de Productos */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.categoriesScroll}
-        contentContainerStyle={{ gap: 6, paddingVertical: 2 }}
+        contentContainerStyle={{ gap: 6, paddingVertical: 4 }}
       >
         {categories.map((cat) => {
           const isActive = activeCategory === cat.id;
@@ -124,134 +140,168 @@ export default function ProductsScreen({
         })}
       </ScrollView>
 
-      {/* Título de Resultados */}
-      <View style={styles.resultsHeader}>
-        <Text style={[styles.resultsTitle, { fontSize: scale(13) }]}>
-          PRODUCTOS DISPONIBLES EN TU BARRIO ({filteredProducts.length})
+      {/* Radar de Negocios Cercanos */}
+      <View style={styles.radarCard}>
+        <View style={styles.radarIconWrap}>
+          <Text style={{ fontSize: 24 }}>📍</Text>
+        </View>
+        <View style={styles.radarInfo}>
+          <Text style={[styles.radarTitle, { fontSize: scale(12) }]}>
+            Comercio a tu paso
+          </Text>
+          <Text style={[styles.radarSub, { fontSize: scale(10) }]}>
+            {filteredProducts.length} producto{filteredProducts.length === 1 ? '' : 's'} en Zona A
+          </Text>
+        </View>
+        <Text style={styles.radarBadge}>Mz. 1 - Mz. 4</Text>
+      </View>
+
+      {/* Título de la Sección */}
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionTitle, { fontSize: scale(13) }]}>
+          PRODUCTOS DISPONIBLES HOY
         </Text>
-        <Text style={[styles.resultsSub, { fontSize: scale(10) }]}>
-          📍 Manzana 1 a 4
+        <Text style={[styles.resultsCount, { fontSize: scale(11) }]}>
+          {filteredProducts.length} {filteredProducts.length === 1 ? 'producto' : 'productos'}
         </Text>
       </View>
 
-      {/* Grid / Lista de Productos */}
-      <View style={styles.productsGrid}>
-        {filteredProducts.map((prod) => (
+      {/* Grid / Lista de Productos o Empty State */}
+      {filteredProducts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={{ fontSize: 48, marginBottom: 10 }}>🧺</Text>
+          <Text style={[styles.emptyTitle, { fontSize: scale(15) }]}>
+            Aún no hay productos en tu manzana
+          </Text>
+          <Text style={[styles.emptySub, { fontSize: scale(11) }]}>
+            ¡Sé el primero en ofrecer productos caseros, panadería o abarrotes a tus vecinos!
+          </Text>
           <TouchableOpacity
-            key={prod.id}
-            style={styles.productCard}
-            activeOpacity={0.88}
-            onPress={() => {
-              if (onOpenDetail) {
-                onOpenDetail(prod, 'product');
-              }
-            }}
+            style={styles.emptyPublishBtn}
+            onPress={() => onNavigate('publish')}
           >
-            {/* Imagen del Producto */}
-            <View style={styles.imageWrap}>
-              {prod.image_url ? (
-                <Image
-                  source={{ uri: prod.image_url }}
-                  style={styles.productImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.noImageWrap}>
-                  <Text style={{ fontSize: 32 }}>🍞</Text>
-                </View>
-              )}
-              <View style={styles.priceTag}>
-                <Text style={styles.priceTagText}>
-                  S/ {prod.price.toFixed(2)}
-                </Text>
-              </View>
-            </View>
-
-            {/* Contenido de la Tarjeta */}
-            <View style={styles.cardBody}>
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>{prod.category}</Text>
-              </View>
-
-              <Text
-                style={[styles.productName, { fontSize: scale(13) }]}
-                numberOfLines={1}
-              >
-                {prod.name}
-              </Text>
-
-              <Text
-                style={[styles.productDesc, { fontSize: scale(10) }]}
-                numberOfLines={2}
-              >
-                {prod.description}
-              </Text>
-
-              {/* Vendedor y Valoración */}
-              <View style={styles.sellerRow}>
-                <View style={styles.sellerLeft}>
-                  {prod.seller_avatar ? (
-                    <Image
-                      source={{ uri: prod.seller_avatar }}
-                      style={styles.sellerAvatar}
-                    />
-                  ) : (
-                    <Text style={{ fontSize: 14 }}>👵</Text>
-                  )}
-                  <Text
-                    style={[styles.sellerName, { fontSize: scale(10) }]}
-                    numberOfLines={1}
-                  >
-                    {prod.seller_name}
-                  </Text>
-                </View>
-                <Text style={[styles.ratingText, { fontSize: scale(10) }]}>
-                  ⭐ {prod.rating}
-                </Text>
-              </View>
-
-              {/* Ubicación y Distancia */}
-              <Text style={[styles.locationText, { fontSize: scale(9) }]}>
-                📍 {prod.block_code} • a {prod.distance_m} m
-              </Text>
-
-              {/* Botones de Acción */}
-              <View style={styles.cardActionsRow}>
-                <TouchableOpacity
-                  style={styles.viewDetailBtn}
-                  onPress={() => {
-                    if (onOpenDetail) onOpenDetail(prod, 'product');
-                  }}
-                >
-                  <Text style={[styles.viewDetailBtnText, { fontSize: scale(10) }]}>
-                    Ver detalle
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.chatActionBtn}
-                  onPress={() => {
-                    if (onOpenChat) {
-                      onOpenChat({
-                        name: prod.seller_name,
-                        topic: `Pedido: ${prod.name}`,
-                        avatar: prod.seller_avatar || '👵',
-                        zone: prod.block_code,
-                        badge: 'Vendedora Vecinal',
-                        phone: prod.phone
-                      });
-                    } else {
-                      onNavigate('chat');
-                    }
-                  }}
-                >
-                  <Text style={styles.chatActionBtnText}>💬 Pedir</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Text style={styles.emptyPublishBtnText}>+ Publicar Producto</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+        </View>
+      ) : (
+        <View style={styles.productsGrid}>
+          {filteredProducts.map((prod) => (
+            <TouchableOpacity
+              key={prod.id}
+              style={styles.productCard}
+              activeOpacity={0.88}
+              onPress={() => {
+                if (onOpenDetail) {
+                  onOpenDetail(prod, 'product');
+                }
+              }}
+            >
+              {/* Imagen del Producto */}
+              <View style={styles.imageWrap}>
+                {prod.image_url ? (
+                  <Image
+                    source={{ uri: prod.image_url }}
+                    style={styles.productImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.noImageWrap}>
+                    <Text style={{ fontSize: 32 }}>🍞</Text>
+                  </View>
+                )}
+                <View style={styles.priceTag}>
+                  <Text style={styles.priceTagText}>
+                    S/ {Number(prod.price || 0).toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Contenido de la Tarjeta */}
+              <View style={styles.cardBody}>
+                <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryBadgeText}>
+                    {prod.category_name || prod.category || 'Venta Barrial'}
+                  </Text>
+                </View>
+
+                <Text
+                  style={[styles.productName, { fontSize: scale(13) }]}
+                  numberOfLines={1}
+                >
+                  {prod.name}
+                </Text>
+
+                <Text
+                  style={[styles.productDesc, { fontSize: scale(10) }]}
+                  numberOfLines={2}
+                >
+                  {prod.description}
+                </Text>
+
+                {/* Vendedor y Valoración */}
+                <View style={styles.sellerRow}>
+                  <View style={styles.sellerLeft}>
+                    {prod.seller_avatar ? (
+                      <Image
+                        source={{ uri: prod.seller_avatar }}
+                        style={styles.sellerAvatar}
+                      />
+                    ) : (
+                      <Text style={{ fontSize: 14 }}>👤</Text>
+                    )}
+                    <Text
+                      style={[styles.sellerName, { fontSize: scale(10) }]}
+                      numberOfLines={1}
+                    >
+                      {prod.seller_name || 'Vecino'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.ratingText, { fontSize: scale(10) }]}>
+                    ⭐ {prod.rating || 5.0}
+                  </Text>
+                </View>
+
+                {/* Ubicación y Distancia */}
+                <Text style={[styles.locationText, { fontSize: scale(9) }]}>
+                  📍 {prod.block_code || 'Zona A'} • a {prod.distance_m || 100} m
+                </Text>
+
+                {/* Botones de Acción */}
+                <View style={styles.cardActionsRow}>
+                  <TouchableOpacity
+                    style={styles.viewDetailBtn}
+                    onPress={() => {
+                      if (onOpenDetail) onOpenDetail(prod, 'product');
+                    }}
+                  >
+                    <Text style={[styles.viewDetailBtnText, { fontSize: scale(10) }]}>
+                      Ver detalle
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.chatActionBtn}
+                    onPress={() => {
+                      if (onOpenChat) {
+                        onOpenChat({
+                          name: prod.seller_name || 'Vecino',
+                          topic: `Pedido: ${prod.name}`,
+                          avatar: prod.seller_avatar || '👤',
+                          zone: prod.block_code || 'Zona A',
+                          badge: 'Vendedor Verificado',
+                          phone: prod.phone || '987-654-321'
+                        });
+                      }
+                    }}
+                  >
+                    <Text style={styles.chatActionBtnText}>💬 Pedir</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -262,23 +312,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background
   },
   content: {
-    padding: 14,
-    paddingBottom: 90,
-    gap: 12
+    padding: 16,
+    paddingBottom: 32
   },
   headerBox: {
-    backgroundColor: COLORS.primaryDark,
+    backgroundColor: COLORS.primarySurface,
     borderRadius: 20,
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primaryPale
   },
   headerTitleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12
   },
   headerLeft: {
@@ -288,96 +336,160 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontWeight: '900',
-    color: COLORS.white
+    color: COLORS.primaryDark
   },
   headerSub: {
-    color: '#ccfbf1',
-    fontWeight: '600'
+    fontWeight: '600',
+    color: COLORS.textSecondary
   },
   publishShortcutBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)'
+    borderRadius: 12
   },
   publishShortcutText: {
     color: COLORS.white,
     fontWeight: '800'
   },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
   searchInput: {
     flex: 1,
-    color: COLORS.textPrimary,
-    fontWeight: '600'
+    fontWeight: '600',
+    color: '#0f172a'
   },
   categoriesScroll: {
-    flexGrow: 0
+    marginBottom: 12
   },
   categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: COLORS.border
   },
   categoryPillActive: {
-    backgroundColor: COLORS.primarySurface,
-    borderColor: COLORS.primary,
-    borderWidth: 1.5
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary
   },
   categoryPillText: {
     fontWeight: '700',
     color: COLORS.textSecondary
   },
   categoryPillTextActive: {
-    color: COLORS.primaryDark,
-    fontWeight: '800'
+    color: COLORS.white
   },
-  resultsHeader: {
+  radarCard: {
+    backgroundColor: '#fffbeb',
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fef3c7',
+    marginBottom: 14
+  },
+  radarIconWrap: {
+    marginRight: 10
+  },
+  radarInfo: {
+    flex: 1
+  },
+  radarTitle: {
+    fontWeight: '800',
+    color: '#92400e'
+  },
+  radarSub: {
+    color: '#b45309',
+    fontWeight: '600'
+  },
+  radarBadge: {
+    backgroundColor: '#fef3c7',
+    color: '#92400e',
+    fontSize: 10,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 2
+    marginBottom: 10
   },
-  resultsTitle: {
-    fontWeight: '800',
+  sectionTitle: {
+    fontWeight: '900',
     color: COLORS.textPrimary
   },
-  resultsSub: {
+  resultsCount: {
+    fontWeight: '700',
+    color: COLORS.textMuted
+  },
+  emptyContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    marginTop: 10
+  },
+  emptyTitle: {
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 6
+  },
+  emptySub: {
     color: COLORS.textSecondary,
-    fontWeight: '700'
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 18
+  },
+  emptyPublishBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 14
+  },
+  emptyPublishBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 13
   },
   productsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10
+    gap: 12
   },
   productCard: {
-    width: '48.5%',
+    width: '48%',
+    flexGrow: 1,
     backgroundColor: COLORS.white,
-    borderRadius: 14,
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: COLORS.border,
-    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 5,
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
     elevation: 2
   },
   imageWrap: {
-    width: '100%',
     height: 120,
     backgroundColor: '#f1f5f9',
     position: 'relative'
@@ -387,22 +499,21 @@ const styles = StyleSheet.create({
     height: '100%'
   },
   noImageWrap: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center'
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   priceTag: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6
+    bottom: 8,
+    right: 8,
+    backgroundColor: COLORS.primaryDeep,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8
   },
   priceTagText: {
-    color: '#fef08a',
+    color: COLORS.white,
     fontWeight: '900',
     fontSize: 11
   },
@@ -414,13 +525,13 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     marginBottom: 4
   },
   categoryBadgeText: {
-    color: COLORS.primaryDeep,
     fontSize: 9,
-    fontWeight: '800'
+    fontWeight: '800',
+    color: COLORS.primaryDark
   },
   productName: {
     fontWeight: '800',
