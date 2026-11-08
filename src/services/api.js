@@ -5,10 +5,11 @@ import { Platform } from 'react-native';
 
 export const LOCAL_PC_IP = '192.168.0.175';
 
-const API_BASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
-  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
-  'http://localhost:8000/api/v1';
+export const API_BASE_URL = Platform.OS === 'web'
+  ? ((typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
+     (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
+     'http://localhost:8000/api/v1')
+  : 'http://' + LOCAL_PC_IP + ':8000/api/v1';
 
 let isBackendConnected = false;
 
