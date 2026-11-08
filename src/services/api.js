@@ -3,7 +3,10 @@
 // ==========================================================
 import { Platform } from 'react-native';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
+  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
+  'http://localhost:8000/api/v1';
 
 /**
  * Realiza peticiones autenticadas a la API backend de VeciRed IA.
