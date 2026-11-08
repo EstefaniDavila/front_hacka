@@ -7,109 +7,169 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ActivityIndicator,
   Alert
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { api } from '../api/apiClient';
+import { api } from '../services/api';
 
 export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail }) {
+  const [categories, setCategories] = useState([
+    { id: 'all', name: 'Todos', icon: '▦' }
+  ]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [filterType, setFilterType] = useState('near'); // near, recommended, promos
-  const [servicesList, setServicesList] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    loadServices();
-  }, [searchQuery, activeCategory]);
-
-  const loadServices = async () => {
-    try {
-      const data = await api.getServices({ q: searchQuery });
-      const filtered = (data || []).filter((srv) => {
-        const cat = (srv.category_name || '').toLowerCase();
-        if (activeCategory === 'all') return true;
-        if (activeCategory === 'oficios') return cat.includes('electr') || cat.includes('gasfit') || cat.includes('plom') || cat.includes('repar') || cat.includes('alba');
-        if (activeCategory === 'clases') return cat.includes('docen') || cat.includes('clase') || cat.includes('apoyo');
-        if (activeCategory === 'hogar') return cat.includes('limp') || cat.includes('costura');
-        if (activeCategory === 'cocina') return cat.includes('cocin') || cat.includes('repost');
-        return true;
-      });
-      setServicesList(filtered);
-    } catch {
-      setServicesList([]);
-    }
-  };
+  const [services, setServices] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const scale = (val) => Math.round(val * fontScale);
 
-  const categories = [
-    { id: 'all', name: 'Todos', icon: '▦' },
-    { id: 'oficios', name: 'Oficios y rep.', icon: '🔧' },
-    { id: 'hogar', name: 'Costura / Hogar', icon: '🧵' },
-    { id: 'cocina', name: 'Cocina / Menú', icon: '🍲' },
-    { id: 'clases', name: 'Clases', icon: '🎓' }
-  ];
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
+    loadServices();
+  }, [activeCategory, filterType]);
+
+  const loadCategories = async () => {
+    try {
+      const data = await api.getServiceCategories();
+      if (Array.isArray(data) && data.length > 0) {
+        setCategories([
+          { id: 'all', name: 'Todos', icon: '▦' },
+          ...data.map((c) => ({
+            id: c.id,
+            name: c.name,
+            icon: c.icon || '🛠️'
+          }))
+        ]);
+      }
+    } catch (err) {
+      console.warn('[ServicesScreen] Error al cargar categorías:', err);
+    }
+  };
+
+  const loadServices = async (searchTerm = searchQuery) => {
+    try {
+      setLoading(true);
+
+      let sortBy = 'newest';
+      if (filterType === 'recommended') sortBy = 'rating';
+      else if (filterType === 'promos') sortBy = 'price_asc';
+
+      const res = await api.getServices({
+        q: searchTerm,
+        category_id: activeCategory !== 'all' ? activeCategory : null,
+        sort_by: sortBy,
+        page: 1,
+        limit: 30
+      });
+
+      if (res && Array.isArray(res.items)) {
+        setServices(res.items);
+        setTotalCount(res.meta?.total ?? res.items.length);
+      } else {
+        setServices([]);
+        setTotalCount(0);
+      }
+    } catch (err) {
+      console.warn('[ServicesScreen] Error al cargar servicios:', err);
+      setServices([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    loadServices(searchQuery);
+  };
+
+  const handleServiceSelect = (service) => {
+    if (onOpenDetail) {
+      onOpenDetail(service, 'service');
+    } else if (service?.id) {
+      onNavigate('service_detail', { serviceId: service.id });
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      
-      {/* Cabecera Violeta Suave */}
+      {/* Cabecera de Servicios */}
       <View style={styles.headerBox}>
         <View style={styles.headerTitleRow}>
           <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 24, marginRight: 8 }}>🔧</Text>
+            <Text style={{ fontSize: 24, marginRight: 8 }}>🏪</Text>
             <View>
-              <Text style={[styles.headerTitle, { fontSize: scale(17) }]}>
-                Servicios Cercanos
-              </Text>
+              <Text style={[styles.headerTitle, { fontSize: scale(16) }]}>Servicios y Oficios</Text>
               <Text style={[styles.headerSub, { fontSize: scale(11) }]}>
-                Oficios y habilidades de tus vecinos • Zona A
+                Talento de vecinos en Zona A
               </Text>
             </View>
           </View>
 
+          {/* Botón de acceso a Mis Servicios */}
           <TouchableOpacity
-            style={styles.publishShortcutBtn}
+            style={styles.myServicesBtn}
             activeOpacity={0.8}
-            onPress={() => onNavigate('publish')}
+            onPress={() => onNavigate('my_services')}
           >
-            <Text style={[styles.publishShortcutText, { fontSize: scale(11) }]}>
-              + Ofrecer
-            </Text>
+            <Text style={[styles.myServicesBtnText, { fontSize: scale(11) }]}>📋 Mis Servicios</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Buscador */}
+        {/* Barra de Búsqueda */}
         <View style={styles.searchBar}>
-          <Text style={{ fontSize: 16, marginRight: 6 }}>🔍</Text>
+          <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
           <TextInput
-            style={[styles.searchInput, { fontSize: scale(12) }]}
-            placeholder="Buscar electricista, gasfitero, costura..."
-            placeholderTextColor="#94a3b8"
-            returnKeyType="search"
+            placeholder="Buscar por oficio, nombre o habilidad..."
+            placeholderTextColor={COLORS.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
+            style={[styles.searchInput, { fontSize: scale(12) }]}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Text style={{ fontSize: 14, color: COLORS.textMuted }}>✕</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('');
+                loadServices('');
+              }}
+            >
+              <Text style={{ fontSize: 16, color: COLORS.textMuted, paddingHorizontal: 4 }}>✕</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Categorías Principales */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+      {/* Categorías (Pills Horizontales) */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryScroll}
+        contentContainerStyle={styles.categoryContent}
+      >
         {categories.map((cat) => {
           const isActive = activeCategory === cat.id;
           return (
             <TouchableOpacity
               key={cat.id}
               style={[styles.categoryPill, isActive && styles.categoryPillActive]}
+              activeOpacity={0.8}
               onPress={() => setActiveCategory(cat.id)}
             >
-              <Text style={{ fontSize: 13, marginRight: 4 }}>{cat.icon}</Text>
-              <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive, { fontSize: scale(11) }]}>
+              <Text style={{ marginRight: 4, fontSize: 13 }}>{cat.icon}</Text>
+              <Text
+                style={[
+                  styles.categoryPillText,
+                  isActive && styles.categoryPillTextActive,
+                  { fontSize: scale(11) }
+                ]}
+              >
                 {cat.name}
               </Text>
             </TouchableOpacity>
@@ -117,184 +177,203 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
         })}
       </ScrollView>
 
-      {/* Sub-chips de Filtro */}
+      {/* Filtros Rápidos */}
       <View style={styles.filterRow}>
         <TouchableOpacity
           style={[styles.filterChip, filterType === 'near' && styles.filterChipActive]}
           onPress={() => setFilterType('near')}
         >
-          <Text style={[styles.filterChipText, filterType === 'near' && styles.filterChipTextActive, { fontSize: scale(11) }]}>
-            ✨ Cerca de mí
+          <Text
+            style={[
+              styles.filterChipText,
+              filterType === 'near' && styles.filterChipTextActive,
+              { fontSize: scale(11) }
+            ]}
+          >
+            📍 Más cercanos (Mz 1-4)
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.filterChip, filterType === 'recommended' && styles.filterChipActive]}
           onPress={() => setFilterType('recommended')}
         >
-          <Text style={[styles.filterChipText, filterType === 'recommended' && styles.filterChipTextActive, { fontSize: scale(11) }]}>
-            🔥 Más recomendados
+          <Text
+            style={[
+              styles.filterChipText,
+              filterType === 'recommended' && styles.filterChipTextActive,
+              { fontSize: scale(11) }
+            ]}
+          >
+            ⭐ Mejor valorados
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.filterChip, filterType === 'promos' && styles.filterChipActive]}
           onPress={() => setFilterType('promos')}
         >
-          <Text style={[styles.filterChipText, filterType === 'promos' && styles.filterChipTextActive, { fontSize: scale(11) }]}>
-            🏷️ Promociones
+          <Text
+            style={[
+              styles.filterChipText,
+              filterType === 'promos' && styles.filterChipTextActive,
+              { fontSize: scale(11) }
+            ]}
+          >
+            🏷️ Económicos
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Radar de Servicios Disponibles */}
+      {/* Radar de servicios */}
       <View style={styles.radarCard}>
         <View style={styles.radarIconWrap}>
-          <Text style={{ fontSize: 26 }}>📡</Text>
+          <Text style={{ fontSize: 24 }}>📡</Text>
         </View>
         <View style={styles.radarDetails}>
-          <Text style={[styles.radarTitle, { fontSize: scale(12) }]}>
-            Servicios en tu zona
+          <Text style={[styles.radarTitle, { fontSize: scale(12) }]}>Radar Barrial VeciRed</Text>
+          <Text style={[styles.radarSub, { fontSize: scale(11) }]}>
+            {totalCount} oficios y servicios disponibles en Mz 2 (Zona A)
           </Text>
-          <Text style={[styles.radarSub, { fontSize: scale(10) }]}>
-            Zona A, a menos de 1 km
-          </Text>
-          <Text style={[styles.radarNumber, { fontSize: scale(18) }]}>
-            {servicesList.length} {servicesList.length === 1 ? 'servicio disponible' : 'servicios disponibles'}
-          </Text>
+          <Text style={[styles.radarNumber, { fontSize: scale(10) }]}>Conectado a la Base de Datos</Text>
         </View>
-        <Text style={styles.radarArrow}>➔</Text>
+        <TouchableOpacity onPress={() => onNavigate('publish')}>
+          <Text style={styles.radarArrow}>+ Publicar</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Lista de Prestadores Recomendados o Empty State */}
+      {/* Título de Sección */}
       <View style={styles.sectionTitleRow}>
         <Text style={[styles.sectionTitle, { fontSize: scale(14) }]}>
-          ⭐ Recomendados por tus vecinos
+          Servicios en el Barrio ({services.length})
         </Text>
       </View>
 
-      {servicesList.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={{ fontSize: 44, marginBottom: 10 }}>🔧</Text>
-          <Text style={[styles.emptyTitle, { fontSize: scale(15) }]}>
-            Aún no hay oficios registrados en tu manzana
+      {/* Lista de Servicios */}
+      {loading ? (
+        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={{ marginTop: 10, color: COLORS.textSecondary, fontSize: scale(12) }}>
+            Consultando servicios comunitarios...
           </Text>
-          <Text style={[styles.emptySub, { fontSize: scale(11) }]}>
-            ¿Tienes habilidades en gasfitería, electricidad, costura o cuidado? ¡Regístralas para tus vecinos!
+        </View>
+      ) : services.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={{ fontSize: 36, marginBottom: 8 }}>🏪</Text>
+          <Text style={[styles.emptyTitle, { fontSize: scale(14) }]}>
+            No hay servicios en esta sección
+          </Text>
+          <Text style={[styles.emptySub, { fontSize: scale(12) }]}>
+            Aún no hay publicaciones en la base de datos para esta búsqueda. ¡Sé el primero en ofrecer un servicio para tus vecinos!
           </Text>
           <TouchableOpacity
             style={styles.emptyPublishBtn}
+            activeOpacity={0.85}
             onPress={() => onNavigate('publish')}
           >
-            <Text style={styles.emptyPublishBtnText}>+ Ofrecer Mi Servicio</Text>
+            <Text style={styles.emptyPublishBtnText}>➕ Publicar Mi Primer Servicio</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        servicesList.map((service) => (
+        services.map((service) => (
           <TouchableOpacity
             key={service.id}
             style={styles.serviceItemCard}
-            activeOpacity={0.88}
-            onPress={() => {
-              if (onOpenDetail) onOpenDetail(service, 'service');
-            }}
+            activeOpacity={0.9}
+            onPress={() => handleServiceSelect(service)}
           >
             <View style={styles.serviceItemTop}>
-              {service.provider_avatar ? (
-                <Image source={{ uri: service.provider_avatar }} style={styles.providerAvatar} />
-              ) : (
-                <View style={[styles.providerAvatar, styles.noAvatar]}>
-                  <Text style={{ fontSize: 28 }}>👨‍🔧</Text>
-                </View>
-              )}
+              <Image
+                source={{
+                  uri:
+                    service.provider_avatar ||
+                    service.image_url ||
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200'
+                }}
+                style={styles.providerAvatar}
+              />
               <View style={styles.providerInfo}>
                 <View style={styles.vistoBuenoBadge}>
                   <Text style={styles.vistoBuenoText}>★ Visto Bueno Vecinal</Text>
                 </View>
                 <Text style={[styles.providerName, { fontSize: scale(13) }]}>
-                  {service.provider_name || 'Vecino'}
+                  {service.provider_name || service.user?.full_name || 'Vecino'}
                 </Text>
-                <Text style={[styles.serviceTitle, { fontSize: scale(11) }]}>
-                  {service.title}
+                <Text style={[styles.providerSkill, { fontSize: scale(11) }]}>
+                  {service.category_name || service.category || 'Oficio local'}
                 </Text>
-                <Text style={[styles.ratingRow, { fontSize: scale(11) }]}>
-                  ⭐ {service.rating_avg || 5.0} ({service.endorsements_count || 0}) • 📍 {service.distance_m || 250} m
+              </View>
+              <View style={styles.ratingBadge}>
+                <Text style={styles.ratingStar}>★</Text>
+                <Text style={[styles.ratingNumber, { fontSize: scale(12) }]}>
+                  {service.rating ? Number(service.rating).toFixed(1) : '5.0'}
                 </Text>
               </View>
             </View>
 
-            <Text style={[styles.serviceDesc, { fontSize: scale(11) }]} numberOfLines={2}>
-              {service.description}
-            </Text>
-
-            <View style={styles.serviceFooterRow}>
-              <Text style={[styles.servicePrice, { fontSize: scale(12) }]}>
-                Desde S/ {Number(service.price_from || 0).toFixed(2)}
+            <Text style={[styles.serviceTitle, { fontSize: scale(14) }]}>{service.title}</Text>
+            {service.description ? (
+              <Text style={[styles.serviceDescription, { fontSize: scale(12) }]} numberOfLines={2}>
+                {service.description}
               </Text>
-              <TouchableOpacity
-                style={styles.whatsappButton}
-                activeOpacity={0.8}
-                onPress={() => {
-                  if (onOpenChat) {
-                    onOpenChat({
-                      name: service.provider_name || 'Vecino',
-                      topic: service.title,
-                      avatar: service.provider_avatar || '👨‍🔧',
-                      zone: 'Zona A',
-                      badge: 'Proveedor Verificado',
-                      phone: service.phone || service.provider_phone || '987-654-321'
-                    });
-                  } else {
-                    Alert.alert('💬 Chat Vecinal', `Iniciando chat con ${service.provider_name || 'Vecino'}...`);
-                  }
-                }}
-              >
-                <Text style={[styles.whatsappButtonText, { fontSize: scale(11) }]}>
-                  💬 Contactar
-                </Text>
-              </TouchableOpacity>
+            ) : null}
+
+            <View style={styles.serviceItemBottom}>
+              <Text style={[styles.priceTag, { fontSize: scale(12) }]}>
+                {service.price_from
+                  ? `Desde S/ ${Number(service.price_from || 0).toFixed(2)} / ${service.price_unit || 'servicio'}`
+                  : 'A coordinar con el vecino'}
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  style={styles.detailButton}
+                  onPress={() => handleServiceSelect(service)}
+                >
+                  <Text style={[styles.detailButtonText, { fontSize: scale(11) }]}>Ficha</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.whatsappButton}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (onOpenChat) {
+                      onOpenChat({
+                        name: service.provider_name || service.user?.full_name || 'Vecino',
+                        topic: service.title,
+                        avatar: '👨‍🔧',
+                        zone: 'Zona A',
+                        badge: 'Proveedor Verificado'
+                      });
+                    }
+                  }}
+                >
+                  <Text style={[styles.whatsappButtonText, { fontSize: scale(11) }]}>Contactar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         ))
       )}
-
-      {/* Banner de Emergencia Inferior (Rojo) */}
-      <TouchableOpacity
-        style={styles.emergencySupportCard}
-        activeOpacity={0.85}
-        onPress={() => onNavigate('emergency')}
-      >
-        <Text style={{ fontSize: 26, marginRight: 10 }}>🚨</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.emergencySupportTitle, { fontSize: scale(13) }]}>
-            ¿Tienes una emergencia domiciliaria urgente?
-          </Text>
-          <Text style={[styles.emergencySupportSub, { fontSize: scale(10) }]}>
-            Fugas de gas, aniegos o corte eléctrico: pide brigada vecinal.
-          </Text>
-        </View>
-        <View style={styles.emergencyBtn}>
-          <Text style={styles.emergencyBtnText}>Ver ›</Text>
-        </View>
-      </TouchableOpacity>
-
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 28 },
+  content: { padding: 16, paddingBottom: 90 },
   headerBox: {
-    backgroundColor: '#f5f3ff',
-    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#ede9fe',
+    borderColor: COLORS.border,
     marginBottom: 12
   },
   headerTitleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12
   },
   headerLeft: {
@@ -302,38 +381,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1
   },
-  headerTitle: { fontWeight: '900', color: COLORS.purpleDark },
+  headerTitle: { fontWeight: '900', color: COLORS.textPrimary },
   headerSub: { fontWeight: '600', color: COLORS.textSecondary },
-  publishShortcutBtn: {
-    backgroundColor: COLORS.purple,
-    paddingHorizontal: 12,
+  myServicesBtn: {
+    backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 12
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.primaryPale
   },
-  publishShortcutText: { color: COLORS.white, fontWeight: '800' },
+  myServicesBtnText: {
+    color: COLORS.primaryDark,
+    fontWeight: '800'
+  },
   searchBar: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.border
   },
-  searchInput: { flex: 1, fontWeight: '600', color: '#0f172a' },
-  categoriesScroll: { marginBottom: 10 },
+  searchInput: {
+    flex: 1,
+    color: '#0f172a',
+    fontWeight: '700',
+    padding: 0
+  },
+  categoryScroll: { marginBottom: 12 },
+  categoryContent: { gap: 6 },
   categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: COLORS.border
   },
-  categoryPillActive: { backgroundColor: COLORS.purple, borderColor: COLORS.purple },
+  categoryPillActive: {
+    backgroundColor: COLORS.primaryDark,
+    borderColor: COLORS.primaryDark
+  },
   categoryPillText: { fontWeight: '700', color: COLORS.textSecondary },
   categoryPillTextActive: { color: COLORS.white },
   filterRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
@@ -345,9 +438,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border
   },
-  filterChipActive: { backgroundColor: '#f3e8ff', borderColor: COLORS.purple },
-  filterChipText: { fontWeight: '700', color: COLORS.textMuted },
-  filterChipTextActive: { color: COLORS.purpleDark },
+  filterChipActive: {
+    backgroundColor: COLORS.primarySurface,
+    borderColor: COLORS.primary
+  },
+  filterChipText: {
+    color: COLORS.textSecondary,
+    fontWeight: '600'
+  },
+  filterChipTextActive: {
+    color: COLORS.primaryDark,
+    fontWeight: '800'
+  },
   radarCard: {
     backgroundColor: COLORS.white,
     borderRadius: 20,
@@ -371,7 +473,15 @@ const styles = StyleSheet.create({
   radarTitle: { fontWeight: '900', color: COLORS.textPrimary },
   radarSub: { fontWeight: '600', color: COLORS.textSecondary },
   radarNumber: { fontWeight: '900', color: COLORS.primaryDeep, marginTop: 2 },
-  radarArrow: { fontSize: 18, color: COLORS.primary, fontWeight: '900' },
+  radarArrow: {
+    fontSize: 12,
+    color: COLORS.white,
+    fontWeight: '800',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10
+  },
   sectionTitleRow: { marginBottom: 10 },
   sectionTitle: { fontWeight: '900', color: COLORS.textPrimary },
   emptyContainer: {
@@ -397,7 +507,7 @@ const styles = StyleSheet.create({
     lineHeight: 18
   },
   emptyPublishBtn: {
-    backgroundColor: COLORS.purple,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 14
@@ -409,11 +519,11 @@ const styles = StyleSheet.create({
   },
   serviceItemCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 10,
+    borderColor: '#e2e8f0',
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 5,
@@ -421,67 +531,68 @@ const styles = StyleSheet.create({
   },
   serviceItemTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   providerAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 16,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     marginRight: 12
-  },
-  noAvatar: {
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center'
   },
   providerInfo: { flex: 1 },
   vistoBuenoBadge: {
-    backgroundColor: '#ede9fe',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 999,
-    marginBottom: 3
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 2
   },
   vistoBuenoText: {
     fontSize: 9,
-    fontWeight: '900',
-    color: COLORS.purple
+    fontWeight: '800',
+    color: '#92400e'
   },
-  providerName: { fontWeight: '900', color: COLORS.textPrimary },
-  serviceTitle: { fontWeight: '700', color: COLORS.primaryDark },
-  ratingRow: { fontWeight: '700', color: COLORS.textSecondary, marginTop: 2 },
-  serviceDesc: { color: COLORS.textSecondary, marginBottom: 10, lineHeight: 16 },
-  serviceFooterRow: {
+  providerName: { fontWeight: '800', color: COLORS.textPrimary },
+  providerSkill: { color: COLORS.textSecondary },
+  ratingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10
+  },
+  ratingStar: { color: '#f59e0b', fontSize: 12, marginRight: 2 },
+  ratingNumber: { fontWeight: '800', color: '#b45309' },
+  serviceTitle: { fontWeight: '800', color: COLORS.textPrimary, marginBottom: 4 },
+  serviceDescription: { color: COLORS.textSecondary, lineHeight: 17, marginBottom: 10 },
+  serviceItemBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 8
+    borderTopColor: COLORS.borderLight,
+    paddingTop: 10
   },
-  servicePrice: { fontWeight: '900', color: COLORS.primaryDeep },
-  whatsappButton: {
-    backgroundColor: COLORS.emerald,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 12
-  },
-  whatsappButtonText: { color: COLORS.white, fontWeight: '900' },
-  emergencySupportCard: {
-    backgroundColor: COLORS.emergencySurface,
-    borderWidth: 1.5,
-    borderColor: COLORS.emergencyPale,
-    borderRadius: 20,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6
-  },
-  emergencySupportTitle: { fontWeight: '900', color: COLORS.emergencyDark },
-  emergencySupportSub: { fontWeight: '600', color: '#991b1b', marginTop: 2 },
-  emergencyBtn: {
-    backgroundColor: COLORS.emergency,
-    paddingHorizontal: 10,
+  priceTag: { fontWeight: '800', color: COLORS.primaryDark },
+  detailButton: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 10
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
   },
-  emergencyBtnText: { color: COLORS.white, fontWeight: '900', fontSize: 10 }
+  detailButtonText: {
+    color: '#334155',
+    fontWeight: '700'
+  },
+  whatsappButton: {
+    backgroundColor: '#25D366',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  whatsappButtonText: {
+    color: COLORS.white,
+    fontWeight: '800'
+  }
 });

@@ -123,7 +123,7 @@ export default function SolidarityScreen({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
-      
+
       {/* Cabecera en VERDE AZULADO (Teal) unificada con el resto de la app */}
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
@@ -307,7 +307,7 @@ export default function SolidarityScreen({
                 {post.author_name} • {post.block_code}
               </Text>
             </View>
-            
+
             <View style={styles.wantHelpBtn}>
               <Text style={[styles.wantHelpBtnText, { fontSize: scale(11) }]}>
                 🤝 Quiero ayudar
@@ -361,7 +361,7 @@ export default function SolidarityScreen({
                 <Text style={[styles.modalPostDesc, { fontSize: scale(13) }]}>
                   "{selectedPost.description}"
                 </Text>
-                
+
                 <View style={styles.detailLocationBox}>
                   <Text style={[styles.detailLocItem, { fontSize: scale(11) }]}>
                     📍 {selectedPost.block_code}
@@ -424,9 +424,9 @@ export default function SolidarityScreen({
                 </TouchableOpacity>
 
                 <View style={styles.secureNotice}>
-                  <Text style={{ fontSize: 14, marginRight: 6 }}>🔒</Text>
+                  <Text style={{ fontSize: 16, marginRight: 6 }}>🛡️</Text>
                   <Text style={[styles.secureNoticeText, { fontSize: scale(10) }]}>
-                    Colaboración segura: Tu información se comparte solo cuando ambos aceptan la ayuda.
+                    Intercambio protegido: Comunidad verificada con validación DNI.
                   </Text>
                 </View>
               </ScrollView>
@@ -435,17 +435,14 @@ export default function SolidarityScreen({
         </View>
       </Modal>
 
-      {/* MODAL 2: PUBLICAR DIRECTO EN AYUDA SOLIDARIA (PANTALLA DE PUBLICAR SOLICITADA) */}
+      {/* MODAL 2: FORMULARIO DE PUBLICACIÓN EN AYUDA SOLIDARIA */}
       <Modal visible={publishModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.publishModalCard}>
+          <View style={[styles.modalCard, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: 22 }}>✍️</Text>
-                <Text style={[styles.modalTitle, { fontSize: scale(16) }]}>
-                  Publicar en Ayuda Solidaria
-                </Text>
-              </View>
+              <Text style={[styles.modalTitle, { fontSize: scale(16) }]}>
+                Nueva Publicación Solidaria
+              </Text>
               <TouchableOpacity onPress={() => setPublishModalVisible(false)}>
                 <Text style={{ fontSize: 22, color: COLORS.textMuted }}>✕</Text>
               </TouchableOpacity>
@@ -453,81 +450,85 @@ export default function SolidarityScreen({
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingBottom: 60 }} style={{ maxHeight: 520, padding: 16 }}>
               {/* Selector de Tipo de Publicación */}
-              <Text style={[styles.formLabel, { fontSize: scale(12) }]}>
-                1. ¿Qué tipo de publicación deseas realizar?
-              </Text>
+              <Text style={[styles.formLabel, { fontSize: scale(12) }]}>Tipo de ayuda:</Text>
               <View style={styles.typeSelectorGrid}>
                 {[
-                  { id: 'Necesito ayuda', label: '💬 Necesito ayuda', desc: 'Pedir apoyo vecinal' },
-                  { id: 'Puedo apoyar', label: '🤝 Puedo apoyar', desc: 'Ofrecer mi tiempo' },
-                  { id: 'Donación', label: '📦 Donación', desc: 'Víveres o enseres' },
-                  { id: 'Intercambio', label: '🔄 Intercambio', desc: 'Trueque solidario' }
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.typeOptionCard,
-                      newPostType === item.id && styles.typeOptionCardSelected
-                    ]}
-                    onPress={() => setNewPostType(item.id)}
-                  >
-                    <Text style={[styles.typeOptionLabel, newPostType === item.id && styles.typeOptionLabelSelected, { fontSize: scale(12) }]}>
-                      {item.label}
-                    </Text>
-                    <Text style={[styles.typeOptionDesc, { fontSize: scale(9) }]}>
-                      {item.desc}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                  { id: 'Necesito ayuda', label: '💬 Necesito ayuda', desc: 'Pedir un favor a vecinos' },
+                  { id: 'Puedo apoyar', label: '🤝 Puedo apoyar', desc: 'Ofrecer ayuda voluntaria' },
+                  { id: 'Donación', label: '📦 Donación', desc: 'Regalar algo que no usas' },
+                  { id: 'Intercambio', label: '🔄 Intercambio', desc: 'Trueque solidario vecinal' }
+                ].map((t) => {
+                  const isSel = newPostType === t.id;
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[styles.typeOptionCard, isSel && styles.typeOptionCardSelected]}
+                      onPress={() => setNewPostType(t.id)}
+                    >
+                      <Text style={[styles.typeOptionLabel, isSel && styles.typeOptionLabelSelected, { fontSize: scale(11) }]}>
+                        {t.label}
+                      </Text>
+                      <Text style={[styles.typeOptionDesc, { fontSize: scale(9) }]}>
+                        {t.desc}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {/* Título */}
-              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 12 }]}>
-                2. Título de la publicación *
-              </Text>
+              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 12 }]}>Título breve *</Text>
               <TextInput
-                style={[styles.formInput, { fontSize: scale(13) }]}
-                placeholder="Ej. Apoyo para mudanza este fin de semana"
+                style={[styles.formInput, { fontSize: scale(12) }]}
+                placeholder="Ej: Necesito una escalera por 1 hora..."
                 value={newPostTitle}
                 onChangeText={setNewPostTitle}
               />
 
               {/* Categoría */}
-              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 10 }]}>
-                3. Categoría comunitaria
-              </Text>
+              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 12 }]}>Categoría:</Text>
               <View style={styles.catChipsRow}>
-                {['Herramientas', 'Apoyo temporal', 'Donaciones', 'Intercambio', 'Salud/Cuidados'].map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[styles.catChip, newPostCategory === cat && styles.catChipSelected]}
-                    onPress={() => setNewPostCategory(cat)}
-                  >
-                    <Text style={[styles.catChipText, newPostCategory === cat && styles.catChipTextSelected, { fontSize: scale(10) }]}>
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {['Herramientas', 'Apoyo temporal', 'Donaciones', 'Intercambio', 'Cuidado'].map((c) => {
+                  const isSel = newPostCategory === c;
+                  return (
+                    <TouchableOpacity
+                      key={c}
+                      style={[styles.catChip, isSel && styles.catChipSelected]}
+                      onPress={() => setNewPostCategory(c)}
+                    >
+                      <Text style={[styles.catChipText, isSel && styles.catChipTextSelected, { fontSize: scale(10) }]}>
+                        {c}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {/* Descripción */}
-              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 10 }]}>
-                4. Detalles de la ayuda o necesidad (Opcional)
-              </Text>
+              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 12 }]}>Detalle / Explicación:</Text>
               <TextInput
                 style={[styles.formInput, styles.formTextArea, { fontSize: scale(12) }]}
-                multiline
-                numberOfLines={3}
-                placeholder="Explica a tus vecinos cómo pueden colaborar, horarios y referencias..."
+                placeholder="Describe brevemente tu necesidad para que tus vecinos entiendan cómo ayudarte..."
                 value={newPostDesc}
                 onChangeText={setNewPostDesc}
+                multiline
+                numberOfLines={3}
               />
 
-              {/* Ubicación y Manzana */}
+              {/* Horario o Disponibilidad */}
+              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 12 }]}>¿Cuándo lo necesitas o cuándo puedes?</Text>
+              <TextInput
+                style={[styles.formInput, { fontSize: scale(12) }]}
+                placeholder="Ej: Hoy hasta las 6pm, o este sábado por la mañana"
+                value={newPostDate}
+                onChangeText={setNewPostDate}
+              />
+
+              {/* Mensaje de manzana */}
               <View style={styles.formLocationNotice}>
                 <Text style={{ fontSize: 16, marginRight: 6 }}>📍</Text>
                 <Text style={[styles.formLocationText, { fontSize: scale(10) }]}>
-                  Se publicará para vecinos de: <Text style={{ fontWeight: '800' }}>Zona A, Manzana 2</Text>
+                  Se publicará para vecinos verificados de Zona A – Manzana 2.
                 </Text>
               </View>
 
@@ -538,7 +539,7 @@ export default function SolidarityScreen({
                 onPress={handlePublishSolidarity}
               >
                 <Text style={[styles.submitSolidarityText, { fontSize: scale(14) }]}>
-                  🚀 PUBLICAR EN EL MURO SOLIDARIO
+                  🚀 Publicar en el Muro Solidario
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -557,32 +558,32 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 90,
-    gap: 12
+    paddingBottom: 90
   },
   headerCard: {
     backgroundColor: COLORS.primaryDark,
     borderRadius: 20,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: COLORS.primaryDeep,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
     elevation: 3
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12
+    marginBottom: 14
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center'
   },
   headerIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -598,22 +599,26 @@ const styles = StyleSheet.create({
   },
   subtabsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 14,
     padding: 4,
     marginBottom: 12
   },
   subtabButton: {
     flex: 1,
-    paddingVertical: 9,
-    alignItems: 'center',
-    borderRadius: 10,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 6
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 4
   },
   subtabActive: {
-    backgroundColor: COLORS.white
+    backgroundColor: COLORS.white,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
   },
   subtabInactive: {
     backgroundColor: 'transparent'
@@ -622,16 +627,16 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   subtabTextActive: {
-    color: COLORS.primaryDark
+    color: COLORS.primaryDeep
   },
   subtabTextInactive: {
-    color: '#e6fffa'
+    color: COLORS.white
   },
   urgentBadge: {
     backgroundColor: COLORS.emergency,
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 6
+    borderRadius: 8
   },
   urgentBadgeText: {
     color: COLORS.white,
@@ -639,10 +644,10 @@ const styles = StyleSheet.create({
     fontWeight: '900'
   },
   communityQuote: {
-    color: '#f0fdfa',
+    color: '#e0f2fe',
     fontStyle: 'italic',
     textAlign: 'center',
-    marginBottom: 12
+    marginBottom: 14
   },
   balanceGrid: {
     flexDirection: 'row',
@@ -650,42 +655,40 @@ const styles = StyleSheet.create({
   },
   balanceBox: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 14,
-    padding: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)'
+    padding: 12,
+    alignItems: 'center'
   },
   balanceLabel: {
-    color: '#ccfbf1',
+    color: COLORS.textSecondary,
     fontWeight: '700',
-    textAlign: 'center'
+    textAlign: 'center',
+    marginBottom: 2
   },
   balanceNumberHelped: {
     fontWeight: '900',
-    color: '#fef08a', // Amarillo cálido para resaltar
-    marginVertical: 2
+    color: COLORS.primaryDeep
   },
   balanceNumberReceived: {
     fontWeight: '900',
-    color: COLORS.white,
-    marginVertical: 2
+    color: COLORS.textPrimary
   },
   balanceSub: {
-    color: '#ccfbf1',
-    fontWeight: '600'
+    color: COLORS.textMuted,
+    fontWeight: '600',
+    marginTop: 2
   },
   categoriesScroll: {
-    flexGrow: 0
+    marginBottom: 14
   },
   categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border
   },
@@ -699,31 +702,38 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary
   },
   categoryPillTextActive: {
-    color: COLORS.primaryDark,
-    fontWeight: '800'
+    color: COLORS.primaryDeep,
+    fontWeight: '900'
   },
   publishCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: COLORS.primarySurface,
+    borderWidth: 1,
+    borderColor: COLORS.primaryPale,
     borderRadius: 16,
     padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.primaryPale
+    marginBottom: 16
   },
   publishCardTitle: {
     fontWeight: '900',
     color: COLORS.primaryDeep
   },
   publishCardSub: {
-    color: COLORS.textSecondary,
-    fontWeight: '600'
+    color: COLORS.primaryDark,
+    fontWeight: '500',
+    marginTop: 2
   },
   publishBtn: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 12
+    paddingVertical: 8,
+    borderRadius: 12,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2
   },
   publishBtnText: {
     color: COLORS.white,
@@ -733,23 +743,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4
+    marginBottom: 12
   },
   sectionTitle: {
     fontWeight: '900',
-    color: COLORS.textPrimary
+    color: COLORS.textPrimary,
+    letterSpacing: 0.5
   },
   blockTagWrap: {
     backgroundColor: COLORS.white,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border
+    borderColor: COLORS.border,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10
   },
   blockTag: {
-    color: COLORS.primaryDark,
-    fontWeight: '700'
+    fontWeight: '700',
+    color: COLORS.primaryDark
   },
   emptyContainer: {
     backgroundColor: COLORS.white,
@@ -786,28 +797,27 @@ const styles = StyleSheet.create({
   },
   postCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: '#000',
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
     shadowRadius: 6,
-    elevation: 2
+    elevation: 1
   },
   postHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6
+    marginBottom: 8
   },
   tagWrap: {
     backgroundColor: COLORS.primarySurface,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.primaryPale
+    borderRadius: 8
   },
   postTag: {
     color: COLORS.primaryDeep,
@@ -818,14 +828,14 @@ const styles = StyleSheet.create({
     fontWeight: '600'
   },
   postTitle: {
-    fontWeight: '800',
+    fontWeight: '900',
     color: COLORS.textPrimary,
     marginBottom: 4
   },
   postDesc: {
     color: COLORS.textSecondary,
     lineHeight: 18,
-    marginBottom: 10
+    marginBottom: 12
   },
   postFooter: {
     flexDirection: 'row',
@@ -833,45 +843,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    paddingTop: 8
+    paddingTop: 10
   },
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center'
   },
   authorName: {
-    color: COLORS.textSecondary,
-    fontWeight: '700'
+    fontWeight: '700',
+    color: COLORS.textPrimary
   },
   wantHelpBtn: {
     backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8
+    borderColor: COLORS.primaryPale
   },
   wantHelpBtnText: {
-    color: COLORS.primaryDark,
-    fontWeight: '800'
+    color: COLORS.primaryDeep,
+    fontWeight: '900'
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end'
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16
   },
   modalCard: {
+    width: '100%',
+    maxHeight: '85%',
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: '85%'
-  },
-  publishModalCard: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%'
+    borderRadius: 22,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5
   },
   modalHeader: {
     flexDirection: 'row',
@@ -886,7 +896,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary
   },
   modalBody: {
-    paddingVertical: 14
+    marginTop: 12
   },
   tagWrapDetail: {
     backgroundColor: COLORS.primarySurface,

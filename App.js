@@ -6,15 +6,21 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
+  ActivityIndicator,
   Platform
 } from 'react-native';
 import { COLORS } from './src/theme/colors';
-import { api } from './src/api/apiClient';
+import { api } from './src/services/api';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 
-// Componentes y Pantallas Principales (100% Frontend React Native)
+// Pantallas de Autenticación
+import LoginScreen from './src/screens/LoginScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+
+// Componentes y Pantallas Principales
 import EmergencyBanner from './src/components/EmergencyBanner';
 import BottomNavBar from './src/components/BottomNavBar';
-import OnboardingScreen from './src/screens/OnboardingScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ServicesScreen from './src/screens/ServicesScreen';
 import ProductsScreen from './src/screens/ProductsScreen';
@@ -25,21 +31,24 @@ import EmergencyScreen from './src/screens/EmergencyScreen';
 import PublishScreen from './src/screens/PublishScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ChatScreen from './src/screens/ChatScreen';
+import MyServicesScreen from './src/screens/MyServicesScreen';
+import ServiceDetailScreen from './src/screens/ServiceDetailScreen';
 
-export default function App() {
-  // Simulación de instalación y primer inicio (Registro inicial con DNI anverso/reverso y biometría)
+function MainApp() {
+  const { profile, isAuthenticated, isLoading, logout } = useAuth();
+
+  // Control de sesión adicional para permitir alternar entre pantallas
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
-  // Pestaña activa: home, services, products, detail, solidarity, eco_solidaria, emergency, publish, profile, chat
+  const [authView, setAuthView] = useState('login'); // 'login' | 'register' | 'forgot_password'
+
   const [currentTab, setCurrentTab] = useState('home');
   const [previousTab, setPreviousTab] = useState('home');
-  
-  // Contacto seleccionado para chat directo
+
   const [activeChatContact, setActiveChatContact] = useState(null);
 
-  // Artículo seleccionado para vista de detalle (Producto o Servicio)
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('product'); // 'product' | 'service'
+  const [selectedServiceId, setSelectedServiceId] = useState(null);
   const [backendOnline, setBackendOnline] = useState(false);
 
   useEffect(() => {
@@ -52,14 +61,10 @@ export default function App() {
       .catch(() => setActiveEmergency(null));
   }, []);
 
-  // Accesibilidad Senior (Escala de fuente: 1.0 Normal, 1.15 Grande, 1.30 Senior)
   const [fontScale, setFontScale] = useState(1.0);
-  
-  // Contador de Solidaridad Activa
   const [helpedCount, setHelpedCount] = useState(0);
   const [activeEmergency, setActiveEmergency] = useState(null);
 
-  // Datos del perfil registrados en el Login/Onboarding inicial
   const [userProfile, setUserProfile] = useState({
     name: 'Vecino',
     phone: '',
@@ -67,9 +72,29 @@ export default function App() {
     address: 'Zona A • Manzana 2'
   });
 
+  // Sincronizar datos si el backend retorna un perfil real autenticado
+  useEffect(() => {
+    if (profile) {
+      setUserProfile((prev) => ({
+        ...prev,
+        name: profile.full_name || prev.name,
+        phone: profile.phone || prev.phone,
+        skill: profile.skill || prev.skill,
+        address: profile.address || prev.address
+      }));
+      if (profile.font_scale_preference) {
+        const val = parseFloat(profile.font_scale_preference);
+        if (!isNaN(val)) setFontScale(val);
+      }
+    }
+  }, [profile]);
+
   const scale = (val) => Math.round(val * fontScale);
 
-  const handleNavigate = (tab) => {
+  const handleNavigate = (tab, params = null) => {
+    if (params?.serviceId) {
+      setSelectedServiceId(params.serviceId);
+    }
     setPreviousTab(currentTab);
     setCurrentTab(tab);
   };
@@ -83,15 +108,59 @@ export default function App() {
   const handleOpenDetail = (item, type = 'product') => {
     setSelectedItem(item);
     setSelectedItemType(type);
-    setPreviousTab(currentTab);
-    setCurrentTab('detail');
+    if (type === 'service' && item?.id) {
+      setSelectedServiceId(item.id);
+      setPreviousTab(currentTab);
+      setCurrentTab('service_detail');
+    } else {
+      setPreviousTab(currentTab);
+      setCurrentTab('detail');
+    }
   };
 
-  // Si es la primera vez que se abre la app, muestra el registro vecinal completo
-  if (!isLoggedIn) {
+  const handleLogout = async () => {
+    await logout();
+    setIsLoggedIn(false);
+    setAuthView('login');
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  const userIsActive = isAuthenticated || isLoggedIn;
+
+  if (!userIsActive) {
+    if (authView === 'login') {
+      return (
+        <LoginScreen
+          onNavigateToRegister={() => setAuthView('register')}
+          onNavigateToForgotPassword={() => setAuthView('forgot_password')}
+          fontScale={fontScale}
+        />
+      );
+    }
+
+    if (authView === 'forgot_password') {
+      return (
+        <ForgotPasswordScreen
+          onBackToLogin={() => setAuthView('login')}
+          fontScale={fontScale}
+        />
+      );
+    }
+
     return (
       <OnboardingScreen
-        onFinishLogin={() => setIsLoggedIn(true)}
+        onFinishLogin={() => {
+          setIsLoggedIn(true);
+          setAuthView('login');
+        }}
+        onNavigateToLogin={() => setAuthView('login')}
         fontScale={fontScale}
         setFontScale={setFontScale}
         onSaveUserData={(data) => setUserProfile((prev) => ({ ...prev, ...data }))}
@@ -104,42 +173,61 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
       <View style={styles.container}>
-        
+
         {/* Cabecera Principal de la App (VeciRed IA) - Se oculta en Chat y Detalle para evitar doble barra */}
         {currentTab !== 'chat' && currentTab !== 'detail' && (
           <View style={styles.appHeader}>
-            <View style={styles.appHeaderLeft}>
+            <TouchableOpacity
+              style={styles.appHeaderLeft}
+              onPress={() => handleNavigate('home')}
+              activeOpacity={0.8}
+            >
               <View style={styles.appLogoCircle}>
-                <Text style={{ fontSize: 18 }}>🏘️</Text>
+                <Text style={{ fontSize: 20 }}>🏡</Text>
               </View>
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[styles.appBrandText, { fontSize: scale(15) }]}>
-                    VeciRed
-                  </Text>
-                  <Text style={[styles.appBrandIa, { fontSize: scale(15) }]}>
-                    {' '}IA
-                  </Text>
+                  <Text style={[styles.appBrandText, { fontSize: scale(16) }]}>VeciRed </Text>
+                  <Text style={[styles.appBrandIa, { fontSize: scale(16) }]}>IA</Text>
                 </View>
-                <Text style={[styles.appLocationText, { fontSize: scale(10) }]}>
-                  📍 Mi comunidad • Zona A
+                <Text style={[styles.appLocationText, { fontSize: scale(11) }]}>
+                  📍 {userProfile.address || 'Mi comunidad • Zona A'}
                 </Text>
-                <View style={backendOnline ? styles.onlineBadge : styles.offlineBadge}>
-                  <View style={backendOnline ? styles.greenDot : styles.grayDot} />
-                  <Text style={styles.badgeStatusText}>
-                    {backendOnline ? 'FastAPI Conectada' : 'Modo Conectado'}
-                  </Text>
-                </View>
+                {backendOnline ? (
+                  <View style={styles.onlineBadge}>
+                    <View style={styles.greenDot} />
+                    <Text style={styles.badgeStatusText}>FastAPI Conectada</Text>
+                  </View>
+                ) : (
+                  <View style={styles.offlineBadge}>
+                    <View style={styles.grayDot} />
+                    <Text style={styles.badgeStatusText}>Modo Local</Text>
+                  </View>
+                )}
               </View>
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.appHeaderRight}>
-              {/* Botón de Chat Comunitario con Indicador de mensajes */}
+              {/* Botón de Emergencia SOS Rápido */}
+              <TouchableOpacity
+                style={[
+                  styles.headerIconButton,
+                  currentTab === 'emergency' && styles.headerIconActive,
+                  { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }
+                ]}
+                activeOpacity={0.8}
+                onPress={() => handleNavigate('emergency')}
+              >
+                <Text style={{ fontSize: 16 }}>🚨</Text>
+              </TouchableOpacity>
+
+              {/* Botón de Mensajes / Chat Comunitario */}
               <TouchableOpacity
                 style={[styles.headerIconButton, currentTab === 'chat' && styles.headerIconActive]}
+                activeOpacity={0.8}
                 onPress={() => {
                   setActiveChatContact(null);
-                  handleNavigate(currentTab === 'chat' ? previousTab : 'chat');
+                  handleNavigate('chat');
                 }}
               >
                 <Text style={{ fontSize: 18 }}>💬</Text>
@@ -148,42 +236,47 @@ export default function App() {
                 </View>
               </TouchableOpacity>
 
-              {/* Campana de Notificaciones con Punto Rojo (Emergencias) */}
+              {/* Botón de Notificaciones */}
               <TouchableOpacity
                 style={styles.headerIconButton}
-                onPress={() => handleNavigate('emergency')}
+                activeOpacity={0.8}
+                onPress={() => handleNavigate('solidarity')}
               >
                 <Text style={{ fontSize: 18 }}>🔔</Text>
                 <View style={styles.bellRedDot} />
               </TouchableOpacity>
 
-              {/* Avatar del Usuario -> Perfil */}
+              {/* Avatar de Perfil */}
               <TouchableOpacity
                 style={[styles.avatarButton, currentTab === 'profile' && styles.avatarButtonActive]}
+                activeOpacity={0.8}
                 onPress={() => handleNavigate('profile')}
               >
-                <Text style={{ fontSize: 18 }}>👤</Text>
+                <Text style={{ fontSize: 20 }}>👵</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* Barra de Alerta (se muestra únicamente si existe una emergencia activa) */}
-        {currentTab !== 'chat' && currentTab !== 'detail' && activeEmergency && (
+        {/* Banner de Emergencia Comunitaria Activa */}
+        {activeEmergency && currentTab !== 'emergency' && (
           <EmergencyBanner
-            emergencyTitle={activeEmergency.title}
-            onOpenEmergency={() => handleNavigate('emergency')}
+            emergency={activeEmergency}
+            onPressView={() => handleNavigate('emergency')}
             fontScale={fontScale}
           />
         )}
 
-        {/* Contenedor de Pantallas Activas */}
+        {/* Contenedor Principal de Pantallas Dinámicas */}
         <View style={styles.screenContainer}>
           {currentTab === 'home' && (
             <HomeScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
+              helpedCount={helpedCount}
+              userProfile={userProfile}
               onOpenDetail={handleOpenDetail}
+              onOpenChat={handleOpenChatWith}
             />
           )}
 
@@ -196,20 +289,36 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'products' && (
-            <ProductsScreen
+          {currentTab === 'my_services' && (
+            <MyServicesScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
-              onOpenDetail={handleOpenDetail}
+            />
+          )}
+
+          {currentTab === 'service_detail' && (
+            <ServiceDetailScreen
+              serviceId={selectedServiceId || selectedItem?.id}
+              onNavigate={handleNavigate}
+              fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
             />
           )}
 
-          {currentTab === 'detail' && (
+          {currentTab === 'products' && (
+            <ProductsScreen
+              onNavigate={handleNavigate}
+              fontScale={fontScale}
+              onOpenChat={handleOpenChatWith}
+              onOpenDetail={handleOpenDetail}
+            />
+          )}
+
+          {currentTab === 'detail' && selectedItem && (
             <ItemDetailScreen
               item={selectedItem}
-              type={selectedItemType}
-              onBack={() => setCurrentTab(previousTab || 'home')}
+              itemType={selectedItemType}
+              onBack={() => handleNavigate(previousTab || 'home')}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
             />
@@ -253,7 +362,11 @@ export default function App() {
             <ProfileScreen
               fontScale={fontScale}
               setFontScale={setFontScale}
-              onRestartOnboarding={() => setIsLoggedIn(false)}
+              onRestartOnboarding={() => {
+                setIsLoggedIn(false);
+                setAuthView('register');
+              }}
+              onLogout={handleLogout}
               helpedCount={helpedCount}
               userProfile={userProfile}
               onOpenChat={() => {
@@ -283,6 +396,14 @@ export default function App() {
 
       </View>
     </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
 

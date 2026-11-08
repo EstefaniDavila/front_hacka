@@ -6,24 +6,49 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { api } from '../api/apiClient';
+import { api } from '../services/api';
 
 export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
   const scale = (val) => Math.round(val * fontScale);
-  const [featuredService, setFeaturedService] = useState(null);
+  const [recommendedServices, setRecommendedServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
 
   useEffect(() => {
-    api.getServices().then(services => {
-      if (services && services.length > 0) {
-        setFeaturedService(services[0]);
-      } else {
-        setFeaturedService(null);
-      }
-    }).catch(() => setFeaturedService(null));
+    loadRecommended();
   }, []);
+
+  const loadRecommended = async () => {
+    try {
+      setLoadingServices(true);
+      const res = await api.getServices({ sort_by: 'rating', limit: 3 });
+      if (res && Array.isArray(res.items) && res.items.length > 0) {
+        setRecommendedServices(res.items);
+      } else {
+        setRecommendedServices([]);
+      }
+    } catch (err) {
+      console.warn('[HomeScreen] Error al cargar recomendados:', err);
+      setRecommendedServices([]);
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
+  const activeService = recommendedServices.length > 0 ? recommendedServices[0] : null;
+
+  const handleServicePress = (service) => {
+    if (onOpenDetail) {
+      onOpenDetail(service, 'service');
+    } else if (service?.id) {
+      onNavigate('service_detail', { serviceId: service.id });
+    } else {
+      onNavigate('services');
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
@@ -41,18 +66,22 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         </Text>
 
         {/* Buscador IA con Micrófono */}
-        <View style={styles.searchBar}>
+        <TouchableOpacity
+          style={styles.searchBar}
+          activeOpacity={0.9}
+          onPress={() => onNavigate('services')}
+        >
           <Text style={{ fontSize: 16, marginRight: 6 }}>🔍</Text>
           <TextInput
             style={[styles.searchInput, { fontSize: scale(12) }]}
             placeholder="Ej. Necesito un electricista..."
             placeholderTextColor="#94a3b8"
-            returnKeyType="search"
+            editable={false}
           />
-          <TouchableOpacity style={styles.micButton} onPress={() => alert('🎙️ Dictado por voz IA activado')}>
+          <TouchableOpacity style={styles.micButton} onPress={() => onNavigate('services')}>
             <Text style={{ fontSize: 16 }}>🎙️</Text>
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Grid 2x2 de los 4 Cuadrantes Principales */}
@@ -145,33 +174,29 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
       </View>
 
       {/* Tarjeta de Servicio Destacado si existe, o Empty State limpio */}
-      {featuredService ? (
+      {activeService ? (
         <TouchableOpacity
           style={styles.providerCard}
           activeOpacity={0.85}
-          onPress={() => {
-            if (onOpenDetail) {
-              onOpenDetail(featuredService, 'service');
-            } else {
-              onNavigate('services');
-            }
-          }}
+          onPress={() => handleServicePress(activeService)}
         >
           <Image
-            source={{ uri: featuredService.image_url || 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300' }}
+            source={{
+              uri: activeService.provider_avatar || activeService.image_url || 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300'
+            }}
             style={styles.providerImage}
           />
           <View style={styles.providerDetails}>
             <Text style={[styles.providerTitle, { fontSize: scale(13) }]}>
-              {featuredService.title}
+              {activeService.title}
             </Text>
             <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
-              📍 A {featuredService.distance_m || 300} m • Zona A
+              📍 A {activeService.distance_m || 300} m • {activeService.community_name || activeService.block_code || 'Zona A'}
             </Text>
             
             <View style={styles.ratingRow}>
               <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
-                ⭐ {featuredService.rating_avg || 5.0} ({featuredService.reviews_count || 0} recomendaciones)
+                ⭐ {activeService.rating_avg ? Number(activeService.rating_avg).toFixed(1) : '5.0'} ({activeService.reviews_count || activeService.endorsements_count || 0} recomendaciones)
               </Text>
             </View>
 
