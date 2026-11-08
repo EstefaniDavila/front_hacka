@@ -151,20 +151,44 @@ function MainApp() {
   const [userProfile, setUserProfile] = useState(EMPTY_PROFILE);
 
   const handleSaveUserProfile = async (updated) => {
-    setUserProfile((prev) => ({ ...prev, ...updated }));
+    // Candado de seguridad: Nunca permitir que name o phone se borren si vienen vacíos
+    const safeName = (updated.name && updated.name.trim() && updated.name.trim() !== 'Vecino')
+      ? updated.name.trim()
+      : ((userProfile.name && userProfile.name.trim() && userProfile.name !== 'Vecino')
+          ? userProfile.name.trim()
+          : (user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Vecino'));
+    const safePhone = (updated.phone !== undefined && updated.phone !== '')
+      ? updated.phone
+      : (userProfile.phone || user?.user_metadata?.phone || '');
+    const safeSkill = (updated.skill && updated.skill.trim())
+      ? updated.skill.trim()
+      : (userProfile.skill || user?.user_metadata?.skill || 'Vecino Solidario');
+    const safeAvatar = updated.avatar || userProfile.avatar || '👤';
+    const safeAddress = updated.address || userProfile.address || 'Zona A • Manzana 2';
+
+    const safeUpdated = {
+      ...updated,
+      name: safeName,
+      phone: safePhone,
+      skill: safeSkill,
+      avatar: safeAvatar,
+      address: safeAddress
+    };
+
+    setUserProfile((prev) => ({ ...prev, ...safeUpdated }));
 
     if (user?.id) {
-      customStorage.setItem('vecired_user_profile_' + user.id, JSON.stringify(updated)).catch(() => {});
+      customStorage.setItem('vecired_user_profile_' + user.id, JSON.stringify(safeUpdated)).catch(() => {});
     }
     if (user?.email) {
-      customStorage.setItem('vecired_user_profile_' + user.email, JSON.stringify(updated)).catch(() => {});
+      customStorage.setItem('vecired_user_profile_' + user.email, JSON.stringify(safeUpdated)).catch(() => {});
     }
     // Eliminar clave global para evitar contaminación entre diferentes cuentas
     customStorage.removeItem('vecired_user_profile').catch(() => {});
 
     if (updateUserProfile) {
       try {
-        await updateUserProfile(updated);
+        await updateUserProfile(safeUpdated);
       } catch (err) {
         console.warn('Error en updateUserProfile:', err);
       }
@@ -195,9 +219,10 @@ function MainApp() {
       const isAndy = emailStr.includes('andy');
       const isImanol = emailStr.includes('imanol');
 
+      const validBackendName = (profile?.full_name && profile.full_name.trim() !== '' && profile.full_name !== 'EMPTY') ? profile.full_name.trim() : null;
       const name =
         localData?.name ||
-        profile?.full_name ||
+        validBackendName ||
         user?.user_metadata?.full_name ||
         (isAndy ? 'Andy Manchego' : isImanol ? 'Imanol Montes' : user?.email?.split('@')[0] || 'Vecino');
       const phone =

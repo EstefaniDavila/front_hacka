@@ -99,10 +99,13 @@ export function AuthProvider({ children }) {
       const defaultSkill = isAndy ? 'Apoyo general' : isImanol ? 'Tecnología y Soporte' : 'Vecino Colaborador';
       const defaultAvatar = isAndy ? '👨‍🔧' : isImanol ? '🧑‍💼' : '👤';
 
+      const validBackendName = (profileData?.full_name && profileData.full_name.trim() !== '' && profileData.full_name !== 'EMPTY') ? profileData.full_name.trim() : null;
+      const validBackendPhone = (profileData?.phone && profileData.phone.trim() !== '' && profileData.phone !== 'EMPTY') ? profileData.phone.trim() : null;
+
       const merged = {
         ...(profileData || {}),
-        full_name: localSaved?.name || profileData?.full_name || currentUser?.user_metadata?.full_name || defaultName,
-        phone: localSaved?.phone || profileData?.phone || currentUser?.user_metadata?.phone || defaultPhone,
+        full_name: localSaved?.name || validBackendName || currentUser?.user_metadata?.full_name || defaultName,
+        phone: localSaved?.phone || validBackendPhone || currentUser?.user_metadata?.phone || defaultPhone,
         skill: localSaved?.skill || profileData?.skill || currentUser?.user_metadata?.skill || defaultSkill,
         address: localSaved?.address || profileData?.address || currentUser?.user_metadata?.address || 'Zona A • Manzana 2',
         avatar_url: localSaved?.avatar || profileData?.avatar_url || currentUser?.user_metadata?.avatar || defaultAvatar
@@ -144,15 +147,28 @@ export function AuthProvider({ children }) {
       console.warn('Error guardando perfil en storage local:', e);
     }
 
+    // Candado de seguridad: Nunca enviar nombres ni teléfonos vacíos que borren el perfil existente
+    const safeName = (updateData.name && updateData.name.trim() && updateData.name.trim() !== 'Vecino')
+      ? updateData.name.trim()
+      : ((profile?.full_name && profile.full_name !== 'EMPTY' && profile.full_name !== 'Vecino')
+          ? profile.full_name
+          : (user?.user_metadata?.full_name || 'Vecino'));
+    const safePhone = (updateData.phone !== undefined && updateData.phone !== '' && updateData.phone !== 'EMPTY')
+      ? updateData.phone
+      : (profile?.phone || user?.user_metadata?.phone || '');
+    const safeSkill = (updateData.skill && updateData.skill.trim()) ? updateData.skill.trim() : (profile?.skill || 'Vecino Colaborador');
+    const safeAvatar = updateData.avatar || profile?.avatar_url || '👤';
+    const safeAddress = updateData.address || profile?.address || 'Zona A • Manzana 2';
+
     // 2. Actualizar metadata de Supabase Auth
     try {
       await supabase.auth.updateUser({
         data: {
-          full_name: updateData.name,
-          phone: updateData.phone,
-          skill: updateData.skill,
-          address: updateData.address,
-          avatar: updateData.avatar
+          full_name: safeName,
+          phone: safePhone,
+          skill: safeSkill,
+          address: safeAddress,
+          avatar: safeAvatar
         }
       });
     } catch (e) {
@@ -163,10 +179,10 @@ export function AuthProvider({ children }) {
     if (token) {
       try {
         const backendPayload = {
-          full_name: updateData.name,
-          phone: updateData.phone,
-          skill: updateData.skill,
-          avatar_url: updateData.avatar
+          full_name: safeName,
+          phone: safePhone,
+          skill: safeSkill,
+          avatar_url: safeAvatar
         };
         const updatedApi = await api.updateMyProfile(backendPayload, token);
         if (updatedApi) {
@@ -180,11 +196,11 @@ export function AuthProvider({ children }) {
     // Actualizar estado reactivo de profile local
     setProfile((prev) => ({
       ...(prev || {}),
-      full_name: updateData.name,
-      phone: updateData.phone,
-      skill: updateData.skill,
-      address: updateData.address,
-      avatar_url: updateData.avatar
+      full_name: safeName,
+      phone: safePhone,
+      skill: safeSkill,
+      address: safeAddress,
+      avatar_url: safeAvatar
     }));
 
     return true;
