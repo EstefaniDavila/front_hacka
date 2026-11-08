@@ -10,13 +10,15 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { mockServices } from '../data/mockData';
 import { api } from '../services/api';
 
-export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
+export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
+  const scale = (val) => Math.round(val * fontScale);
   const [recommendedServices, setRecommendedServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(true);
 
-  const scale = (val) => Math.round(val * fontScale);
+  const fallbackGasfitero = mockServices.find(s => s.id === 'srv-004') || mockServices[0];
 
   useEffect(() => {
     loadRecommended();
@@ -36,10 +38,21 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
     }
   };
 
-  const topService = recommendedServices.length > 0 ? recommendedServices[0] : null;
+  const activeService = recommendedServices.length > 0 ? recommendedServices[0] : fallbackGasfitero;
+
+  const handleServicePress = (service) => {
+    if (onOpenDetail) {
+      onOpenDetail(service, 'service');
+    } else if (service?.id) {
+      onNavigate('service_detail', { serviceId: service.id });
+    } else {
+      onNavigate('services');
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      
       {/* Header Héroe Verde Azulado (Teal) */}
       <View style={styles.heroCard}>
         <View style={styles.heroTopRow}>
@@ -73,6 +86,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
 
       {/* Grid 2x2 de los 4 Cuadrantes Principales */}
       <View style={styles.gridContainer}>
+        
         {/* 1. Servicios Cercanos */}
         <TouchableOpacity
           style={[styles.gridCard, { backgroundColor: '#f0fdfa', borderColor: '#ccfbf1' }]}
@@ -113,7 +127,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
         <TouchableOpacity
           style={[styles.gridCard, { backgroundColor: '#fffbeb', borderColor: '#fef3c7' }]}
           activeOpacity={0.8}
-          onPress={() => onNavigate('publish')}
+          onPress={() => onNavigate('products')}
         >
           <View style={styles.cardHeaderRow}>
             <Text style={{ fontSize: 24 }}>🏪</Text>
@@ -144,6 +158,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
             Reporta y coordina apoyo vecinal
           </Text>
         </TouchableOpacity>
+
       </View>
 
       {/* Sección: Recomendados por tus Vecinos */}
@@ -159,65 +174,35 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
       </View>
 
       {/* Tarjeta de Servicio Destacado */}
-      {topService ? (
+      {activeService && (
         <TouchableOpacity
           style={styles.providerCard}
           activeOpacity={0.85}
-          onPress={() => onNavigate('service_detail', { serviceId: topService.id })}
+          onPress={() => handleServicePress(activeService)}
         >
           <Image
             source={{
-              uri: topService.provider_avatar || 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300'
+              uri: activeService.provider_avatar || activeService.image_url || 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300'
             }}
             style={styles.providerImage}
           />
           <View style={styles.providerDetails}>
             <Text style={[styles.providerTitle, { fontSize: scale(13) }]}>
-              {topService.title}
+              {activeService.title}
             </Text>
             <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
-              📍 A {topService.distance_m || 350} m • {topService.community_name || 'Comunidad Barrial'}
+              📍 A {activeService.distance_m || 350} m • {activeService.community_name || activeService.block_code || 'Zona A'}
             </Text>
-
+            
             <View style={styles.ratingRow}>
               <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
-                ⭐ {topService.rating_avg > 0 ? topService.rating_avg.toFixed(1) : 'Nuevo'} ({topService.reviews_count} recomendaciones)
+                ⭐ {activeService.rating_avg ? Number(activeService.rating_avg).toFixed(1) : '4.8'} ({activeService.reviews_count || activeService.endorsements_count || 12} recomendaciones)
               </Text>
             </View>
 
             <View style={styles.verifiedBadge}>
               <Text style={[styles.verifiedBadgeText, { fontSize: scale(10) }]}>
                 ✓ Vecino verificado
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.cardArrow}>›</Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={styles.providerCard}
-          activeOpacity={0.85}
-          onPress={() => onNavigate('services')}
-        >
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300' }}
-            style={styles.providerImage}
-          />
-          <View style={styles.providerDetails}>
-            <Text style={[styles.providerTitle, { fontSize: scale(13) }]}>
-              Servicios de Proximidad en tu Zona
-            </Text>
-            <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
-              📍 Profesionales cerca de ti • Zona A
-            </Text>
-            <View style={styles.ratingRow}>
-              <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
-                ⭐ Red de economía local
-              </Text>
-            </View>
-            <View style={styles.verifiedBadge}>
-              <Text style={[styles.verifiedBadgeText, { fontSize: scale(10) }]}>
-                ✓ Explora servicios
               </Text>
             </View>
           </View>
@@ -244,6 +229,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0 }) {
         </View>
         <Text style={styles.publishBannerBtn}>+ Publicar</Text>
       </TouchableOpacity>
+
     </ScrollView>
   );
 }
@@ -309,30 +295,32 @@ const styles = StyleSheet.create({
   gridCard: {
     width: '48%',
     borderRadius: 18,
-    borderWidth: 1.5,
     padding: 14,
-    minHeight: 110,
-    justifyContent: 'space-between'
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1
   },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    marginBottom: 8
   },
   chevron: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
-    color: COLORS.primary
+    color: COLORS.textSecondary
   },
   gridCardTitle: {
     fontWeight: '900',
-    color: COLORS.text,
-    marginTop: 6
+    color: COLORS.textPrimary,
+    marginBottom: 2
   },
   gridCardSub: {
-    color: COLORS.textSecondary,
-    fontWeight: '500',
-    marginTop: 2
+    fontWeight: '600',
+    color: COLORS.textSecondary
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -342,29 +330,29 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '900',
-    color: COLORS.text
+    color: COLORS.textPrimary
   },
   seeMoreText: {
-    color: COLORS.primary,
-    fontWeight: '700'
+    fontWeight: '800',
+    color: COLORS.primaryDark
   },
   providerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 14,
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1
+    shadowRadius: 6,
+    elevation: 2
   },
   providerImage: {
-    width: 60,
-    height: 60,
+    width: 66,
+    height: 66,
     borderRadius: 14,
     marginRight: 12
   },
@@ -372,51 +360,50 @@ const styles = StyleSheet.create({
     flex: 1
   },
   providerTitle: {
-    fontWeight: '800',
-    color: COLORS.text
+    fontWeight: '900',
+    color: COLORS.textPrimary,
+    marginBottom: 2
   },
   providerLocation: {
+    fontWeight: '600',
     color: COLORS.textSecondary,
-    fontWeight: '500',
-    marginTop: 2
+    marginBottom: 4
   },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4
+    marginBottom: 4
   },
   ratingText: {
-    color: '#854d0e',
-    fontWeight: '700'
+    fontWeight: '800',
+    color: '#d97706'
   },
   verifiedBadge: {
-    backgroundColor: '#ecfdf5',
+    backgroundColor: COLORS.emeraldPale,
+    alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 4
+    borderRadius: 999
   },
   verifiedBadgeText: {
-    color: '#065f46',
-    fontWeight: '800'
+    fontWeight: '800',
+    color: COLORS.emerald
   },
   cardArrow: {
-    fontSize: 22,
+    fontSize: 20,
     color: COLORS.textMuted,
-    fontWeight: '800',
-    paddingLeft: 6
+    fontWeight: '900',
+    marginLeft: 6
   },
   publishBanner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fffbeb',
+    backgroundColor: COLORS.primarySurface,
     borderWidth: 1,
-    borderColor: '#fde68a',
+    borderColor: COLORS.primaryPale,
     borderRadius: 16,
     padding: 12,
-    marginBottom: 14
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
   },
   publishBannerLeft: {
     flexDirection: 'row',
@@ -425,21 +412,19 @@ const styles = StyleSheet.create({
   },
   publishBannerTitle: {
     fontWeight: '800',
-    color: '#92400e'
+    color: COLORS.primaryDeep
   },
   publishBannerSub: {
-    color: '#b45309',
-    fontWeight: '500',
-    marginTop: 1
+    fontWeight: '600',
+    color: COLORS.primaryDark
   },
   publishBannerBtn: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: COLORS.primary,
     color: COLORS.white,
-    fontWeight: '800',
+    fontWeight: '900',
     fontSize: 11,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
-    marginLeft: 8
+    borderRadius: 10
   }
 });
