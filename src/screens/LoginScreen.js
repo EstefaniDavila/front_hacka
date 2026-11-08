@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 
@@ -68,6 +69,20 @@ export default function LoginScreen({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Botón Superior para Volver al Registro / Onboarding */}
+          {onNavigateToRegister ? (
+            <View style={styles.topBackNavRow}>
+              <TouchableOpacity
+                style={styles.topBackRegisterBtn}
+                activeOpacity={0.7}
+                onPress={onNavigateToRegister}
+              >
+                <Ionicons name="arrow-back" size={17} color={COLORS.primaryDark} style={{ marginRight: 6 }} />
+                <Text style={styles.topBackRegisterBtnText}>Crear cuenta / Volver al Registro</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           {/* Encabezado e Identidad */}
           <View style={styles.header}>
             <View style={styles.logoBadge}>
@@ -381,6 +396,24 @@ const styles = StyleSheet.create({
   registerButtonText: {
     color: COLORS.primary,
     fontWeight: '700'
-  }
+  },
+  topBackNavRow: {
+    alignSelf: 'flex-start',
+    marginBottom: 12
+  },
+  topBackRegisterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
+  },
+  topBackRegisterBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primaryDark
+  },
 });
-
