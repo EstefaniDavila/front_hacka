@@ -1,3 +1,4 @@
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from 'react';
 import {
   View,
@@ -23,6 +24,7 @@ export default function ProfileScreen({
   },
   onOpenChat
 }) {
+  const [isEmergencyExpanded, setIsEmergencyExpanded] = useState(false);
   const scale = (val) => Math.round(val * fontScale);
 
   return (
@@ -154,45 +156,168 @@ export default function ProfileScreen({
         </View>
       </View>
 
-      {/* Contactos de Confianza y Emergencia Comunal */}
+      {/* Contactos de Emergencia con Desplegable */}
       <View style={styles.sectionCard}>
-        <Text style={[styles.sectionTitle, { fontSize: scale(13) }]}>
-          🚨 Contactos de Emergencia y Soporte
-        </Text>
+        <View style={styles.emergencyHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <MaterialCommunityIcons name="phone-alert" size={18} color="#dc2626" />
+            <Text style={[styles.sectionTitle, { fontSize: scale(13) }]}>
+              Contactos de Emergencia Comunal
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.expandEmgBtn}
+            onPress={() => setIsEmergencyExpanded(!isEmergencyExpanded)}
+          >
+            <Text style={styles.expandEmgBtnText}>
+              {isEmergencyExpanded ? '▲ Menos' : '▼ Ver más (5)'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 1. Policía Nacional (Siempre visible) */}
         <View style={styles.emergencyContactRow}>
-          <Text style={{ fontSize: 20, marginRight: 8 }}>🚒</Text>
-          <View style={{ flex: 1 }}>
+          <View style={[styles.emgIconCircle, { backgroundColor: '#eff6ff' }]}>
+            <Ionicons name="shield" size={18} color="#1d4ed8" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Policía Nacional del Perú</Text>
+            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 105 • Emergencias policiales</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.callBadgeBtn}
+            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Policía 105...')}
+          >
+            <Text style={styles.callBadgeText}>📞 105</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 2. Bomberos del Perú (Siempre visible) */}
+        <View style={styles.emergencyContactRow}>
+          <View style={[styles.emgIconCircle, { backgroundColor: '#fee2e2' }]}>
+            <MaterialCommunityIcons name="fire-truck" size={18} color="#dc2626" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Bomberos del Perú</Text>
-            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 116</Text>
+            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 116 • Incendios y rescates</Text>
           </View>
+          <TouchableOpacity
+            style={styles.callBadgeBtn}
+            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Bomberos 116...')}
+          >
+            <Text style={styles.callBadgeText}>📞 116</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* 3. SAMU Ambulancias (Siempre visible) */}
         <View style={styles.emergencyContactRow}>
-          <Text style={{ fontSize: 20, marginRight: 8 }}>👮</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Policía Nacional / Serenazgo</Text>
-            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 105</Text>
+          <View style={[styles.emgIconCircle, { backgroundColor: '#ecfdf5' }]}>
+            <MaterialCommunityIcons name="ambulance" size={18} color="#059669" />
           </View>
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>SAMU - Ambulancia Médica</Text>
+            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Línea 106 • Primeros auxilios</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.callBadgeBtn}
+            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando SAMU 106...')}
+          >
+            <Text style={styles.callBadgeText}>📞 106</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Contactos Desplegables Adicionales */}
+        {isEmergencyExpanded && (
+          <View style={styles.extraContactsContainer}>
+            {/* Serenazgo */}
+            <View style={styles.emergencyContactRow}>
+              <View style={[styles.emgIconCircle, { backgroundColor: '#f1f5f9' }]}>
+                <Ionicons name="car" size={18} color="#334155" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Serenazgo Distrital</Text>
+                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Base (01) 318-5050 • Patrullaje Zona A</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.callBadgeBtn}
+                onPress={() => Alert.alert('Llamada', 'Marcando Serenazgo (01) 318-5050')}
+              >
+                <Text style={styles.callBadgeText}>📞 Llamar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Línea 100 */}
+            <View style={styles.emergencyContactRow}>
+              <View style={[styles.emgIconCircle, { backgroundColor: '#fdf2f8' }]}>
+                <Ionicons name="heart" size={18} color="#db2777" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Línea 100 (Auxilio Familiar)</Text>
+                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Línea gratuita 100 • Atención 24h</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.callBadgeBtn}
+                onPress={() => Alert.alert('Llamada', 'Marcando Línea 100')}
+              >
+                <Text style={styles.callBadgeText}>📞 100</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Defensa Civil */}
+            <View style={styles.emergencyContactRow}>
+              <View style={[styles.emgIconCircle, { backgroundColor: '#fff7ed' }]}>
+                <MaterialCommunityIcons name="alert" size={18} color="#ea580c" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Defensa Civil (INDECI)</Text>
+                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 115 • Desastres naturales</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.callBadgeBtn}
+                onPress={() => Alert.alert('Llamada', 'Marcando INDECI 115')}
+              >
+                <Text style={styles.callBadgeText}>📞 115</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Cruz Roja */}
+            <View style={styles.emergencyContactRow}>
+              <View style={[styles.emgIconCircle, { backgroundColor: '#fef2f2' }]}>
+                <Ionicons name="medkit" size={18} color="#dc2626" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Cruz Roja Peruana</Text>
+                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central (01) 268-8105</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.callBadgeBtn}
+                onPress={() => Alert.alert('Llamada', 'Marcando Cruz Roja (01) 268-8105')}
+              >
+                <Text style={styles.callBadgeText}>📞 Llamar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Coordinador Comunal */}
+            <View style={styles.emergencyContactRow}>
+              <View style={[styles.emgIconCircle, { backgroundColor: '#f0fdfa' }]}>
+                <Ionicons name="person" size={18} color="#0f766e" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Coordinador de Manzana 2</Text>
+                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Vecino enlace 984 555 123</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.callBadgeBtn}
+                onPress={() => Alert.alert('Llamada', 'Marcando Coordinador Comunal 984 555 123')}
+              >
+                <Text style={styles.callBadgeText}>📞 Llamar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* Botón de Reinicio para Probar Onboarding / Login */}
-      <TouchableOpacity
-        style={styles.restartButton}
-        onPress={() => {
-          Alert.alert(
-            '🔄 Reiniciar Registro / Login',
-            '¿Deseas volver a simular el flujo inicial de registro con celular, fotos del DNI (anverso/reverso), biometría y GPS?',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              { text: 'Sí, reiniciar', onPress: onRestartOnboarding }
-            ]
-          );
-        }}
-      >
-        <Text style={[styles.restartButtonText, { fontSize: scale(12) }]}>
-          🔄 Probar de nuevo el Login y Escaneo de DNI
-        </Text>
-      </TouchableOpacity>
+
 
       {/* Botón de Cerrar Sesión */}
       {onLogout ? (
@@ -403,6 +528,50 @@ const styles = StyleSheet.create({
   fontScaleBtnTextActive: {
     color: COLORS.primaryDark,
     fontWeight: '900'
+  },
+  emergencyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10
+  },
+  expandEmgBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8
+  },
+  expandEmgBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primaryDark
+  },
+  emgIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  callBadgeBtn: {
+    backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primaryPale
+  },
+  callBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.primaryDark
+  },
+  extraContactsContainer: {
+    marginTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 8,
+    gap: 8
   },
   emergencyContactRow: {
     flexDirection: 'row',

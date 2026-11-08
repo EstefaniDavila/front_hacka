@@ -1,3 +1,4 @@
+import { Ionicons, Feather } from "@expo/vector-icons";
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,7 +15,7 @@ import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail, userProfile }) {
+export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail, userProfile, initialSearch = "" }) {
   const { user, profile } = useAuth();
   const [categories, setCategories] = useState([
     { id: 'all', name: 'Todos', icon: '▦' }
@@ -27,6 +28,13 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
   const [loading, setLoading] = useState(true);
 
   const scale = (val) => Math.round(val * fontScale);
+
+  useEffect(() => {
+    if (initialSearch) {
+      setSearchQuery(initialSearch);
+      loadServices(initialSearch);
+    }
+  }, [initialSearch]);
 
   useEffect(() => {
     loadCategories();
@@ -88,6 +96,29 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
 
   const handleSearchSubmit = () => {
     loadServices(searchQuery);
+  };
+
+  const confirmDeleteService = (service) => {
+    Alert.alert(
+      '¿Eliminar servicio?',
+      `¿Deseas eliminar "${service.title}" del catálogo vecinal?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteService(service.id, null);
+              Alert.alert('Eliminado', 'Tu servicio ha sido retirado con éxito.');
+              loadServices();
+            } catch (err) {
+              Alert.alert('Aviso', err.message || 'No se pudo eliminar el servicio.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleServiceSelect = (service) => {
@@ -237,7 +268,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           <Text style={[styles.radarSub, { fontSize: scale(11) }]}>
             {totalCount} oficios y servicios disponibles en Mz 2 (Zona A)
           </Text>
-          <Text style={[styles.radarNumber, { fontSize: scale(10) }]}>Conectado a la Base de Datos</Text>
+          <Text style={[styles.radarNumber, { fontSize: scale(10) }]}>Red Vecinal Activa • Zona A</Text>
         </View>
         <TouchableOpacity onPress={() => onNavigate('publish')}>
           <Text style={styles.radarArrow}>+ Publicar</Text>
@@ -346,8 +377,17 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                                       (myName && pName && (myName === pName || myName.includes(pName) || pName.includes(myName)));
                   if (isMyService) {
                     return (
-                      <View style={styles.myServiceBadge}>
-                        <Text style={[styles.myServiceBadgeText, { fontSize: scale(11) }]}>👤 Tu publicación</Text>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <View style={styles.myServiceBadge}>
+                          <Text style={[styles.myServiceBadgeText, { fontSize: scale(11) }]}>👤 Tu publicación</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.cardDeleteBtn}
+                          activeOpacity={0.7}
+                          onPress={() => confirmDeleteService(service)}
+                        >
+                          <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                        </TouchableOpacity>
                       </View>
                     );
                   }
@@ -391,6 +431,13 @@ const styles = StyleSheet.create({
     marginRight: 12,
     borderWidth: 1.5,
     borderColor: '#e2e8f0'
+  },
+  cardDeleteBtn: {
+    backgroundColor: '#fee2e2',
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fca5a5'
   },
   myServiceBadge: {
     backgroundColor: '#eff6ff',

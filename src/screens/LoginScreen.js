@@ -56,10 +56,7 @@ export default function LoginScreen({
     }
   };
 
-  const handleQuickDemo = () => {
-    setEmail('martha.quispe@vecired.pe');
-    setPassword('VecinaMartha2026!');
-  };
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -176,16 +173,7 @@ export default function LoginScreen({
               )}
             </TouchableOpacity>
 
-            {/* Botón Acceso Rápido Demo */}
-            <TouchableOpacity
-              style={styles.demoButton}
-              onPress={handleQuickDemo}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.demoButtonText, { fontSize: scale(13) }]}>
-                ⚡ Cargar datos de prueba (Doña Martha)
-              </Text>
-            </TouchableOpacity>
+
           </View>
 
           {/* Pie: Registro */}

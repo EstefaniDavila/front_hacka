@@ -7,12 +7,18 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../api/apiClient';
 
 export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
+  const [activeTab, setActiveTab] = useState('alert'); // 'alert' | 'map'
   const [activeEmergency, setActiveEmergency] = useState(null);
-  const [volunteers, setVolunteers] = useState([]);
+  const [volunteers, setVolunteers] = useState([
+    { id: '1', name: 'Martha Quispe', skill: 'Primeros Auxilios / Enfermería', avatar: '👵', distance: '50m', status: 'En guardia' },
+    { id: '2', name: 'Carlos Ramos', skill: 'Electricidad y Gasfitería', avatar: '👨‍🔧', distance: '120m', status: 'Disponible' },
+    { id: '3', name: 'Lucía Mendoza', skill: 'Apoyo Logístico / Agua', avatar: '👩', distance: '180m', status: 'En guardia' }
+  ]);
   const [isVolunteering, setIsVolunteering] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
 
@@ -23,39 +29,38 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
   const loadEmergencyData = async () => {
     try {
       const emg = await api.getActiveEmergency();
-      setActiveEmergency(emg);
+      if (emg) setActiveEmergency(emg);
       const vols = await api.getEmergencyVolunteers();
-      setVolunteers(vols || []);
+      if (vols && vols.length > 0) setVolunteers(vols);
     } catch {
-      setActiveEmergency(null);
-      setVolunteers([]);
+      // mantener estado inicial limpio
     }
   };
 
   const scale = (val) => Math.round(val * fontScale);
 
   const emergencyTypes = [
-    { id: 'inundacion', name: 'Inundación / Aniego', sub: 'Ingreso de agua en viviendas', icon: '🌊' },
-    { id: 'incendio', name: 'Incendio o Humo', sub: 'Fuego o riesgo eléctrico', icon: '🔥' },
-    { id: 'medica', name: 'Emergencia médica', sub: 'Persona que necesita primeros auxilios', icon: '🚑' },
-    { id: 'vivienda', name: 'Vivienda afectada', sub: 'Daños estructurales o derrumbe', icon: '🏚️' },
-    { id: 'ayuda', name: 'Apoyo urgente', sub: 'Requiere brigada de vecinos', icon: '👥' },
-    { id: 'recursos', name: 'Falta de recursos', sub: 'Agua potable, alimentos o medicinas', icon: '📦' }
+    { id: 'inundacion', name: 'Inundación / Aniego', sub: 'Ingreso de agua o rotura de matriz', icon: '🌊', color: '#0284c7' },
+    { id: 'incendio', name: 'Incendio o Cortocircuito', sub: 'Fuego activo o humo tóxico', icon: '🔥', color: '#ea580c' },
+    { id: 'medica', name: 'Emergencia médica', sub: 'Persona herida o descompensada', icon: '🚑', color: '#dc2626' },
+    { id: 'vivienda', name: 'Daño Estructural / Sismo', sub: 'Riesgo de colapso o grietas', icon: '🏚️', color: '#7c2d12' },
+    { id: 'seguridad', name: 'Seguridad / Actividad sospechosa', sub: 'Alarma comunal vecinal', icon: '🚨', color: '#b91c1c' },
+    { id: 'recursos', name: 'Corte masivo de agua / luz', sub: 'Falta de suministros vitales', icon: '📦', color: '#475569' }
   ];
 
   const handleJoinVolunteers = async () => {
     if (isVolunteering) {
-      Alert.alert('✅ Ya eres voluntario', 'Ya estás registrado en la brigada de apoyo.');
+      Alert.alert('✅ Ya estás en la brigada', 'Tu apoyo está registrado para la Manzana 2.');
       return;
     }
 
     setIsVolunteering(true);
-    const newVol = await api.registerEmergencyVolunteer(activeEmergency?.id || 'emg-local', 'Vecino');
-    setVolunteers(prev => [...prev, newVol]);
+    const newVol = { id: Date.now().toString(), name: 'Tú (Vecino)', skill: 'Apoyo Comunitario Inmediato', avatar: '👤', distance: 'Tu casa', status: 'Activo' };
+    setVolunteers(prev => [newVol, ...prev]);
 
     Alert.alert(
-      '🎉 ¡Muchas gracias!',
-      'Te has unido a la brigada comunitaria de apoyo para tu manzana.'
+      '🎉 ¡Gracias Vecino!',
+      'Te has sumado a la brigada de respuesta comunitaria de Zona A.'
     );
   };
 
@@ -65,11 +70,13 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
       return;
     }
     const chosen = emergencyTypes.find(t => t.id === selectedType) || emergencyTypes[0];
-    const newAlert = await api.reportEmergency({
+    const newAlert = {
+      id: 'emg-' + Date.now(),
       title: `${chosen.name} en Manzana 2`,
-      desc: chosen.sub,
+      description: chosen.sub,
+      location: 'Zona A – Manzana 2 (Alerta Activa)',
       type: chosen.name
-    });
+    };
     setActiveEmergency(newAlert);
     Alert.alert(
       '🚨 ¡Alerta Vecinal Activada!',
@@ -83,11 +90,11 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
       {/* Cabecera Roja de Emergencia */}
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => onNavigate('home')} style={{ paddingRight: 6 }}>
-            <Text style={{ fontSize: 20, color: COLORS.white }}>❮</Text>
+          <TouchableOpacity onPress={() => onNavigate('home')} style={{ paddingRight: 8 }}>
+            <Feather name="arrow-left" size={22} color={COLORS.white} />
           </TouchableOpacity>
           <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 26, marginRight: 8 }}>🚨</Text>
+            <MaterialCommunityIcons name="alarm-light" size={28} color="#ffffff" style={{ marginRight: 8 }} />
             <View>
               <Text style={[styles.headerTitle, { fontSize: scale(17) }]}>
                 Emergencias Comunitarias
@@ -98,193 +105,252 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
             </View>
           </View>
         </View>
+
+        {/* Pestañas Segmentadas: Activar Alerta vs Mapa de Emergencia */}
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'alert' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('alert')}
+          >
+            <MaterialCommunityIcons
+              name="bell-ring"
+              size={16}
+              color={activeTab === 'alert' ? '#dc2626' : 'rgba(255,255,255,0.7)'}
+            />
+            <Text style={[styles.tabBtnText, activeTab === 'alert' && styles.tabBtnTextActive]}>
+              Activar Alerta
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'map' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('map')}
+          >
+            <Ionicons
+              name="map"
+              size={16}
+              color={activeTab === 'map' ? '#dc2626' : 'rgba(255,255,255,0.7)'}
+            />
+            <Text style={[styles.tabBtnText, activeTab === 'map' && styles.tabBtnTextActive]}>
+              Mapa y Brigada
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Alerta Activa si existe */}
-      {activeEmergency ? (
-        <View style={styles.activeEmergencyBox}>
-          <View style={styles.activeEmergencyHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.activeEmergencyTitle, { fontSize: scale(15) }]}>
-                🚨 {activeEmergency.title}
-              </Text>
-              <Text style={[styles.activeEmergencySub, { fontSize: scale(11) }]}>
-                {activeEmergency.location || activeEmergency.block_code || 'Zona A – Manzana 2'}
-              </Text>
-            </View>
-            <View style={styles.activeTag}>
-              <Text style={styles.activeTagText}>ACTIVA</Text>
-            </View>
-          </View>
-
-          <Text style={[styles.activeDesc, { fontSize: scale(11) }]}>
-            "{activeEmergency.description || 'Alerta vecinal comunitaria en atención.'}"
-          </Text>
-
-          {/* Radar */}
-          <View style={styles.radarSimulation}>
-            <Text style={{ fontSize: 26, marginBottom: 2 }}>📡</Text>
-            <Text style={[styles.radarText, { fontSize: scale(11) }]}>
-              Alerta transmitida a vecinos de Manzana 2 (Radio 500 m)
-            </Text>
-          </View>
-
-          {/* Stepper de Coordinación */}
-          <View style={styles.stepperBox}>
-            <Text style={[styles.stepperTitle, { fontSize: scale(11) }]}>
-              ● Estado de la coordinación:
-            </Text>
-            <View style={styles.stepperRow}>
-              <View style={styles.stepItem}>
-                <View style={[styles.stepCircle, styles.stepDone]}>
-                  <Text style={styles.stepCircleText}>✓</Text>
+      {/* VISTA 1: ACTIVAR ALERTA */}
+      {activeTab === 'alert' && (
+        <View>
+          {/* Alerta Activa si existe */}
+          {activeEmergency ? (
+            <View style={styles.activeEmergencyBox}>
+              <View style={styles.activeEmergencyHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.activeEmergencyTitle, { fontSize: scale(15) }]}>
+                    🚨 {activeEmergency.title}
+                  </Text>
+                  <Text style={[styles.activeEmergencySub, { fontSize: scale(11) }]}>
+                    {activeEmergency.location || 'Zona A – Manzana 2'}
+                  </Text>
                 </View>
-                <Text style={[styles.stepLabel, { fontSize: scale(9) }]}>Reportada</Text>
-              </View>
-              <View style={styles.stepLineActive} />
-              <View style={styles.stepItem}>
-                <View style={[styles.stepCircle, styles.stepActive]}>
-                  <Text style={styles.stepCircleText}>👥</Text>
+                <View style={styles.activeTag}>
+                  <Text style={styles.activeTagText}>EN CURSO</Text>
                 </View>
-                <Text style={[styles.stepLabel, { fontSize: scale(9), color: COLORS.emergency }]}>En atención</Text>
               </View>
-              <View style={styles.stepLineInactive} />
-              <View style={styles.stepItem}>
-                <View style={[styles.stepCircle, styles.stepPending]}>
-                  <Text style={[styles.stepCircleText, { color: COLORS.textMuted }]}>✓</Text>
-                </View>
-                <Text style={[styles.stepLabel, { fontSize: scale(9), color: COLORS.textMuted }]}>Atendida</Text>
-              </View>
-            </View>
-          </View>
 
-          {/* Vecinos que están ayudando */}
-          {volunteers.length > 0 && (
-            <View style={styles.volunteersSection}>
-              <Text style={[styles.volunteersTitle, { fontSize: scale(11) }]}>
-                ● Vecinos en brigada ({volunteers.length}):
+              <Text style={[styles.activeDesc, { fontSize: scale(11) }]}>
+                "{activeEmergency.description || 'Alerta vecinal prioritaria en atención por vecinos.'}"
               </Text>
-              <View style={styles.volunteersAvatarsRow}>
-                {volunteers.map((vol) => (
-                  <View key={vol.id} style={styles.volunteerBadge}>
-                    <Text style={{ fontSize: 18 }}>{vol.avatar || '👤'}</Text>
-                    <Text style={[styles.volunteerBadgeName, { fontSize: scale(9) }]} numberOfLines={1}>
-                      {vol.name}
-                    </Text>
-                  </View>
-                ))}
+
+              {/* Radar */}
+              <View style={styles.radarSimulation}>
+                <Ionicons name="radio" size={22} color="#dc2626" style={{ marginBottom: 4 }} />
+                <Text style={[styles.radarText, { fontSize: scale(11) }]}>
+                  Alerta retransmitida a vecinos de Manzana 1 a 4 (Radio 500 m)
+                </Text>
               </View>
+
+              <TouchableOpacity
+                style={styles.viewMapShortcut}
+                onPress={() => setActiveTab('map')}
+              >
+                <Ionicons name="map-outline" size={16} color="#0f766e" />
+                <Text style={styles.viewMapShortcutText}>Ver ubicación en el Mapa de Emergencia ➔</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.calmBox}>
+              <Ionicons name="shield-checkmark" size={44} color="#059669" style={{ marginBottom: 6 }} />
+              <Text style={[styles.calmTitle, { fontSize: scale(15) }]}>
+                Zona Segura: Sin emergencias activas
+              </Text>
+              <Text style={[styles.calmSub, { fontSize: scale(11) }]}>
+                Tu manzana se encuentra en calma. Si observas conatos de incendio, rotura de tuberías o emergencias médicas, activa la alerta de inmediato abajo.
+              </Text>
             </View>
           )}
 
-          {/* Botón Quiero Ayudar como Voluntario */}
-          <TouchableOpacity
-            style={[styles.volunteerBtn, isVolunteering && { backgroundColor: COLORS.emerald }]}
-            activeOpacity={0.8}
-            onPress={handleJoinVolunteers}
-          >
-            <Text style={[styles.volunteerBtnText, { fontSize: scale(13) }]}>
-              {isVolunteering ? '✅ YA ESTÁS EN LA BRIGADA' : '🤝 UNIRME A LA BRIGADA DE APOYO'}
+          {/* Tipos de Emergencias Disponibles */}
+          <View style={styles.typesHeader}>
+            <Text style={[styles.typesTitle, { fontSize: scale(13) }]}>
+              ¿Qué está ocurriendo en tu calle?
             </Text>
-          </TouchableOpacity>
+            <Text style={[styles.typesSub, { fontSize: scale(11) }]}>
+              Selecciona el tipo de evento para coordinar auxilio vecinal:
+            </Text>
+          </View>
 
-          {/* Botón directo a Economía Solidaria */}
+          <View style={styles.typesList}>
+            {emergencyTypes.map((item) => {
+              const isSelected = selectedType === item.id;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.typeItem, isSelected && styles.typeItemActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedType(item.id)}
+                >
+                  <View style={styles.typeItemLeft}>
+                    <Text style={{ fontSize: 24, marginRight: 10 }}>{item.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={[styles.typeItemName, { fontSize: scale(13) }]}>
+                          {item.name}
+                        </Text>
+                        {isSelected && (
+                          <View style={styles.activePillSmall}>
+                            <Text style={styles.activePillSmallText}>SELECCIONADO</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.typeItemSub, { fontSize: scale(10) }]}>
+                        {item.sub}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Botón para Disparar Alerta (RESALTADO Y BOLD) */}
           <TouchableOpacity
-            style={styles.ecoSolidariaBtn}
-            activeOpacity={0.8}
-            onPress={() => onNavigate('eco_solidaria')}
+            style={styles.triggerAlertBtn}
+            activeOpacity={0.85}
+            onPress={handleTriggerAlert}
           >
-            <Text style={{ fontSize: 18, marginRight: 6 }}>📦</Text>
-            <Text style={[styles.ecoSolidariaBtnText, { fontSize: scale(11) }]}>
-              Coordinar aportes de recursos (Agua, mantas, etc.) ➔
+            <MaterialCommunityIcons name="alarm-light" size={24} color="#ffffff" style={{ marginRight: 8 }} />
+            <Text style={[styles.triggerAlertBtnText, { fontSize: scale(14) }]}>
+              🚨 ACTIVAR ALERTA EN MI MANZANA
             </Text>
           </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.calmBox}>
-          <Text style={{ fontSize: 44, marginBottom: 8 }}>🛡️</Text>
-          <Text style={[styles.calmTitle, { fontSize: scale(15) }]}>
-            Zona Segura: Sin emergencias activas
-          </Text>
-          <Text style={[styles.calmSub, { fontSize: scale(11) }]}>
-            Tu manzana se encuentra en calma. Si observas aniegos, conatos de incendio o emergencias médicas, activa la alarma con los botones abajo.
-          </Text>
         </View>
       )}
 
-      {/* Tipos de Emergencias Disponibles */}
-      <View style={styles.typesHeader}>
-        <Text style={[styles.typesTitle, { fontSize: scale(13) }]}>
-          ¿Qué está ocurriendo?
-        </Text>
-        <Text style={[styles.typesSub, { fontSize: scale(11) }]}>
-          Selecciona el tipo de emergencia para alertar a tu manzana en tiempo real.
-        </Text>
-      </View>
+      {/* VISTA 2: MAPA DE EMERGENCIA Y BRIGADA VECINAL */}
+      {activeTab === 'map' && (
+        <View>
+          {/* Espacio para el Mapa Satelital Comunitario del Backend */}
+          <View style={styles.mapContainerCard}>
+            <View style={styles.mapContainerHeader}>
+              <Ionicons name="map" size={18} color="#dc2626" style={{ marginRight: 6 }} />
+              <Text style={[styles.mapContainerTitle, { fontSize: scale(13) }]}>
+                Mapa Satelital de la Emergencia (En vivo)
+              </Text>
+            </View>
 
-      <View style={styles.typesList}>
-        {emergencyTypes.map((item) => {
-          const isSelected = selectedType === item.id;
-          return (
-            <TouchableOpacity
-              key={item.id}
-              style={[styles.typeItem, isSelected && styles.typeItemActive]}
-              activeOpacity={0.8}
-              onPress={() => setSelectedType(item.id)}
-            >
-              <View style={styles.typeItemLeft}>
-                <Text style={{ fontSize: 24, marginRight: 10 }}>{item.icon}</Text>
-                <View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.typeItemName, { fontSize: scale(13) }]}>
-                      {item.name}
-                    </Text>
-                    {isSelected && (
-                      <View style={styles.activePillSmall}>
-                        <Text style={styles.activePillSmallText}>ELEGIDO</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.typeItemSub, { fontSize: scale(10) }]}>
-                    {item.sub}
-                  </Text>
+            <View style={styles.satelliteMapCanvas}>
+              <View style={styles.satelliteRadarWave} />
+              <View style={styles.satelliteRadarWaveInner} />
+              <View style={styles.mapCenterPin}>
+                <MaterialCommunityIcons name="alert-decagram" size={36} color="#dc2626" />
+                <View style={styles.pinLabel}>
+                  <Text style={styles.pinLabelText}>Zona A • Mz 2 (Epicentro)</Text>
                 </View>
               </View>
-              <Text style={styles.typeItemArrow}>›</Text>
+            </View>
+
+            {/* Banner de integración listo para el backend */}
+            <View style={styles.backendReadyBanner}>
+              <Ionicons name="hardware-chip-outline" size={16} color="#0f766e" />
+              <View style={{ flex: 1, marginLeft: 6 }}>
+                <Text style={styles.backendReadyTitle}>
+                  Módulo Geoespacial VeciRed Activo
+                </Text>
+                <Text style={styles.backendReadySub}>
+                  Coordenadas: -12.0463, -77.0427 • Radio de cobertura: 500 metros
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Vecinos en Guardia / Brigada Vecinal */}
+          <View style={styles.brigadeCard}>
+            <View style={styles.brigadeHeader}>
+              <Ionicons name="people" size={18} color="#0f766e" style={{ marginRight: 6 }} />
+              <Text style={[styles.brigadeTitle, { fontSize: scale(13) }]}>
+                Brigada Vecinal de Guardia ({volunteers.length})
+              </Text>
+            </View>
+            <Text style={[styles.brigadeSub, { fontSize: scale(11) }]}>
+              Vecinos capacitados y listos para coordinar apoyo en caso de contingencia.
+            </Text>
+
+            <View style={styles.volunteerList}>
+              {volunteers.map((vol) => (
+                <View key={vol.id} style={styles.volunteerItem}>
+                  <View style={styles.volunteerAvatarCircle}>
+                    <Text style={{ fontSize: 22 }}>{vol.avatar}</Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={[styles.volName, { fontSize: scale(12) }]}>{vol.name}</Text>
+                      <Text style={styles.volDistance}>📍 {vol.distance}</Text>
+                    </View>
+                    <Text style={[styles.volSkill, { fontSize: scale(11) }]}>{vol.skill}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.joinBrigadeBtn, isVolunteering && { backgroundColor: '#059669' }]}
+              activeOpacity={0.85}
+              onPress={handleJoinVolunteers}
+            >
+              <Ionicons name="hand-right" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={styles.joinBrigadeBtnText}>
+                {isVolunteering ? '✓ YA ESTÁS EN LA BRIGADA' : '🤝 UNIRME A LA BRIGADA DE GUARDIA'}
+              </Text>
             </TouchableOpacity>
-          );
-        })}
-      </View>
+          </View>
+        </View>
+      )}
 
-      {/* Botón para Disparar Alerta */}
-      <TouchableOpacity
-        style={styles.triggerAlertBtn}
-        activeOpacity={0.85}
-        onPress={handleTriggerAlert}
-      >
-        <Text style={[styles.triggerAlertBtnText, { fontSize: scale(14) }]}>
-          🚨 ACTIVAR ALERTA EN MI MANZANA
-        </Text>
-      </TouchableOpacity>
-
-      {/* Números de Emergencia Oficiales (Perú) */}
+      {/* Centrales de Emergencia Oficiales (Perú) */}
       <View style={styles.officialHotlinesBox}>
         <Text style={[styles.officialTitle, { fontSize: scale(12) }]}>
           📞 Centrales de Emergencia Oficiales (Perú):
         </Text>
         <View style={styles.hotlinesRow}>
-          <View style={styles.hotlinePill}>
+          <TouchableOpacity
+            style={styles.hotlinePill}
+            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Bomberos 116')}
+          >
             <Text style={styles.hotlinePillText}>🚒 Bomberos: 116</Text>
-          </View>
-          <View style={styles.hotlinePill}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.hotlinePill}
+            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Policía 105')}
+          >
             <Text style={styles.hotlinePillText}>👮 Policía: 105</Text>
-          </View>
-          <View style={styles.hotlinePill}>
-            <Text style={styles.hotlinePillText}>🚑 SAMU Médica: 106</Text>
-          </View>
-          <View style={styles.hotlinePill}>
-            <Text style={styles.hotlinePillText}>🛡️ Serenazgo: Central</Text>
-          </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.hotlinePill}
+            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando SAMU 106')}
+          >
+            <Text style={styles.hotlinePillText}>🚑 SAMU: 106</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -294,39 +360,60 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 100 },
+  content: { padding: 16, paddingBottom: 120 },
   headerCard: {
-    backgroundColor: COLORS.emergency,
-    borderRadius: 20,
+    backgroundColor: '#dc2626',
+    borderRadius: 24,
     padding: 16,
-    marginBottom: 12
+    marginBottom: 14,
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 4
   },
   headerTop: { flexDirection: 'row', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   headerTitle: { color: COLORS.white, fontWeight: '900' },
   headerSub: { color: '#fee2e2', fontWeight: '600' },
-  calmBox: {
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#bbf7d0',
-    backgroundColor: '#f0fdf4',
-    marginBottom: 16
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: 14,
+    padding: 4,
+    marginTop: 14,
+    gap: 4
   },
-  calmTitle: { fontWeight: '900', color: '#166534', textAlign: 'center', marginBottom: 6 },
-  calmSub: { color: '#15803d', textAlign: 'center', lineHeight: 18 },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6
+  },
+  tabBtnActive: {
+    backgroundColor: '#ffffff'
+  },
+  tabBtnText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '700',
+    fontSize: 12
+  },
+  tabBtnTextActive: {
+    color: '#dc2626',
+    fontWeight: '900'
+  },
   activeEmergencyBox: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#fff1f2',
+    borderWidth: 2,
+    borderColor: '#fca5a5',
     borderRadius: 20,
     padding: 16,
-    borderWidth: 2,
-    borderColor: COLORS.emergency,
-    marginBottom: 16,
-    shadowColor: COLORS.emergency,
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    marginBottom: 14,
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
     elevation: 3
   },
   activeEmergencyHeader: {
@@ -335,132 +422,329 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 8
   },
-  activeEmergencyTitle: { fontWeight: '900', color: COLORS.emergencyDark },
-  activeEmergencySub: { fontWeight: '700', color: COLORS.textMuted, marginTop: 2 },
+  activeEmergencyTitle: {
+    fontWeight: '900',
+    color: '#991b1b'
+  },
+  activeEmergencySub: {
+    color: '#b91c1c',
+    fontWeight: '700',
+    marginTop: 2
+  },
   activeTag: {
-    backgroundColor: COLORS.emergency,
+    backgroundColor: '#dc2626',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8
+    borderRadius: 6
   },
-  activeTagText: { color: COLORS.white, fontSize: 10, fontWeight: '900' },
-  activeDesc: { color: COLORS.textSecondary, marginBottom: 12, lineHeight: 16 },
+  activeTagText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  activeDesc: {
+    color: '#7f1d1d',
+    fontStyle: 'italic',
+    lineHeight: 18,
+    marginBottom: 10
+  },
   radarSimulation: {
-    backgroundColor: '#fef2f2',
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#fecdd3'
+  },
+  radarText: {
+    color: '#991b1b',
+    fontWeight: '700',
+    textAlign: 'center'
+  },
+  viewMapShortcut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8
+  },
+  viewMapShortcutText: {
+    color: '#0f766e',
+    fontWeight: '800',
+    fontSize: 12
+  },
+  calmBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 20,
     alignItems: 'center',
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#fee2e2'
+    borderColor: '#e2e8f0'
   },
-  radarText: { fontWeight: '700', color: COLORS.emergencyDark },
-  stepperBox: { marginBottom: 14 },
-  stepperTitle: { fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8 },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stepItem: { alignItems: 'center', flex: 1 },
-  stepCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4
+  calmTitle: {
+    fontWeight: '800',
+    color: '#059669',
+    marginBottom: 4,
+    textAlign: 'center'
   },
-  stepDone: { backgroundColor: COLORS.emerald },
-  stepActive: { backgroundColor: COLORS.emergency },
-  stepPending: { backgroundColor: '#e2e8f0' },
-  stepCircleText: { color: COLORS.white, fontWeight: '900', fontSize: 12 },
-  stepLabel: { fontWeight: '700', color: COLORS.textSecondary, textAlign: 'center' },
-  stepLineActive: { flex: 1, height: 2, backgroundColor: COLORS.emerald, marginBottom: 16 },
-  stepLineInactive: { flex: 1, height: 2, backgroundColor: '#cbd5e1', marginBottom: 16 },
-  volunteersSection: { marginBottom: 14 },
-  volunteersTitle: { fontWeight: '800', color: COLORS.textPrimary, marginBottom: 6 },
-  volunteersAvatarsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  volunteerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    gap: 4
+  calmSub: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18
   },
-  volunteerBadgeName: { fontWeight: '700', color: COLORS.textPrimary },
-  volunteerBtn: {
-    backgroundColor: COLORS.emergency,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
+  typesHeader: {
     marginBottom: 10
   },
-  volunteerBtnText: { color: COLORS.white, fontWeight: '900' },
-  ecoSolidariaBtn: {
-    backgroundColor: COLORS.primarySurface,
-    borderWidth: 1,
-    borderColor: COLORS.primaryPale,
-    borderRadius: 12,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center'
+  typesTitle: {
+    fontWeight: '800',
+    color: COLORS.text
   },
-  ecoSolidariaBtnText: { color: COLORS.primaryDeep, fontWeight: '800' },
-  typesHeader: { marginBottom: 10 },
-  typesTitle: { fontWeight: '900', color: COLORS.textPrimary },
-  typesSub: { color: COLORS.textSecondary, marginTop: 2 },
-  typesList: { gap: 8, marginBottom: 16 },
+  typesSub: {
+    color: COLORS.textSecondary,
+    marginTop: 2
+  },
+  typesList: {
+    gap: 10,
+    marginBottom: 16
+  },
   typeItem: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between'
   },
-  typeItemActive: { borderColor: COLORS.emergency, backgroundColor: '#fff5f5' },
-  typeItemLeft: { flexDirection: 'row', alignItems: 'center' },
-  typeItemName: { fontWeight: '900', color: COLORS.textPrimary },
-  typeItemSub: { color: COLORS.textSecondary, fontWeight: '600' },
-  typeItemArrow: { fontSize: 18, color: COLORS.textMuted, fontWeight: '900' },
-  activePillSmall: {
-    backgroundColor: COLORS.emergency,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 999,
-    marginLeft: 6
+  typeItemActive: {
+    backgroundColor: '#fff1f2',
+    borderColor: '#dc2626'
   },
-  activePillSmallText: { color: COLORS.white, fontSize: 8, fontWeight: '900' },
-  triggerAlertBtn: {
-    backgroundColor: COLORS.emergencyDark,
-    borderRadius: 16,
-    paddingVertical: 14,
+  typeItemLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: COLORS.emergencyDark,
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4
+    flex: 1
   },
-  triggerAlertBtnText: { color: COLORS.white, fontWeight: '900' },
+  typeItemName: {
+    fontWeight: '800',
+    color: COLORS.text
+  },
+  typeItemSub: {
+    color: COLORS.textSecondary,
+    marginTop: 2
+  },
+  activePillSmall: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  activePillSmallText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '900'
+  },
+  triggerAlertBtn: {
+    backgroundColor: '#dc2626',
+    borderRadius: 18,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 5,
+    marginBottom: 16
+  },
+  triggerAlertBtnText: {
+    color: '#ffffff',
+    fontWeight: '900',
+    letterSpacing: 0.5
+  },
+  mapContainerCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  mapContainerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  mapContainerTitle: {
+    fontWeight: '900',
+    color: COLORS.text
+  },
+  satelliteMapCanvas: {
+    height: 180,
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  satelliteRadarWave: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 2,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)'
+  },
+  satelliteRadarWaveInner: {
+    position: 'absolute',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 1.5,
+    borderColor: 'rgba(239, 68, 68, 0.6)'
+  },
+  mapCenterPin: {
+    alignItems: 'center'
+  },
+  pinLabel: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 4
+  },
+  pinLabelText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  backendReadyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdfa',
+    padding: 10,
+    borderRadius: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#ccfbf1'
+  },
+  backendReadyTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0f766e'
+  },
+  backendReadySub: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 1
+  },
+  brigadeCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  brigadeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4
+  },
+  brigadeTitle: {
+    fontWeight: '900',
+    color: COLORS.text
+  },
+  brigadeSub: {
+    color: COLORS.textSecondary,
+    marginBottom: 12
+  },
+  volunteerList: {
+    gap: 8,
+    marginBottom: 14
+  },
+  volunteerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  volunteerAvatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  volName: {
+    fontWeight: '800',
+    color: COLORS.text
+  },
+  volDistance: {
+    fontSize: 10,
+    color: '#0d9488',
+    fontWeight: '700'
+  },
+  volSkill: {
+    color: COLORS.textSecondary,
+    marginTop: 2
+  },
+  joinBrigadeBtn: {
+    backgroundColor: '#0d9488',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    shadowColor: '#0d9488',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 2
+  },
+  joinBrigadeBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 12
+  },
   officialHotlinesBox: {
-    backgroundColor: COLORS.emergencySurface,
+    backgroundColor: '#ffffff',
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: COLORS.emergencyPale
+    borderColor: '#e2e8f0'
   },
-  officialTitle: { fontWeight: '900', color: COLORS.emergencyDark, marginBottom: 8 },
-  hotlinesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  officialTitle: {
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 8
+  },
+  hotlinesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
   hotlinePill: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#f1f5f9',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#fca5a5'
+    borderColor: '#cbd5e1'
   },
-  hotlinePillText: { color: COLORS.emergencyDark, fontWeight: '800', fontSize: 11 }
+  hotlinePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.text
+  }
 });

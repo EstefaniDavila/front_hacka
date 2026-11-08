@@ -254,6 +254,10 @@ export const api = {
     );
   },
 
+  async deleteProduct(productId, token) {
+    return request(/products/, { method: 'DELETE' }, token);
+  },
+
   // ==========================================================
   // MÓDULO DE SOLIDARIDAD
   // ==========================================================

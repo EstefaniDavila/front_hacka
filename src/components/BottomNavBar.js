@@ -1,16 +1,17 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 
 export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0 }) {
   const scale = (val) => Math.round(val * fontScale);
 
   const tabs = [
-    { id: 'home', label: 'Inicio', icon: '🏠' },
-    { id: 'services', label: 'Servicios', icon: '🏪' },
+    { id: 'home', label: 'Inicio', iconActive: 'home', iconInactive: 'home-outline' },
+    { id: 'services', label: 'Servicios', iconActive: 'grid', iconInactive: 'grid-outline' },
     { id: 'publish', label: 'Publicar', isCenter: true },
-    { id: 'solidarity', label: 'Ayuda', icon: '🤝' },
-    { id: 'profile', label: 'Perfil', icon: '👤' }
+    { id: 'solidarity', label: 'Ayuda', iconActive: 'people', iconInactive: 'people-outline' },
+    { id: 'profile', label: 'Perfil', iconActive: 'person', iconInactive: 'person-outline' }
   ];
 
   return (
@@ -25,7 +26,7 @@ export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0 
               onPress={() => onSelectTab('publish')}
             >
               <View style={styles.centerCircle}>
-                <Text style={styles.centerPlusText}>+</Text>
+                <Ionicons name="add" size={26} color="#ffffff" />
               </View>
               <Text style={[styles.centerLabel, { fontSize: scale(10) }]}>
                 Publicar
@@ -46,7 +47,11 @@ export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0 
             activeOpacity={0.7}
             onPress={() => onSelectTab(tab.id)}
           >
-            <Text style={{ fontSize: 20 }}>{tab.icon}</Text>
+            <Ionicons
+              name={isActive ? tab.iconActive : tab.iconInactive}
+              size={22}
+              color={isActive ? COLORS.primaryDark : '#64748b'}
+            />
             <Text style={[styles.tabLabel, isActive && styles.tabLabelActive, { fontSize: scale(10) }]}>
               {tab.label}
             </Text>
@@ -88,40 +93,31 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontWeight: '700',
-    color: COLORS.textMuted,
+    color: '#64748b',
     marginTop: 2
   },
   tabLabelActive: {
-    color: COLORS.primaryDark,
-    fontWeight: '900'
+    color: COLORS.primaryDark
   },
   centerButtonWrap: {
     alignItems: 'center',
-    marginTop: -28
+    marginTop: -22
   },
   centerCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: COLORS.primary,
-    borderWidth: 3,
-    borderColor: COLORS.white,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primaryDark,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: COLORS.primaryDark,
     shadowOpacity: 0.35,
     shadowRadius: 6,
-    elevation: 6
-  },
-  centerPlusText: {
-    color: COLORS.white,
-    fontSize: 32,
-    fontWeight: '300',
-    marginTop: -4
+    elevation: 4
   },
   centerLabel: {
-    color: COLORS.primaryDeep,
-    fontWeight: '900',
-    marginTop: 2
+    fontWeight: '800',
+    color: COLORS.primaryDark,
+    marginTop: 4
   }
 });

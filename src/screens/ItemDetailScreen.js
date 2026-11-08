@@ -8,48 +8,102 @@ import {
   Image,
   Alert
 } from 'react-native';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
+import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function ItemDetailScreen({
   item,
-  type = 'product', // 'product' | 'service'
+  type = 'product',
+  itemType,
   onBack,
   fontScale = 1.0,
   onOpenChat
 }) {
+  const { session, profile } = useAuth();
+  const token = session?.access_token || null;
+  const currentUserId = session?.user?.id || profile?.id;
+
   const [requested, setRequested] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const scale = (val) => Math.round(val * fontScale);
 
   if (!item) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 16, color: COLORS.textSecondary }}>
-          No se encontró la información del artículo.
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={COLORS.textSecondary} />
+        <Text style={{ fontSize: 16, color: COLORS.textSecondary, marginTop: 12, textAlign: 'center' }}>
+          No se encontró la información del artículo o servicio.
         </Text>
         <TouchableOpacity style={styles.backButtonSimple} onPress={onBack}>
-          <Text style={{ color: COLORS.primary, fontWeight: '800' }}>← Regresar</Text>
+          <Text style={{ color: COLORS.primaryDark, fontWeight: '800' }}>← Regresar a la lista</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const isProduct = type === 'product';
-  const title = isProduct ? item.name : item.title;
-  const personName = isProduct ? item.seller_name : item.provider_name;
-  const personAvatar = isProduct ? item.seller_avatar : item.provider_avatar;
-  const priceDisplay = isProduct
-    ? `S/ ${item.price.toFixed(2)} por ${item.unit || 'unidad'}`
-    : `Desde S/ ${item.price_from.toFixed(2)} por ${item.price_unit || 'servicio'}`;
-  const address = item.street_address || `${item.block_code || 'Zona A, Manzana 2'}`;
-  const phone = item.phone || '987-111-222';
-  const category = item.category || item.category_name || (isProduct ? 'Producto local' : 'Servicio vecinal');
+  const effectiveType = itemType || type || (item.price_from ? 'service' : 'product');
+  const isProduct = effectiveType === 'product';
+
+  const title = item.name || item.title || 'Publicación comunitaria';
+  const personName = item.seller_name || item.provider_name || item.user?.full_name || 'Vecino de confianza';
+  const personAvatar = item.seller_avatar || item.provider_avatar || '👤';
+
+  const rawPrice = item.price ?? item.price_from;
+  const numPrice = Number(rawPrice);
+  const priceDisplay = !isNaN(numPrice) && rawPrice !== null
+    ? (isProduct
+        ? `S/ ${numPrice.toFixed(2)} por ${item.unit || 'unidad'}`
+        : `Desde S/ ${numPrice.toFixed(2)} por ${item.price_unit || item.unit || 'servicio'}`)
+    : 'Precio a convenir con el vecino';
+
+  const address = item.street_address || item.address || `${item.block_code || 'Zona A, Manzana 2'}`;
+  const phone = item.phone || item.provider_phone || '987-111-222';
+  const category = item.category || item.category_name || (isProduct ? 'Tienda comunitaria' : 'Servicio vecinal');
+
+  const isOwner = currentUserId && (
+    item.seller_id === currentUserId ||
+    item.provider_id === currentUserId ||
+    item.user_id === currentUserId
+  );
 
   const handleOrder = () => {
     setRequested(true);
     Alert.alert(
-      '🎉 ¡Solicitud Enviada!',
-      `Se le notificó a ${personName} sobre tu interés en "${title}".\nPuedes coordinar detalles de entrega directamente por el chat interno.`
+      '🎉 ¡Solicitud Vecinal Enviada!',
+      `Se le notificó a ${personName} sobre tu interés en "${title}".\nPuedes coordinar entrega o pago directo por chat.`
+    );
+  };
+
+  const handleDeleteItem = () => {
+    Alert.alert(
+      '¿Eliminar publicación?',
+      `¿Deseas eliminar definitivamente "${title}" del catálogo comunitario?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              if (isProduct) {
+                await api.deleteProduct(item.id, token);
+              } else {
+                await api.deleteService(item.id, token);
+              }
+              Alert.alert('Eliminado', 'Tu publicación ha sido retirada.');
+              onBack?.();
+            } catch (err) {
+              Alert.alert('Aviso', err.message || 'No se pudo eliminar la publicación.');
+            } finally {
+              setDeleting(false);
+            }
+          }
+        }
+      ]
     );
   };
 
@@ -59,16 +113,16 @@ export default function ItemDetailScreen({
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Barra Superior con Botón de Regreso */}
+      {/* Barra Superior */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} onPress={onBack}>
-          <Text style={{ fontSize: 20, color: COLORS.primaryDark }}>←</Text>
+          <Feather name="arrow-left" size={20} color={COLORS.primaryDark} />
           <Text style={[styles.backBtnText, { fontSize: scale(12) }]}>Volver</Text>
         </TouchableOpacity>
         <Text style={[styles.screenHeaderTitle, { fontSize: scale(14) }]}>
-          {isProduct ? 'Detalle de Producto' : 'Detalle de Servicio'}
+          {isProduct ? 'Ficha de Producto' : 'Ficha de Servicio'}
         </Text>
-        <View style={{ width: 60 }} />
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Imagen Principal */}
@@ -86,7 +140,7 @@ export default function ItemDetailScreen({
         )}
 
         <View style={styles.verifiedTagOverlay}>
-          <Text style={styles.verifiedTagText}>★ Visto Bueno Vecinal</Text>
+          <Text style={styles.verifiedTagText}>★ Vecino Verificado</Text>
         </View>
 
         <View style={styles.priceOverlayTag}>
@@ -104,7 +158,7 @@ export default function ItemDetailScreen({
             <Text style={styles.categoryPillText}>{category}</Text>
           </View>
           <Text style={[styles.availabilityText, { fontSize: scale(10) }]}>
-            🟢 {item.availability || 'Disponible hoy'}
+            🟢 {item.availability || 'Disponible'}
           </Text>
         </View>
 
@@ -113,12 +167,12 @@ export default function ItemDetailScreen({
 
         {/* Valoración y Avales */}
         <View style={styles.ratingRow}>
-          <Text style={{ fontSize: 16 }}>⭐</Text>
+          <Ionicons name="star" size={16} color="#eab308" />
           <Text style={[styles.ratingNumber, { fontSize: scale(12) }]}>
-            {item.rating || item.rating_avg || 4.9}
+            {' '}{item.rating || item.rating_avg ? Number(item.rating || item.rating_avg).toFixed(1) : '5.0'}
           </Text>
           <Text style={[styles.reviewsCount, { fontSize: scale(11) }]}>
-            ({item.reviews_count || item.endorsements_count || 14} avales de vecinos)
+            ({item.reviews_count || item.endorsements_count || 1} recomendaciones vecinales)
           </Text>
         </View>
 
@@ -129,7 +183,7 @@ export default function ItemDetailScreen({
           Descripción del {isProduct ? 'producto' : 'servicio'}:
         </Text>
         <Text style={[styles.descriptionText, { fontSize: scale(12) }]}>
-          {item.description}
+          {item.description || 'Sin descripción detallada. Comunícate directamente con el vecino para consultar.'}
         </Text>
 
         {isProduct && item.stock && (
@@ -142,7 +196,7 @@ export default function ItemDetailScreen({
 
         <View style={styles.divider} />
 
-        {/* Ficha del Vecino / Emprendedor */}
+        {/* Ficha del Vecino */}
         <Text style={[styles.sectionSubtitle, { fontSize: scale(12) }]}>
           {isProduct ? 'Emprendedor Vecinal:' : 'Profesional Comunitario:'}
         </Text>
@@ -151,7 +205,7 @@ export default function ItemDetailScreen({
             {personAvatar && personAvatar.startsWith('http') ? (
               <Image source={{ uri: personAvatar }} style={styles.sellerAvatarImg} />
             ) : (
-              <Text style={{ fontSize: 28 }}>{personAvatar || '👵'}</Text>
+              <Text style={{ fontSize: 28 }}>{personAvatar || '👤'}</Text>
             )}
           </View>
           <View style={{ flex: 1 }}>
@@ -167,86 +221,99 @@ export default function ItemDetailScreen({
               📍 {address}
             </Text>
             <Text style={[styles.sellerDistance, { fontSize: scale(10) }]}>
-              🚶 A {item.distance_m || 200} m de tu casa en Zona A
+              🚶 A {item.distance_m || 150} m de tu casa en Zona A
             </Text>
           </View>
         </View>
 
-        {/* Ubicación y Mapa Simulado */}
-        <View style={styles.locationBox}>
-          <Text style={{ fontSize: 24, marginRight: 8 }}>🗺️</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.locationTitle, { fontSize: scale(11) }]}>
-              Ubicación en tu comunidad:
-            </Text>
-            <Text style={[styles.locationDesc, { fontSize: scale(10) }]}>
-              {address} • Manzana verificada por GPS
+        {/* Mapa y Ubicación Comunitaria */}
+        <View style={styles.mapCard}>
+          <View style={styles.mapHeader}>
+            <Ionicons name="map" size={18} color="#0d9488" style={{ marginRight: 6 }} />
+            <Text style={[styles.mapHeaderTitle, { fontSize: scale(12) }]}>
+              Ubicación en Zona A
             </Text>
           </View>
+          <View style={styles.mapCanvas}>
+            <View style={styles.radarRing} />
+            <View style={styles.mapPinContainer}>
+              <Ionicons name="location" size={28} color="#ef4444" />
+              <View style={styles.mapPinBadge}>
+                <Text style={styles.mapPinBadgeText}>{address}</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={styles.mapCoordinatesText}>
+            📡 Coordenadas de entrega: -12.0463, -77.0427 • Mz 2
+          </Text>
         </View>
 
-        {/* Botones de Acción */}
-        <View style={styles.actionsContainer}>
-          {/* 1. Botón de Chat */}
-          <TouchableOpacity
-            style={styles.chatButton}
-            activeOpacity={0.8}
-            onPress={() => {
-              if (onOpenChat) {
-                onOpenChat({
-                  name: personName,
-                  topic: `${isProduct ? 'Producto' : 'Servicio'}: ${title}`,
-                  avatar: personAvatar || '👤',
-                  zone: item.block_code || 'Zona A',
-                  badge: 'Vecino Verificado',
-                  phone: phone
-                });
-              }
-            }}
-          >
-            <Text style={{ fontSize: 18, marginRight: 6 }}>💬</Text>
-            <Text style={[styles.chatButtonText, { fontSize: scale(13) }]}>
-              Enviar mensaje por Chat
-            </Text>
-          </TouchableOpacity>
+        {/* Opciones del Dueño o Acciones de Compra */}
+        {isOwner ? (
+          <View style={styles.ownerBox}>
+            <View style={styles.ownerBadgeRow}>
+              <Ionicons name="checkmark-circle" size={18} color="#0d9488" />
+              <Text style={styles.ownerBadgeText}>Esta publicación fue creada desde tu cuenta</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              activeOpacity={0.8}
+              onPress={handleDeleteItem}
+              disabled={deleting}
+            >
+              <Ionicons name="trash-outline" size={16} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={styles.deleteBtnText}>
+                {deleting ? 'Eliminando...' : `Eliminar ${isProduct ? 'producto' : 'servicio'}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.actionsContainer}>
+            {/* Botón de Chat */}
+            <TouchableOpacity
+              style={styles.chatButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (onOpenChat) {
+                  onOpenChat({
+                    name: personName,
+                    topic: `${isProduct ? 'Producto' : 'Servicio'}: ${title}`,
+                    avatar: personAvatar && !personAvatar.startsWith('http') ? personAvatar : '👤',
+                    zone: item.block_code || 'Zona A',
+                    badge: 'Vecino Verificado',
+                    phone: phone
+                  });
+                }
+              }}
+            >
+              <Ionicons name="chatbubbles" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={[styles.chatButtonText, { fontSize: scale(13) }]}>
+                Contactar por Chat Vecinal
+              </Text>
+            </TouchableOpacity>
 
-          {/* 2. Botón de Solicitar / Comprar */}
-          <TouchableOpacity
-            style={[styles.orderButton, requested && { backgroundColor: COLORS.primaryDark }]}
-            activeOpacity={0.85}
-            onPress={handleOrder}
-          >
-            <Text style={[styles.orderButtonText, { fontSize: scale(13) }]}>
-              {requested
-                ? '✅ ¡SOLICITUD ENVIADA!'
-                : isProduct
-                ? `🤝 PEDIR ${title.toUpperCase()}`
-                : '🤝 SOLICITAR SERVICIO AHORA'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* 3. Botón de WhatsApp */}
-          <TouchableOpacity
-            style={styles.callButton}
-            activeOpacity={0.8}
-            onPress={() =>
-              Alert.alert(
-                '📞 Contactar Vecino',
-                `Teléfono directo de ${personName}: ${phone}\n¿Deseas iniciar una llamada o WhatsApp?`
-              )
-            }
-          >
-            <Text style={[styles.callButtonText, { fontSize: scale(11) }]}>
-              📞 Contactar por WhatsApp ({phone})
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {/* Botón de Solicitar / Comprar */}
+            <TouchableOpacity
+              style={[styles.orderButton, requested && { backgroundColor: COLORS.primaryDark }]}
+              activeOpacity={0.85}
+              onPress={handleOrder}
+            >
+              <Text style={[styles.orderButtonText, { fontSize: scale(13) }]}>
+                {requested
+                  ? '✅ ¡SOLICITUD ENVIADA!'
+                  : isProduct
+                  ? `🛍️ PEDIR ${title.toUpperCase()}`
+                  : '🤝 SOLICITAR SERVICIO'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Garantía Comunitaria */}
         <View style={styles.guaranteeBox}>
-          <Text style={{ fontSize: 16, marginRight: 6 }}>🛡️</Text>
+          <Ionicons name="shield-checkmark" size={18} color="#0d9488" style={{ marginRight: 6 }} />
           <Text style={[styles.guaranteeText, { fontSize: scale(10) }]}>
-            Comercio barrial seguro: Las transacciones se realizan directamente entre vecinos de confianza sin comisiones ocultas.
+            Comercio barrial seguro: Las transacciones se realizan directamente entre vecinos de confianza sin intermediarios ni comisiones.
           </Text>
         </View>
       </View>
@@ -260,7 +327,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background
   },
   content: {
-    paddingBottom: 90
+    paddingBottom: 120
   },
   topBar: {
     flexDirection: 'row',
@@ -291,7 +358,7 @@ const styles = StyleSheet.create({
   },
   mainImageWrap: {
     width: '100%',
-    height: 240,
+    height: 220,
     backgroundColor: '#0f172a',
     position: 'relative'
   },
@@ -324,7 +391,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 14,
     right: 14,
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 10,
@@ -375,7 +442,6 @@ const styles = StyleSheet.create({
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
     marginBottom: 12
   },
   ratingNumber: {
@@ -384,7 +450,8 @@ const styles = StyleSheet.create({
   },
   reviewsCount: {
     color: COLORS.textSecondary,
-    fontWeight: '600'
+    fontWeight: '600',
+    marginLeft: 4
   },
   divider: {
     height: 1,
@@ -401,35 +468,33 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   stockNotice: {
-    backgroundColor: COLORS.primarySurface,
-    padding: 10,
+    backgroundColor: '#f8fafc',
+    padding: 8,
     borderRadius: 8,
-    marginTop: 10
+    marginTop: 8
   },
   stockNoticeText: {
-    color: COLORS.primaryDeep
+    color: COLORS.textSecondary
   },
   sellerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 14,
+    backgroundColor: '#f8fafc',
     padding: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
-    gap: 12,
-    marginTop: 6
+    marginBottom: 14
   },
   sellerAvatarWrap: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: COLORS.primarySurface,
-    alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: COLORS.primaryPale
+    alignItems: 'center',
+    marginRight: 12,
+    overflow: 'hidden'
   },
   sellerAvatarImg: {
     width: '100%',
@@ -440,19 +505,18 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary
   },
   verifiedMini: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 6,
+    backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4
   },
   verifiedMiniText: {
-    color: COLORS.white,
     fontSize: 9,
-    fontWeight: '900'
+    color: COLORS.primaryDark,
+    fontWeight: '800'
   },
   sellerAddress: {
     color: COLORS.textSecondary,
-    fontWeight: '600',
     marginTop: 2
   },
   sellerDistance: {
@@ -460,75 +524,148 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2
   },
-  locationBox: {
+  mapCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 16
+  },
+  mapHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primarySurface,
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: COLORS.primaryPale
+    marginBottom: 8
   },
-  locationTitle: {
+  mapHeaderTitle: {
     fontWeight: '800',
-    color: COLORS.primaryDeep
+    color: COLORS.textPrimary
   },
-  locationDesc: {
+  mapCanvas: {
+    height: 110,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  radarRing: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: 'rgba(13, 148, 136, 0.4)',
+    backgroundColor: 'rgba(13, 148, 136, 0.1)'
+  },
+  mapPinContainer: {
+    alignItems: 'center'
+  },
+  mapPinBadge: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  mapPinBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textPrimary
+  },
+  mapCoordinatesText: {
+    fontSize: 10,
     color: COLORS.textSecondary,
-    marginTop: 2
+    marginTop: 6,
+    textAlign: 'center'
   },
-  actionsContainer: {
-    marginTop: 20,
-    gap: 10
+  ownerBox: {
+    backgroundColor: '#f0fdfa',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+    marginBottom: 14
   },
-  chatButton: {
-    backgroundColor: COLORS.primary,
+  ownerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10
+  },
+  ownerBadgeText: {
+    fontWeight: '700',
+    color: '#0f766e',
+    fontSize: 12
+  },
+  deleteBtn: {
+    backgroundColor: '#ef4444',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 14
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#ef4444',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3
+  },
+  deleteBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 13
+  },
+  actionsContainer: {
+    gap: 10,
+    marginBottom: 14
+  },
+  chatButton: {
+    backgroundColor: COLORS.primaryDark,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: COLORS.primaryDark,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 2
   },
   chatButtonText: {
     color: COLORS.white,
-    fontWeight: '900'
+    fontWeight: '800'
   },
   orderButton: {
-    backgroundColor: '#059669',
+    backgroundColor: COLORS.emerald,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 14
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: COLORS.emerald,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 2
   },
   orderButtonText: {
     color: COLORS.white,
-    fontWeight: '900'
-  },
-  callButton: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 12
-  },
-  callButtonText: {
-    color: COLORS.textSecondary,
-    fontWeight: '700'
+    fontWeight: '800'
   },
   guaranteeBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 16
+    backgroundColor: COLORS.primarySurface,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primaryPale
   },
   guaranteeText: {
+    color: COLORS.primaryDeep,
     flex: 1,
-    color: COLORS.textMuted,
     lineHeight: 15
   }
 });

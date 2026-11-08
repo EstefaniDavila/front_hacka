@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -26,9 +27,10 @@ export default function ServiceDetailScreen({
   const [service, setService] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // Formulario de calificación
-  const [rating, setRating] = useState(5);
+  // Formulario de calificación con medias estrellas
+  const [rating, setRating] = useState(5.0);
   const [comment, setComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -67,17 +69,43 @@ export default function ServiceDetailScreen({
 
     try {
       setSubmittingReview(true);
-      await api.addServiceReview(serviceId, { rating, comment }, token);
-      Alert.alert('⭐ ¡Gracias!', 'Tu valoración ha sido registrada y apoya la reputación vecinal.');
+      const intRating = Math.max(1, Math.min(5, Math.round(rating)));
+      await api.addServiceReview(serviceId, { rating: intRating, comment: comment.trim() }, token);
+      Alert.alert('⭐ ¡Gracias!', `Tu valoración de ${rating.toFixed(1)} estrellas apoya la reputación vecinal.`);
       setComment('');
       setShowReviewForm(false);
-      // Recargar datos
       await loadServiceDetail();
     } catch (err) {
       Alert.alert('Atención', err.message || 'No fue posible registrar tu valoración.');
     } finally {
       setSubmittingReview(false);
     }
+  };
+
+  const handleDeleteService = () => {
+    Alert.alert(
+      '¿Eliminar publicación?',
+      '¿Estás seguro de que deseas eliminar este servicio del catálogo barrial? Esta acción retirará tu publicación.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              await api.deleteService(serviceId, token);
+              Alert.alert('Publicación eliminada', 'Tu servicio ha sido retirado con éxito.');
+              onNavigate('services');
+            } catch (err) {
+              Alert.alert('Error', err.message || 'No se pudo eliminar el servicio.');
+            } finally {
+              setDeleting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (loading) {
@@ -92,8 +120,8 @@ export default function ServiceDetailScreen({
   if (error || !service) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={{ fontSize: 36, marginBottom: 12 }}>⚠️</Text>
-        <Text style={[styles.errorTitle, { fontSize: scale(15) }]}>Servicio no disponible</Text>
+        <Ionicons name="alert-circle-outline" size={48} color={COLORS.amber} />
+        <Text style={[styles.errorTitle, { fontSize: scale(15), marginTop: 12 }]}>Servicio no disponible</Text>
         <Text style={[styles.errorSub, { fontSize: scale(12) }]}>{error || 'El servicio no existe o fue retirado.'}</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate('services')}>
           <Text style={styles.backBtnText}>Volver a Servicios</Text>
@@ -104,17 +132,18 @@ export default function ServiceDetailScreen({
 
   const provider = service.provider || {};
   const isOwner = token && session?.user?.id === service.provider_id;
+  const ratingSteps = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Botón Superior de Retroceso */}
       <View style={styles.navHeader}>
         <TouchableOpacity style={styles.backPill} onPress={() => onNavigate('services')}>
-          <Text style={{ fontSize: 16, color: COLORS.primaryDark }}>❮</Text>
+          <Feather name="arrow-left" size={16} color={COLORS.primaryDark} />
           <Text style={[styles.backPillText, { fontSize: scale(12) }]}>Volver a servicios</Text>
         </TouchableOpacity>
         <View style={styles.categoryBadge}>
-          <Text style={{ fontSize: 14, marginRight: 4 }}>{service.category_icon || '🏪'}</Text>
+          <Text style={{ fontSize: 14, marginRight: 4 }}>{service.category_icon || '🛠️'}</Text>
           <Text style={[styles.categoryBadgeText, { fontSize: scale(11) }]}>{service.category_name}</Text>
         </View>
       </View>
@@ -135,7 +164,7 @@ export default function ServiceDetailScreen({
 
         {service.availability && (
           <View style={styles.infoPillRow}>
-            <Text style={{ fontSize: 13, marginRight: 4 }}>🕒</Text>
+            <Ionicons name="time-outline" size={14} color="#0f766e" style={{ marginRight: 4 }} />
             <Text style={[styles.infoPillText, { fontSize: scale(11) }]}>{service.availability}</Text>
           </View>
         )}
@@ -169,13 +198,13 @@ export default function ServiceDetailScreen({
               📞 {provider.phone || service.provider_phone || 'Teléfono coordinable por chat'}
             </Text>
             <Text style={[styles.providerRating, { fontSize: scale(11) }]}>
-              ⭐ {service.rating_avg > 0 ? service.rating_avg.toFixed(1) : 'Nuevo'} ({service.reviews_count} valoraciones)
+              ⭐ {service.rating_avg > 0 ? Number(service.rating_avg).toFixed(1) : 'Nuevo'} ({service.reviews_count} valoraciones)
             </Text>
           </View>
         </View>
 
-        {/* Acciones de Contacto */}
-        {!isOwner && (
+        {/* Acciones de Contacto si no es el dueño */}
+        {!isOwner ? (
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={styles.chatButton}
@@ -190,25 +219,65 @@ export default function ServiceDetailScreen({
                     badge: 'Vecino Verificado',
                     phone: provider.phone || service.provider_phone
                   });
-                } else {
-                  Alert.alert('💬 Chat Vecinal', `Iniciando chat con ${provider.full_name || service.provider_name}...`);
                 }
               }}
             >
-              <Text style={{ fontSize: 16, marginRight: 6 }}>💬</Text>
+              <Ionicons name="chatbubbles" size={18} color="#ffffff" style={{ marginRight: 6 }} />
               <Text style={[styles.chatButtonText, { fontSize: scale(12) }]}>Contactar por Chat Vecinal</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.ownerBox}>
+            <View style={styles.ownerBadgeRow}>
+              <Ionicons name="person-circle" size={18} color="#0d9488" />
+              <Text style={styles.ownerBadgeText}>Esta publicación fue creada desde tu cuenta</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              activeOpacity={0.8}
+              onPress={handleDeleteService}
+              disabled={deleting}
+            >
+              <Ionicons name="trash-outline" size={16} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={styles.deleteButtonText}>
+                {deleting ? 'Eliminando servicio...' : 'Eliminar publicación de servicio'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {/* Sección de Reputación y Reseñas */}
+      {/* Mapa y Ubicación Comunitaria del Servicio */}
+      <View style={styles.mapCard}>
+        <View style={styles.mapHeader}>
+          <Ionicons name="map" size={18} color="#0d9488" style={{ marginRight: 6 }} />
+          <Text style={[styles.mapHeaderTitle, { fontSize: scale(12) }]}>
+            Ubicación del Servicio en el Barrio
+          </Text>
+        </View>
+        <View style={styles.mapCanvas}>
+          <View style={styles.radarRing} />
+          <View style={styles.mapPinContainer}>
+            <Ionicons name="location" size={28} color="#ef4444" />
+            <View style={styles.mapPinBadge}>
+              <Text style={styles.mapPinBadgeText}>
+                {service.community_name || 'Zona A'} • Manzana 2
+              </Text>
+            </View>
+          </View>
+        </View>
+        <Text style={styles.mapCoordinatesText}>
+          📍 Cobertura directa: Manzanas 1 a 4 • A ~150 metros
+        </Text>
+      </View>
+
+      {/* Sección de Reputación y Reseñas con Medias Estrellas */}
       <View style={styles.reviewsCard}>
         <View style={styles.reviewsHeader}>
           <View>
             <Text style={[styles.sectionSubtitle, { fontSize: scale(13) }]}>Opiniones de Vecinos</Text>
             <Text style={[styles.ratingHighlight, { fontSize: scale(12) }]}>
-              ⭐ {service.rating_avg > 0 ? service.rating_avg.toFixed(1) : 'Sin opiniones'} • {service.reviews_count} en total
+              ⭐ {service.rating_avg > 0 ? Number(service.rating_avg).toFixed(1) : 'Sin opiniones'} • {service.reviews_count} en total
             </Text>
           </View>
           {!isOwner && !showReviewForm && (
@@ -218,21 +287,39 @@ export default function ServiceDetailScreen({
           )}
         </View>
 
-        {/* Formulario para Calificar */}
+        {/* Formulario para Calificar con Medias Estrellas */}
         {showReviewForm && (
           <View style={styles.reviewFormBox}>
             <Text style={[styles.formLabel, { fontSize: scale(12) }]}>¿Cómo calificarías este servicio?</Text>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => setRating(star)} style={{ padding: 4 }}>
-                  <Text style={{ fontSize: 26 }}>{star <= rating ? '⭐' : '☆'}</Text>
-                </TouchableOpacity>
-              ))}
+            
+            {/* Visualización de la puntuación elegida */}
+            <View style={styles.ratingScoreRow}>
+              <Ionicons name="star" size={20} color="#eab308" />
+              <Text style={styles.ratingScoreNumber}>{rating.toFixed(1)}</Text>
+              <Text style={styles.ratingScoreMax}>/ 5.0 estrellas</Text>
             </View>
+
+            {/* Selector de Medias Estrellas (0.5 a 5.0) */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.halfStarScroll}>
+              {ratingSteps.map((val) => {
+                const isSelected = rating === val;
+                return (
+                  <TouchableOpacity
+                    key={val}
+                    style={[styles.halfStarChip, isSelected && styles.halfStarChipActive]}
+                    onPress={() => setRating(val)}
+                  >
+                    <Text style={[styles.halfStarChipText, isSelected && styles.halfStarChipTextActive]}>
+                      ★ {val.toFixed(1)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
 
             <TextInput
               style={[styles.commentInput, { fontSize: scale(12) }]}
-              placeholder="Escribe tu recomendación para la comunidad..."
+              placeholder="Escribe tu recomendación para la comunidad (ej. Llegó puntual, trabajo de calidad)..."
               placeholderTextColor="#94a3b8"
               value={comment}
               onChangeText={setComment}
@@ -256,7 +343,7 @@ export default function ServiceDetailScreen({
                 {submittingReview ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.submitReviewBtnText}>Publicar Calificación</Text>
+                  <Text style={styles.submitReviewBtnText}>Publicar Calificación ({rating.toFixed(1)} ★)</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -271,7 +358,10 @@ export default function ServiceDetailScreen({
                 <Text style={[styles.reviewerName, { fontSize: scale(12) }]}>
                   {rev.reviewer_name || 'Vecino de la comunidad'}
                 </Text>
-                <Text style={{ fontSize: 12 }}>{'⭐'.repeat(rev.rating)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Ionicons name="star" size={13} color="#eab308" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.text }}>{Number(rev.rating).toFixed(1)}</Text>
+                </View>
               </View>
               {rev.comment && (
                 <Text style={[styles.reviewComment, { fontSize: scale(11) }]}>"{rev.comment}"</Text>
@@ -320,137 +410,142 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   backBtn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primarySurface,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8
+    borderRadius: 12
   },
   backBtnText: {
-    color: COLORS.white,
-    fontWeight: '600'
+    color: COLORS.primaryDark,
+    fontWeight: '700'
   },
   navHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12
+    marginBottom: 14
   },
   backPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    gap: 6,
+    backgroundColor: '#ffffff',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 6
+    borderColor: '#e2e8f0'
   },
   backPillText: {
-    fontWeight: '600',
-    color: COLORS.primaryDark
+    color: COLORS.primaryDark,
+    fontWeight: '800'
   },
   categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primarySurface,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ccfbf1'
+    borderColor: COLORS.primaryPale
   },
   categoryBadgeText: {
-    fontWeight: '600',
-    color: COLORS.primaryDark
+    color: COLORS.primaryDark,
+    fontWeight: '700'
   },
   mainCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    marginBottom: 14
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2
   },
   serviceTitle: {
-    fontWeight: '800',
+    fontWeight: '900',
     color: COLORS.text,
     marginBottom: 8
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: 10
   },
   priceTag: {
-    fontWeight: '800',
+    fontWeight: '900',
     color: COLORS.primaryDark,
     marginRight: 6
   },
   priceUnit: {
     color: COLORS.textSecondary,
-    marginRight: 10
+    marginRight: 12
   },
   statusChip: {
     backgroundColor: '#ecfdf5',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#a7f3d0'
+    borderRadius: 8
   },
   statusChipText: {
-    fontSize: 10,
-    color: '#065f46',
-    fontWeight: '700'
+    color: '#059669',
+    fontWeight: '700',
+    fontSize: 11
   },
   infoPillRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 8,
     alignSelf: 'flex-start',
-    marginBottom: 12
+    marginBottom: 10
   },
   infoPillText: {
-    color: '#475569',
-    fontWeight: '500'
+    color: COLORS.textSecondary,
+    fontWeight: '600'
   },
   separator: {
     height: 1,
     backgroundColor: '#f1f5f9',
-    marginVertical: 12
+    marginVertical: 10
   },
   sectionSubtitle: {
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 6
+    marginBottom: 4
   },
   descriptionText: {
-    color: '#334155',
-    lineHeight: 20
+    color: COLORS.textSecondary,
+    lineHeight: 18
   },
   providerCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    marginBottom: 14
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2
   },
   providerRow: {
     flexDirection: 'row',
     alignItems: 'center'
   },
   providerAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: COLORS.primaryLight
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    marginRight: 14,
+    backgroundColor: '#e2e8f0'
   },
   providerInfo: {
     flex: 1
@@ -459,100 +554,246 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef3c7',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     alignSelf: 'flex-start',
     marginBottom: 4
   },
   vistoBuenoText: {
-    fontSize: 9,
-    color: '#92400e',
-    fontWeight: '700'
+    color: '#b45309',
+    fontWeight: '800',
+    fontSize: 10
   },
   providerName: {
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.text
   },
   providerPhone: {
     color: COLORS.textSecondary,
-    marginTop: 2
+    marginVertical: 2
   },
   providerRating: {
-    color: '#854d0e',
-    fontWeight: '600',
-    marginTop: 2
+    color: COLORS.textSecondary,
+    fontWeight: '600'
   },
   actionRow: {
     marginTop: 14,
-    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9'
+    borderTopColor: '#f1f5f9',
+    paddingTop: 12
   },
   chatButton: {
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 11,
-    borderRadius: 10
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3
   },
   chatButtonText: {
-    color: COLORS.white,
-    fontWeight: '700'
+    color: '#ffffff',
+    fontWeight: '800'
+  },
+  ownerBox: {
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 12
+  },
+  ownerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f0fdfa',
+    padding: 8,
+    borderRadius: 10,
+    marginBottom: 10
+  },
+  ownerBadgeText: {
+    color: '#0f766e',
+    fontWeight: '700',
+    fontSize: 11
+  },
+  deleteButton: {
+    backgroundColor: '#ef4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#ef4444',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3
+  },
+  deleteButtonText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 13
+  },
+  mapCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2
+  },
+  mapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10
+  },
+  mapHeaderTitle: {
+    fontWeight: '800',
+    color: COLORS.text
+  },
+  mapCanvas: {
+    height: 120,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  radarRing: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 2,
+    borderColor: 'rgba(13, 148, 136, 0.4)',
+    backgroundColor: 'rgba(13, 148, 136, 0.1)'
+  },
+  mapPinContainer: {
+    alignItems: 'center'
+  },
+  mapPinBadge: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  mapPinBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.text
+  },
+  mapCoordinatesText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 8,
+    textAlign: 'center'
   },
   reviewsCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2
   },
   reviewsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 12
   },
   ratingHighlight: {
-    color: '#854d0e',
+    color: COLORS.textSecondary,
     fontWeight: '600',
     marginTop: 2
   },
   addReviewBtn: {
     backgroundColor: COLORS.primarySurface,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#99f6e4'
+    borderColor: COLORS.primaryPale
   },
   addReviewBtnText: {
     color: COLORS.primaryDark,
-    fontWeight: '700'
+    fontWeight: '800'
   },
   reviewFormBox: {
     backgroundColor: '#f8fafc',
+    borderRadius: 14,
     padding: 12,
-    borderRadius: 10,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    marginBottom: 14
+    borderColor: '#e2e8f0'
   },
   formLabel: {
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text,
     marginBottom: 6
   },
-  starsRow: {
+  ratingScoreRow: {
     flexDirection: 'row',
-    marginBottom: 10
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8
+  },
+  ratingScoreNumber: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.text
+  },
+  ratingScoreMax: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '600'
+  },
+  halfStarScroll: {
+    marginVertical: 6
+  },
+  halfStarChip: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
+  },
+  halfStarChipActive: {
+    backgroundColor: '#0d9488',
+    borderColor: '#0f766e'
+  },
+  halfStarChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.textSecondary
+  },
+  halfStarChipTextActive: {
+    color: '#ffffff'
   },
   commentInput: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 8,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    padding: 10,
+    color: COLORS.text,
     textAlignVertical: 'top',
+    minHeight: 60,
+    marginTop: 8,
     marginBottom: 10
   },
   formBtnRow: {
@@ -561,27 +802,29 @@ const styles = StyleSheet.create({
     gap: 8
   },
   cancelBtn: {
-    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 6
+    paddingVertical: 8,
+    borderRadius: 8
   },
   cancelBtnText: {
-    color: '#64748b',
-    fontWeight: '600'
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    fontSize: 12
   },
   submitReviewBtn: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 6
+    paddingVertical: 8,
+    borderRadius: 8
   },
   submitReviewBtnText: {
-    color: COLORS.white,
-    fontWeight: '700'
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 12
   },
   reviewItem: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
     paddingVertical: 10
   },
   reviewItemHeader: {
@@ -591,11 +834,11 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   reviewerName: {
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text
   },
   reviewComment: {
-    color: '#475569',
+    color: COLORS.textSecondary,
     fontStyle: 'italic',
     lineHeight: 18
   },
@@ -603,7 +846,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginVertical: 10
+    paddingVertical: 8
   }
 });
-

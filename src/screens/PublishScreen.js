@@ -1,3 +1,4 @@
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -53,6 +54,9 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [publishing, setPublishing] = useState(false);
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
+  const [locationMode, setLocationMode] = useState('current'); // 'current' | 'custom'
+  const [customAddress, setCustomAddress] = useState('');
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -272,33 +276,71 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
               </View>
             </View>
 
-            {/* Selector de categoría si es un servicio */}
+            {/* Selector de categoría si es un servicio con modo Expandible */}
             {formType === 'servicio' && categories.length > 0 && (
               <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Categoría del Servicio *</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-                  {categories.map((c) => {
-                    const isSelected = selectedCategoryId === c.id;
-                    return (
-                      <TouchableOpacity
-                        key={c.id}
-                        style={[styles.categoryChoice, isSelected && styles.categoryChoiceSelected]}
-                        onPress={() => setSelectedCategoryId(c.id)}
-                      >
-                        <Text style={{ marginRight: 4 }}>{c.icon || '🛠️'}</Text>
-                        <Text
-                          style={[
-                            styles.categoryChoiceText,
-                            isSelected && styles.categoryChoiceTextSelected,
-                            { fontSize: scale(11) }
-                          ]}
+                <View style={styles.categoryHeaderRow}>
+                  <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Categoría del Servicio *</Text>
+                  <TouchableOpacity
+                    style={styles.expandToggleBtn}
+                    onPress={() => setIsCategoriesExpanded(!isCategoriesExpanded)}
+                  >
+                    <Text style={styles.expandToggleBtnText}>
+                      {isCategoriesExpanded ? '▲ Ver menos' : `▼ Ver todas (${categories.length})`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {isCategoriesExpanded ? (
+                  <View style={styles.categoryGrid}>
+                    {categories.map((c) => {
+                      const isSelected = selectedCategoryId === c.id;
+                      return (
+                        <TouchableOpacity
+                          key={c.id}
+                          style={[styles.categoryChoiceGrid, isSelected && styles.categoryChoiceSelected]}
+                          onPress={() => setSelectedCategoryId(c.id)}
                         >
-                          {c.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                          <Text style={{ marginRight: 4, fontSize: 13 }}>{c.icon || '🛠️'}</Text>
+                          <Text
+                            style={[
+                              styles.categoryChoiceText,
+                              isSelected && styles.categoryChoiceTextSelected,
+                              { fontSize: scale(11) }
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {c.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                    {categories.map((c) => {
+                      const isSelected = selectedCategoryId === c.id;
+                      return (
+                        <TouchableOpacity
+                          key={c.id}
+                          style={[styles.categoryChoice, isSelected && styles.categoryChoiceSelected]}
+                          onPress={() => setSelectedCategoryId(c.id)}
+                        >
+                          <Text style={{ marginRight: 4 }}>{c.icon || '🛠️'}</Text>
+                          <Text
+                            style={[
+                              styles.categoryChoiceText,
+                              isSelected && styles.categoryChoiceTextSelected,
+                              { fontSize: scale(11) }
+                            ]}
+                          >
+                            {c.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
               </View>
             )}
 
@@ -388,13 +430,65 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
               />
             </View>
 
-            {/* Ubicación */}
-            <View style={styles.locationChip}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, marginRight: 6 }}>📍</Text>
-                <Text style={[styles.locationText, { fontSize: scale(12) }]}>Visible para: Mi comunidad (Zona A)</Text>
+            {/* Ubicación en el Mapa Vecinal */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>📍 Ubicación de la Publicación en el Barrio</Text>
+              
+              {/* Selector de tipo de ubicación */}
+              <View style={styles.locModeSelector}>
+                <TouchableOpacity
+                  style={[styles.locModeBtn, locationMode === 'current' && styles.locModeBtnActive]}
+                  onPress={() => setLocationMode('current')}
+                >
+                  <Ionicons name="navigate" size={14} color={locationMode === 'current' ? '#0f766e' : '#64748b'} />
+                  <Text style={[styles.locModeBtnText, locationMode === 'current' && styles.locModeBtnTextActive]}>
+                    Mi ubicación actual (Mz 2)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.locModeBtn, locationMode === 'custom' && styles.locModeBtnActive]}
+                  onPress={() => setLocationMode('custom')}
+                >
+                  <Ionicons name="map-outline" size={14} color={locationMode === 'custom' ? '#0f766e' : '#64748b'} />
+                  <Text style={[styles.locModeBtnText, locationMode === 'custom' && styles.locModeBtnTextActive]}>
+                    Otra dirección / punto
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 11, color: COLORS.primaryDark, fontWeight: '700' }}>Mz 2</Text>
+
+              {locationMode === 'custom' && (
+                <TextInput
+                  style={[styles.input, { fontSize: scale(12), marginTop: 8 }]}
+                  placeholder="Escribe la dirección exacta o referencia en Zona A..."
+                  placeholderTextColor={COLORS.textMuted}
+                  value={customAddress}
+                  onChangeText={setCustomAddress}
+                />
+              )}
+
+              {/* Mapa Interactivo con Pin */}
+              <View style={styles.publishMapCard}>
+                <View style={styles.publishMapCanvas}>
+                  <View style={styles.mapRadarPulse} />
+                  <View style={styles.mapPinWrap}>
+                    <Ionicons name="location" size={32} color="#ef4444" />
+                    <View style={styles.mapPinBubble}>
+                      <Text style={styles.mapPinBubbleText}>
+                        {locationMode === 'custom' && customAddress.trim() ? customAddress : 'Zona A • Mz 2 (Fijado)'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.publishMapFooter}>
+                  <Text style={styles.publishMapCoords}>
+                    🗺️ GPS: -12.0463, -77.0427 • Visible para vecinos en 500m
+                  </Text>
+                  <Text style={styles.publishMapHelp}>
+                    Toca en el mapa para ajustar la posición
+                  </Text>
+                </View>
+              </View>
             </View>
 
             {/* Switch de visibilidad */}
@@ -556,6 +650,129 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 4
+  },
+  categoryHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6
+  },
+  expandToggleBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8
+  },
+  expandToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primaryDark
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginVertical: 6
+  },
+  categoryChoiceGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  locModeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 8
+  },
+  locModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  locModeBtnActive: {
+    backgroundColor: '#f0fdfa',
+    borderColor: '#0d9488'
+  },
+  locModeBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b'
+  },
+  locModeBtnTextActive: {
+    color: '#0f766e',
+    fontWeight: '800'
+  },
+  publishMapCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+    marginTop: 8
+  },
+  publishMapCanvas: {
+    height: 120,
+    backgroundColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative'
+  },
+  mapRadarPulse: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 2,
+    borderColor: 'rgba(13, 148, 136, 0.4)',
+    backgroundColor: 'rgba(13, 148, 136, 0.1)'
+  },
+  mapPinWrap: {
+    alignItems: 'center'
+  },
+  mapPinBubble: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  mapPinBubbleText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textPrimary
+  },
+  publishMapFooter: {
+    padding: 8,
+    backgroundColor: '#ffffff'
+  },
+  publishMapCoords: {
+    fontSize: 10,
+    color: '#64748b',
+    textAlign: 'center',
+    fontWeight: '600'
+  },
+  publishMapHelp: {
+    fontSize: 9,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 2
   },
   categoryChoice: {
     flexDirection: 'row',

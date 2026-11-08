@@ -1,3 +1,4 @@
+import { Ionicons, Feather } from "@expo/vector-icons";
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -17,6 +18,8 @@ export default function ProductsScreen({
   onOpenDetail,
   onOpenChat
 }) {
+  const { session, profile } = useAuth();
+  const currentUserId = session?.user?.id || profile?.id;
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -37,6 +40,29 @@ export default function ProductsScreen({
   useEffect(() => {
     loadProducts();
   }, [searchQuery, activeCategory]);
+
+  const confirmDeleteProduct = (prod) => {
+    Alert.alert(
+      '¿Eliminar producto?',
+      `¿Deseas eliminar "${prod.name || prod.title}" de la tienda comunitaria?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteProduct(prod.id, session?.access_token || null);
+              Alert.alert('Eliminado', 'Tu producto ha sido retirado.');
+              loadProducts();
+            } catch (err) {
+              Alert.alert('Aviso', err.message || 'No se pudo eliminar el producto.');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const loadProducts = async () => {
     setLoading(true);
@@ -278,6 +304,15 @@ export default function ProductsScreen({
                       Ver detalle
                     </Text>
                   </TouchableOpacity>
+
+                  {currentUserId && (prod.seller_id === currentUserId || prod.user_id === currentUserId) ? (
+                    <TouchableOpacity
+                      style={styles.cardDeleteBtn}
+                      onPress={() => confirmDeleteProduct(prod)}
+                    >
+                      <Ionicons name="trash-outline" size={15} color="#ef4444" />
+                    </TouchableOpacity>
+                  ) : null}
 
                   <TouchableOpacity
                     style={styles.chatActionBtn}
@@ -576,6 +611,15 @@ const styles = StyleSheet.create({
   cardActionsRow: {
     flexDirection: 'row',
     gap: 6
+  },
+  cardDeleteBtn: {
+    backgroundColor: '#fee2e2',
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   viewDetailBtn: {
     flex: 1,

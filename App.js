@@ -1,3 +1,4 @@
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -91,9 +92,14 @@ function MainApp() {
 
   const scale = (val) => Math.round(val * fontScale);
 
+  const [servicesSearchQuery, setServicesSearchQuery] = useState('');
+
   const handleNavigate = (tab, params = null) => {
     if (params?.serviceId) {
       setSelectedServiceId(params.serviceId);
+    }
+    if (params?.search !== undefined) {
+      setServicesSearchQuery(params.search);
     }
     setPreviousTab(currentTab);
     setCurrentTab(tab);
@@ -197,32 +203,25 @@ function MainApp() {
                 >
                   📍 {userProfile.address || 'Mi comunidad • Zona A'}
                 </Text>
-                {backendOnline ? (
-                  <View style={styles.onlineBadge}>
-                    <View style={styles.greenDot} />
-                    <Text style={styles.badgeStatusText}>FastAPI Conectada</Text>
-                  </View>
-                ) : (
-                  <View style={styles.offlineBadge}>
-                    <View style={styles.grayDot} />
-                    <Text style={styles.badgeStatusText}>Modo Local</Text>
-                  </View>
-                )}
+                <View style={styles.verifiedCommunityBadge}>
+                  <Ionicons name="shield-checkmark" size={11} color="#0d9488" />
+                  <Text style={styles.verifiedCommunityText}>Barrio Seguro • Zona A</Text>
+                </View>
               </View>
             </TouchableOpacity>
 
             <View style={styles.appHeaderRight}>
-              {/* Botón de Emergencia SOS Rápido */}
+              {/* Botón de Emergencia SOS Rápido Destacado */}
               <TouchableOpacity
                 style={[
-                  styles.headerIconButton,
-                  currentTab === 'emergency' && styles.headerIconActive,
-                  { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }
+                  styles.headerEmergencyBtn,
+                  currentTab === 'emergency' && styles.headerEmergencyBtnActive
                 ]}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
                 onPress={() => handleNavigate('emergency')}
               >
-                <Text style={{ fontSize: 16 }}>🚨</Text>
+                <MaterialCommunityIcons name="alarm-light" size={16} color="#ffffff" style={{ marginRight: 3 }} />
+                <Text style={styles.headerEmergencyBtnText}>SOS</Text>
               </TouchableOpacity>
 
               {/* Botón de Mensajes / Chat Comunitario */}
@@ -291,6 +290,7 @@ function MainApp() {
               onOpenChat={handleOpenChatWith}
               onOpenDetail={handleOpenDetail}
               userProfile={userProfile}
+              initialSearch={servicesSearchQuery}
             />
           )}
 
@@ -322,6 +322,7 @@ function MainApp() {
           {currentTab === 'detail' && selectedItem && (
             <ItemDetailScreen
               item={selectedItem}
+              type={selectedItemType}
               itemType={selectedItemType}
               onBack={() => handleNavigate(previousTab || 'home')}
               fontScale={fontScale}
@@ -519,6 +520,49 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 9,
     fontWeight: '900'
+  },
+  verifiedCommunityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f0fdfa',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 2,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#ccfbf1'
+  },
+  verifiedCommunityText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0f766e'
+  },
+  headerEmergencyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#b91c1c',
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4
+  },
+  headerEmergencyBtnActive: {
+    backgroundColor: '#991b1b',
+    borderColor: '#7f1d1d'
+  },
+  headerEmergencyBtnText: {
+    color: '#ffffff',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.5
   },
   onlineBadge: {
     flexDirection: 'row',
