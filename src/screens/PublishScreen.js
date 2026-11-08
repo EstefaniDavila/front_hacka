@@ -77,6 +77,26 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [customImageUrlInput, setCustomImageUrlInput] = useState('');
 
+  const handleOpenPhoneGallery = () => {
+    if (typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => {
+        const file = e.target && e.target.files && e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setSelectedImage(event.target.result);
+            setShowImagePickerModal(false);
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      input.click();
+    }
+  };
+
   const sampleCommunityImages = [
     { id: '1', name: 'Oficios y Reparación', uri: 'https://images.unsplash.com/photo-1581783898377-1c85bf937427?w=600' },
     { id: '2', name: 'Gasfitería y Plomería', uri: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600' },
@@ -414,20 +434,32 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
                   uri:
                     selectedImage ||
                     (formType === 'servicio'
-                      ? 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500'
+                      ? 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800'
                       : formType === 'producto'
-                      ? 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500'
-                      : 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=500')
+                      ? 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800'
+                      : 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800')
                 }}
                 style={styles.photoPreview}
+                resizeMode="cover"
               />
               <TouchableOpacity
                 style={styles.cameraBtn}
                 activeOpacity={0.85}
                 onPress={() => setShowImagePickerModal(true)}
               >
-                <Ionicons name="camera" size={20} color={COLORS.primaryDark} />
+                <Ionicons name="camera" size={17} color="#0d9488" style={{ marginRight: 4 }} />
+                <Text style={styles.cameraBtnText}>Subir foto</Text>
               </TouchableOpacity>
+
+              {selectedImage ? (
+                <TouchableOpacity
+                  style={styles.removePhotoBtn}
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedImage(null)}
+                >
+                  <Ionicons name="trash" size={14} color="#ffffff" />
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             {/* Título */}
@@ -626,12 +658,30 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.imageModalSub, { fontSize: scale(11) }]}>
-                Elige una foto representativa o pega el enlace de tu foto:
-              </Text>
+              {/* Botón Principal: Abrir Galería o Cámara del Celular */}
+              <TouchableOpacity
+                style={styles.openGalleryBtn}
+                activeOpacity={0.85}
+                onPress={handleOpenPhoneGallery}
+              >
+                <View style={styles.galleryIconCircle}>
+                  <Ionicons name="images" size={22} color="#ffffff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.openGalleryTitle}>Abrir Galería de Fotos del Celular</Text>
+                  <Text style={styles.openGallerySub}>Toca aquí para seleccionar una foto de tu teléfono o cámara</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#0d9488" />
+              </TouchableOpacity>
 
-              {/* Galería de Fotos Barriales */}
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 280, marginVertical: 8 }}>
+              <View style={styles.galleryDividerRow}>
+                <View style={styles.galleryDividerLine} />
+                <Text style={styles.galleryDividerText}>o elige de la biblioteca comunitaria</Text>
+                <View style={styles.galleryDividerLine} />
+              </View>
+
+              {/* Galería de Fotos Barriales con aspecto adaptado */}
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 270, marginVertical: 6 }}>
                 <View style={styles.sampleGrid}>
                   {sampleCommunityImages.map((img) => (
                     <TouchableOpacity
@@ -643,7 +693,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
                       }}
                       activeOpacity={0.8}
                     >
-                      <Image source={{ uri: img.uri }} style={styles.sampleThumb} />
+                      <Image source={{ uri: img.uri }} style={styles.sampleThumb} resizeMode="cover" />
                       <Text style={styles.sampleName} numberOfLines={1}>{img.name}</Text>
                     </TouchableOpacity>
                   ))}
@@ -786,18 +836,65 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 10
   },
+  openGalleryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdfa',
+    borderWidth: 2,
+    borderColor: '#0d9488',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+    gap: 10
+  },
+  galleryIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#0d9488',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  openGalleryTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f766e'
+  },
+  openGallerySub: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2
+  },
+  galleryDividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 4
+  },
+  galleryDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e2e8f0'
+  },
+  galleryDividerText: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '700'
+  },
   sampleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10
+    justifyContent: 'space-between',
+    gap: 8
   },
   sampleCard: {
-    width: '47%',
-    borderRadius: 12,
+    width: '48%',
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#e2e8f0',
     overflow: 'hidden',
-    backgroundColor: '#f8fafc'
+    backgroundColor: '#f8fafc',
+    marginBottom: 8
   },
   sampleCardSelected: {
     borderColor: COLORS.primaryDark,
@@ -805,10 +902,11 @@ const styles = StyleSheet.create({
   },
   sampleThumb: {
     width: '100%',
-    height: 90
+    height: 110,
+    resizeMode: 'cover'
   },
   sampleName: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: '#334155',
     padding: 6,
@@ -850,27 +948,45 @@ const styles = StyleSheet.create({
     gap: 12
   },
   photoContainer: {
-    height: 150,
-    borderRadius: 16,
+    height: 180,
+    borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#e2e8f0'
+    backgroundColor: '#e2e8f0',
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1'
   },
-  photoPreview: { width: '100%', height: '100%' },
+  photoPreview: { width: '100%', height: '100%', resizeMode: 'cover' },
   cameraBtn: {
     position: 'absolute',
     bottom: 10,
     right: 10,
     backgroundColor: COLORS.white,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
     elevation: 3,
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 4
+  },
+  cameraBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0d9488'
+  },
+  removePhotoBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(220, 38, 38, 0.85)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   categoryHeaderRow: {
     flexDirection: 'row',

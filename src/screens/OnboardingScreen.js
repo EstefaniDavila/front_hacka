@@ -47,10 +47,17 @@ export default function OnboardingScreen({
   const [faceScanned, setFaceScanned] = useState(false);
   const [selfieFile, setSelfieFile] = useState(null);
 
-  // Dirección GPS y Corrección
+  // Dirección GPS y Corrección Detallada (Calle, Manzana, Distrito, Provincia, Ciudad)
   const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [addressStreet, setAddressStreet] = useState('Calle Los Nogales 214');
+  const [addressBlock, setAddressBlock] = useState('Mz B Lote 4');
+  const [addressZone, setAddressZone] = useState('Zona A - Manzana 2');
+  const [addressDistrict, setAddressDistrict] = useState('Los Olivos');
+  const [addressProvince, setAddressProvince] = useState('Lima');
+  const [addressDepartment, setAddressDepartment] = useState('Lima');
+  const [addressReference, setAddressReference] = useState('');
   const [detectedAddress, setDetectedAddress] = useState('Calle Los Nogales 214, Mz B Lote 4');
-  const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2');
+  const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2 • Los Olivos, Lima');
   const [addressConfirmed, setAddressConfirmed] = useState(true);
   const scrollViewRef = useRef(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -847,21 +854,87 @@ export default function OnboardingScreen({
                     </View>
                   ) : (
                     <View style={styles.editAddressForm}>
-                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Dirección de tu casa:</Text>
+                      <Text style={[styles.editAddressHelpNotice, { fontSize: scale(11) }]}>
+                        📍 Ingresa tu dirección exacta para una ubicación precisa en la comunidad:
+                      </Text>
+
+                      {/* Calle y Número */}
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Calle, Jirón o Avenida y Número *</Text>
                       <TextInput
                         style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
-                        value={detectedAddress}
-                        onChangeText={setDetectedAddress}
-                        placeholder="Calle / Jirón y Número"
+                        value={addressStreet}
+                        onChangeText={setAddressStreet}
+                        placeholder="Ej. Calle Los Nogales 214"
+                        placeholderTextColor="#94a3b8"
                       />
 
-                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Zona y Manzana:</Text>
+                      {/* Manzana y Lote */}
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Manzana y Lote / Sector *</Text>
                       <TextInput
-                        style={[styles.input, { fontSize: scale(12) }]}
-                        value={detectedZone}
-                        onChangeText={setDetectedZone}
-                        placeholder="Ej: Zona A - Manzana 2"
+                        style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
+                        value={addressBlock}
+                        onChangeText={setAddressBlock}
+                        placeholder="Ej. Mz B Lote 4, Sector 2"
+                        placeholderTextColor="#94a3b8"
                       />
+
+                      {/* Zona y Barrio */}
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Zona Barrial VeciRed *</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
+                        value={addressZone}
+                        onChangeText={setAddressZone}
+                        placeholder="Ej. Zona A - Manzana 2"
+                        placeholderTextColor="#94a3b8"
+                      />
+
+                      {/* Fila Distrito y Provincia */}
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Distrito *</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressDistrict}
+                            onChangeText={setAddressDistrict}
+                            placeholder="Ej. Los Olivos"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Provincia *</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressProvince}
+                            onChangeText={setAddressProvince}
+                            placeholder="Ej. Lima"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                      </View>
+
+                      {/* Fila Ciudad / Departamento y Referencia */}
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Ciudad / Región *</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressDepartment}
+                            onChangeText={setAddressDepartment}
+                            placeholder="Ej. Lima"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Referencia (Opcional)</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressReference}
+                            onChangeText={setAddressReference}
+                            placeholder="Ej. Frente al parque"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -919,13 +992,22 @@ export default function OnboardingScreen({
                       style={styles.primaryButton}
                       activeOpacity={0.8}
                       onPress={() => {
+                        const st = addressStreet.trim() || 'Calle Los Nogales 214';
+                        const bl = addressBlock.trim() || 'Mz B Lote 4';
+                        const zn = addressZone.trim() || 'Zona A - Manzana 2';
+                        const dt = addressDistrict.trim() || 'Los Olivos';
+                        const pr = addressProvince.trim() || 'Lima';
+                        const dp = addressDepartment.trim() || 'Lima';
+
+                        setDetectedAddress(`${st}, ${bl}`);
+                        setDetectedZone(`${zn} • ${dt}, ${pr} (${dp})`);
                         setIsEditingAddress(false);
                         setAddressConfirmed(true);
                         setStep(6);
                       }}
                     >
                       <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
-                        💾 GUARDAR Y CONFIRMAR DIRECCIÓN
+                        💾 GUARDAR Y CONFIRMAR DIRECCIÓN COMPLETA
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -981,7 +1063,19 @@ export default function OnboardingScreen({
                   <View style={styles.summaryRow}>
                     <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>📍 Domicilio:</Text>
                     <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
-                      {detectedAddress} ({detectedZone})
+                      {detectedAddress}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>🗺️ Ubicación:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {addressDistrict}, {addressProvince} - {addressDepartment}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>🏘️ Cuadrante Barrial:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {addressZone}
                     </Text>
                   </View>
                 </View>
@@ -1379,6 +1473,17 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 6
   },
+  editAddressHelpNotice: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 10,
+    padding: 8,
+    color: '#166534',
+    fontWeight: '700',
+    marginBottom: 10
+  },
+
   addressActionButtons: {
     width: '100%',
     gap: 8

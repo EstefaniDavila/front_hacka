@@ -119,10 +119,21 @@ export default function ProfileScreen({
                   📍 {userProfile.address}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                  <Ionicons name="star" size={13} color="#f59e0b" style={{ marginRight: 3 }} />
-                  <Text style={[styles.endorsementsText, { fontSize: scale(11) }]}>
-                    5.0 (14 avales vecinales de confianza)
-                  </Text>
+                  {(userProfile.endorsementsCount && Number(userProfile.endorsementsCount) > 0) ? (
+                    <>
+                      <Ionicons name="star" size={13} color="#f59e0b" style={{ marginRight: 3 }} />
+                      <Text style={[styles.endorsementsText, { fontSize: scale(11) }]}>
+                        {userProfile.rating ? Number(userProfile.rating).toFixed(1) : '5.0'} ({userProfile.endorsementsCount} {userProfile.endorsementsCount === 1 ? 'aval vecinal' : 'avales vecinales de confianza'})
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="sparkles" size={12} color="#0d9488" style={{ marginRight: 3 }} />
+                      <Text style={[styles.endorsementsText, { fontSize: scale(11), color: '#0d9488', fontWeight: '700' }]}>
+                        Nuevo vecino en la comunidad (0 avales)
+                      </Text>
+                    </>
+                  )}
                 </View>
               </View>
             </View>
