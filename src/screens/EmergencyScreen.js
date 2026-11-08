@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Linking,
   Text,
   TouchableOpacity,
   StyleSheet,
@@ -252,6 +253,19 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       '🎉 ¡Gracias Vecino!',
       `Te has sumado a la brigada de respuesta comunitaria de Zona A. Distancia calculada: ${calculatedMeters} metros.`
     );
+  };
+
+    const handleEmergencyCall = (phoneNumber, serviceName = 'Emergencia') => {
+    const cleanNumber = String(phoneNumber).replace(/[^0-9+]/g, '');
+    const url = `tel:${cleanNumber}`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = url;
+    } else {
+      Linking.openURL(url).catch((err) => {
+        console.warn('Error abriendo llamada:', err);
+        Alert.alert('Llamada de Emergencia', `Marcando ${serviceName} al ${phoneNumber}...`);
+      });
+    }
   };
 
   const handleTriggerAlert = async () => {
@@ -721,19 +735,22 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
         <View style={styles.hotlinesRow}>
           <TouchableOpacity
             style={styles.hotlinePill}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Bomberos 116')}
+            onPress={() => handleEmergencyCall('116', 'Bomberos')}
+            activeOpacity={0.7}
           >
             <Text style={styles.hotlinePillText}>🚒 Bomberos: 116</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.hotlinePill}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Policía 105')}
+            onPress={() => handleEmergencyCall('105', 'Policía')}
+            activeOpacity={0.7}
           >
             <Text style={styles.hotlinePillText}>👮 Policía: 105</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.hotlinePill}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando SAMU 106')}
+            onPress={() => handleEmergencyCall('106', 'SAMU')}
+            activeOpacity={0.7}
           >
             <Text style={styles.hotlinePillText}>🚑 SAMU: 106</Text>
           </TouchableOpacity>
