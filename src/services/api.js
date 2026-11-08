@@ -98,12 +98,28 @@ export const api = {
     );
   },
 
-  // Subir DNI y Selfie para verificación biométrica con IA
+  // Subir DNI y Selfie para verificación biométrica con IA (compatible con React Native Android y Web)
   async verifyIdentity({ dniFrontFile, dniBackFile, selfieFile, fullName }, token) {
     const formData = new FormData();
-    if (dniFrontFile) formData.append('dni_front', dniFrontFile, 'dni_front.jpg');
-    if (dniBackFile) formData.append('dni_back', dniBackFile, 'dni_back.jpg');
-    if (selfieFile) formData.append('selfie', selfieFile, 'selfie.jpg');
+
+    const appendFile = (field, file, defaultName) => {
+      if (!file) return;
+      if (file.uri && typeof file.uri === 'string') {
+        // Objeto nativo de React Native (expo-camera / ImagePicker)
+        formData.append(field, {
+          uri: file.uri,
+          name: file.name || defaultName,
+          type: file.type || 'image/jpeg'
+        });
+      } else {
+        // Blob o File para navegador web
+        formData.append(field, file, defaultName);
+      }
+    };
+
+    appendFile('dni_front', dniFrontFile, 'dni_front.jpg');
+    appendFile('dni_back', dniBackFile, 'dni_back.jpg');
+    appendFile('selfie', selfieFile, 'selfie.jpg');
     if (fullName) formData.append('full_name', fullName);
 
     return request(

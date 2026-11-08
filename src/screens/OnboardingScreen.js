@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import BiometricFaceScanner from '../components/BiometricFaceScanner';
 
 export default function OnboardingScreen({
   onFinishLogin,
@@ -45,6 +46,7 @@ export default function OnboardingScreen({
   const [scanningFace, setScanningFace] = useState(false);
   const [faceScanned, setFaceScanned] = useState(false);
   const [selfieFile, setSelfieFile] = useState(null);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   // Dirección GPS y Corrección
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -249,6 +251,21 @@ export default function OnboardingScreen({
       setIsSubmitting(false);
     }
   };
+
+  // Visor de Cámara Frontal Nativa con Detección Biométrica
+  if (showCameraScanner) {
+    return (
+      <BiometricFaceScanner
+        onFaceCaptured={(photo) => {
+          setSelfieFile(photo);
+          setFaceScanned(true);
+          setShowCameraScanner(false);
+        }}
+        onCancel={() => setShowCameraScanner(false)}
+        fontScale={fontScale}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -627,54 +644,97 @@ export default function OnboardingScreen({
               </View>
             )}
 
-            {/* PASO 4: BIOMETRÍA FACIAL (PRUEBA DE VIDA) */}
+            {/* PASO 4: BIOMETRÍA FACIAL (PRUEBA DE VIDA Y ENCUADRE NATIVO) */}
             {step === 4 && (
               <View style={styles.stepCard}>
                 <View style={styles.iconCircle}>
                   <Text style={{ fontSize: 32 }}>👤</Text>
                 </View>
                 <Text style={[styles.title, { fontSize: scale(20) }]}>
-                  Biometría Facial
+                  Biometría Facial con Cámara Frontal
                 </Text>
                 <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                  Prueba de vida (Liveness check) para asegurar que la persona del DNI eres tú.
+                  Validación biométrica asistida: centra tu rostro, mantén la distancia adecuada y mira de frente. No se requieren giros ni parpadeos.
                 </Text>
 
                 <View style={styles.faceOvalBox}>
-                  {scanningFace ? (
-                    <View style={styles.scanningWrap}>
-                      <ActivityIndicator size="large" color={COLORS.primary} />
-                      <Text style={[styles.scanningLabel, { fontSize: scale(12) }]}>
-                        Validando rostro con RENIEC...
+                  {faceScanned ? (
+                    <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+                      <Text style={{ fontSize: 48 }}>✅</Text>
+                      <Text style={[styles.faceSuccessText, { fontSize: scale(13) }]}>
+                        ¡Rostro Validado y Capturado!
                       </Text>
-                    </View>
-                  ) : faceScanned ? (
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 52 }}>✅</Text>
-                      <Text style={[styles.faceSuccessText, { fontSize: scale(12) }]}>
-                        ¡Coincidencia Biométrica 99.4%!
-                      </Text>
+                      <View style={{ marginTop: 8, alignItems: 'center' }}>
+                        <Text style={{ color: '#22c55e', fontSize: scale(11), fontWeight: 'bold' }}>
+                          ✓ Centrado óptimo
+                        </Text>
+                        <Text style={{ color: '#22c55e', fontSize: scale(11), fontWeight: 'bold' }}>
+                          ✓ Distancia correcta
+                        </Text>
+                        <Text style={{ color: '#22c55e', fontSize: scale(11), fontWeight: 'bold' }}>
+                          ✓ Mirada frontal directa
+                        </Text>
+                      </View>
                     </View>
                   ) : (
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 62 }}>👵</Text>
-                      <Text style={[styles.faceHintText, { fontSize: scale(11) }]}>
-                        Mira a la cámara y parpadea
+                    <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                      <Text style={{ fontSize: 56 }}>🤳</Text>
+                      <Text style={[styles.faceHintText, { fontSize: scale(12), marginTop: 8 }]}>
+                        El óvalo cambiará a VERDE y capturará automáticamente tras 1.5s
                       </Text>
                     </View>
                   )}
                 </View>
 
-                <TouchableOpacity
-                  style={[styles.primaryButton, scanningFace && { opacity: 0.6 }]}
-                  disabled={scanningFace}
-                  activeOpacity={0.8}
-                  onPress={handleScanFace}
-                >
-                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                    {scanningFace ? 'ESCANEANDO...' : '🤳 ESCANEAR ROSTRO'}
-                  </Text>
-                </TouchableOpacity>
+                {!faceScanned ? (
+                  <>
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      activeOpacity={0.8}
+                      onPress={() => setShowCameraScanner(true)}
+                    >
+                      <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                        📸 ABRIR CÁMARA FRONTAL NATIVA
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.scanBothButton}
+                      activeOpacity={0.8}
+                      onPress={handleScanFace}
+                    >
+                      <Text style={[styles.scanBothButtonText, { fontSize: scale(12) }]}>
+                        🤖 Simular Detección (Modo Emulador)
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      activeOpacity={0.8}
+                      onPress={() => setStep(5)}
+                    >
+                      <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                        CONTINUAR A DOMICILIO Y GPS
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{ marginTop: 12, alignItems: 'center', padding: 6 }}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setFaceScanned(false);
+                        setSelfieFile(null);
+                        setShowCameraScanner(true);
+                      }}
+                    >
+                      <Text style={{ color: '#94a3b8', fontSize: scale(12), textDecorationLine: 'underline' }}>
+                        🔄 Repetir escaneo facial
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             )}
 
