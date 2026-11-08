@@ -109,6 +109,15 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
     { id: '7', name: 'Solidaridad y Donación', uri: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=600' },
   ];
   const [locationMode, setLocationMode] = useState('current'); // 'current' | 'custom'
+  const [currentCoords, setCurrentCoords] = useState({ lat: -12.0463, lng: -77.0427, zone: 'Zona A • Manzana 2' });
+
+  useEffect(() => {
+    getOrDetectUserLocation().then((loc) => {
+      if (loc && loc.latitude && loc.longitude) {
+        setCurrentCoords({ lat: loc.latitude, lng: loc.longitude, zone: loc.zone || 'Zona A • Manzana 2' });
+      }
+    });
+  }, []);
   const [customAddress, setCustomAddress] = useState('');
 
   const scale = (val) => Math.round(val * fontScale);
@@ -571,8 +580,8 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
 
               {/* Mapa Satelital Interactivo de Google Maps con Punto Vecinal */}
               <InteractiveCommunityMap
-                latitude={currentCoords.lat}
-                longitude={currentCoords.lng}
+                latitude={currentCoords?.lat || -12.0463}
+                longitude={currentCoords?.lng || -77.0427}
                 title={locationMode === 'custom' && customAddress.trim() ? customAddress : 'Ubicación de la Publicación'}
                 subtitle="Zona A • Manzana 2 (Visible a vecinos en 500m)"
                 height={210}

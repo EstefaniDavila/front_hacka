@@ -9,7 +9,8 @@ import {
   StatusBar,
   TouchableOpacity,
   ActivityIndicator,
-  Platform
+  Platform,
+  Modal
 } from 'react-native';
 import { COLORS } from './src/theme/colors';
 import { api } from './src/services/api';

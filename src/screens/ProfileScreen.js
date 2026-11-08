@@ -2,12 +2,14 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Linking,
   Text,
   TouchableOpacity,
   TextInput,
   StyleSheet,
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { getOrDetectUserLocation } from '../services/locationService';
@@ -82,6 +84,19 @@ export default function ProfileScreen({
   const scale = (val) => Math.round(val * fontScale);
 
   const avatarOptions = ['👤', '👵', '👨‍🔧', '👩‍⚕️', '👨‍🏫', '👩‍🍳', '👷', '🧑‍💻'];
+
+    const handleEmergencyCall = (phoneNumber, serviceName = 'Emergencia') => {
+    const cleanNumber = String(phoneNumber).replace(/[^0-9+]/g, '');
+    const url = `tel:${cleanNumber}`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = url;
+    } else {
+      Linking.openURL(url).catch((err) => {
+        console.warn('Error abriendo llamada:', err);
+        Alert.alert('Llamada de Emergencia', `Marcando ${serviceName} al ${phoneNumber}...`);
+      });
+    }
+  };
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
@@ -213,7 +228,7 @@ export default function ProfileScreen({
               <InteractiveCommunityMap
                 title="Mi Residencia Comunitaria"
                 subtitle={userProfile.address || "Zona A • Manzana 3"}
-                height={170}
+                height={220}
                 mode="simple"
                 fontScale={fontScale}
               />
@@ -425,97 +440,102 @@ export default function ProfileScreen({
         </View>
 
         {/* 1. Policía Nacional (Siempre visible) */}
-        <View style={styles.emergencyContactRow}>
+        <TouchableOpacity
+          style={styles.emergencyContactRow}
+          activeOpacity={0.7}
+          onPress={() => handleEmergencyCall('105', 'Policía Nacional del Perú')}
+        >
           <View style={[styles.emgIconCircle, { backgroundColor: '#eff6ff' }]}>
             <Ionicons name="shield" size={18} color="#1d4ed8" />
           </View>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Policía Nacional del Perú</Text>
-            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 105 • Emergencias policiales</Text>
+            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 105 • Toca para llamar directo</Text>
           </View>
-          <TouchableOpacity
-            style={styles.callBadgeBtn}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Policía 105...')}
-          >
+          <View style={styles.callBadgeBtn}>
             <Feather name="phone-call" size={11} color="#ffffff" style={{ marginRight: 3 }} />
             <Text style={styles.callBadgeText}>105</Text>
-          </TouchableOpacity>
-        </View>
+          </View>
+        </TouchableOpacity>
 
         {/* 2. Bomberos del Perú (Siempre visible) */}
-        <View style={styles.emergencyContactRow}>
+        <TouchableOpacity
+          style={styles.emergencyContactRow}
+          activeOpacity={0.7}
+          onPress={() => handleEmergencyCall('116', 'Bomberos del Perú')}
+        >
           <View style={[styles.emgIconCircle, { backgroundColor: '#fee2e2' }]}>
             <MaterialCommunityIcons name="fire-truck" size={18} color="#dc2626" />
           </View>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Bomberos del Perú</Text>
-            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 116 • Incendios y rescates</Text>
+            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Central 116 • Toca para llamar directo</Text>
           </View>
-          <TouchableOpacity
-            style={styles.callBadgeBtn}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Bomberos 116...')}
-          >
+          <View style={styles.callBadgeBtn}>
             <Feather name="phone-call" size={11} color="#ffffff" style={{ marginRight: 3 }} />
             <Text style={styles.callBadgeText}>116</Text>
-          </TouchableOpacity>
-        </View>
+          </View>
+        </TouchableOpacity>
 
         {/* 3. SAMU Ambulancias (Siempre visible) */}
-        <View style={styles.emergencyContactRow}>
+        <TouchableOpacity
+          style={styles.emergencyContactRow}
+          activeOpacity={0.7}
+          onPress={() => handleEmergencyCall('106', 'SAMU Ambulancia')}
+        >
           <View style={[styles.emgIconCircle, { backgroundColor: '#ecfdf5' }]}>
             <MaterialCommunityIcons name="ambulance" size={18} color="#059669" />
           </View>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>SAMU - Ambulancia Médica</Text>
-            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Línea 106 • Primeros auxilios</Text>
+            <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Línea 106 • Toca para llamar directo</Text>
           </View>
-          <TouchableOpacity
-            style={styles.callBadgeBtn}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando SAMU 106...')}
-          >
+          <View style={styles.callBadgeBtn}>
             <Feather name="phone-call" size={11} color="#ffffff" style={{ marginRight: 3 }} />
             <Text style={styles.callBadgeText}>106</Text>
-          </TouchableOpacity>
-        </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Contactos Desplegables Adicionales */}
         {isEmergencyExpanded && (
           <View style={styles.extraContactsContainer}>
             {/* Serenazgo */}
-            <View style={styles.emergencyContactRow}>
+            <TouchableOpacity
+              style={styles.emergencyContactRow}
+              activeOpacity={0.7}
+              onPress={() => handleEmergencyCall('013185050', 'Serenazgo Distrital')}
+            >
               <View style={[styles.emgIconCircle, { backgroundColor: '#f1f5f9' }]}>
                 <Ionicons name="car" size={18} color="#334155" />
               </View>
               <View style={{ flex: 1, marginLeft: 8 }}>
                 <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Serenazgo Distrital</Text>
-                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Base (01) 318-5050 • Patrullaje Zona A</Text>
+                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Base (01) 318-5050 • Toca para llamar</Text>
               </View>
-              <TouchableOpacity
-                style={[styles.callBadgeBtn, { backgroundColor: '#475569' }]}
-                onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Serenazgo Distrital...')}
-              >
+              <View style={[styles.callBadgeBtn, { backgroundColor: '#475569' }]}>
                 <Feather name="phone-call" size={11} color="#ffffff" style={{ marginRight: 3 }} />
                 <Text style={styles.callBadgeText}>Llamar</Text>
-              </TouchableOpacity>
-            </View>
+              </View>
+            </TouchableOpacity>
 
             {/* Posta Médica / Centro de Salud Vecinal */}
-            <View style={styles.emergencyContactRow}>
+            <TouchableOpacity
+              style={styles.emergencyContactRow}
+              activeOpacity={0.7}
+              onPress={() => handleEmergencyCall('113', 'Posta Médica Santa Rosa')}
+            >
               <View style={[styles.emgIconCircle, { backgroundColor: '#f0fdf4' }]}>
                 <Ionicons name="medkit" size={18} color="#15803d" />
               </View>
               <View style={{ flex: 1, marginLeft: 8 }}>
                 <Text style={[styles.emergencyContactName, { fontSize: scale(12) }]}>Posta Médica Santa Rosa</Text>
-                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Mz 3 Lote 12 • Atención 24h</Text>
+                <Text style={[styles.emergencyContactPhone, { fontSize: scale(11) }]}>Línea 113 • Toca para llamar</Text>
               </View>
-              <TouchableOpacity
-                style={[styles.callBadgeBtn, { backgroundColor: '#15803d' }]}
-                onPress={() => Alert.alert('Llamada', 'Marcando Centro de Salud Comunal...')}
-              >
+              <View style={[styles.callBadgeBtn, { backgroundColor: '#15803d' }]}>
                 <Feather name="phone-call" size={11} color="#ffffff" style={{ marginRight: 3 }} />
                 <Text style={styles.callBadgeText}>Llamar</Text>
-              </TouchableOpacity>
-            </View>
+              </View>
+            </TouchableOpacity>
           </View>
         )}
       </View>

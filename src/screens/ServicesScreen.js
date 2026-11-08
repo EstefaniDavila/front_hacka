@@ -164,29 +164,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Cabecera de Servicios */}
       <View style={styles.headerBox}>
-        {/* Selector de Pestaña: Servicios vs Productos Locales */}
-        <View style={styles.tabToggleRow}>
-          <TouchableOpacity
-            style={[styles.tabToggleBtn, styles.tabToggleBtnActive]}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="construct" size={14} color="#ffffff" style={{ marginRight: 6 }} />
-            <Text style={[styles.tabToggleBtnText, styles.tabToggleBtnTextActive, { fontSize: scale(11) }]}>
-              Servicios y Oficios
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.tabToggleBtn}
-            activeOpacity={0.8}
-            onPress={() => onNavigate('products')}
-          >
-            <MaterialCommunityIcons name="storefront-outline" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-            <Text style={[styles.tabToggleBtnText, { fontSize: scale(11) }]}>
-              Productos Locales
-            </Text>
-          </TouchableOpacity>
-        </View>
-
+        
         <View style={styles.headerTitleRow}>
           <View style={styles.headerLeft}>
             <MaterialCommunityIcons name="toolbox" size={24} color={COLORS.primaryDark} style={{ marginRight: 8 }} />

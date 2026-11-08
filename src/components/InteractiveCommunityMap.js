@@ -11,6 +11,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { getOrDetectUserLocation } from '../services/locationService';
+import { WebView } from 'react-native-webview';
 
 /**
  * InteractiveCommunityMap
@@ -46,6 +47,7 @@ export default function InteractiveCommunityMap({
   const [zoom, setZoom] = useState(17);
   const [isLocating, setIsLocating] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
+  const [mapRevision, setMapRevision] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -118,25 +120,42 @@ export default function InteractiveCommunityMap({
           </Text>
         </View>
 
-        {/* Botón para abrir en Google Maps oficial */}
-        <TouchableOpacity
-          style={styles.openExternalBtn}
-          activeOpacity={0.8}
-          onPress={handleOpenExternalGoogleMaps}
-        >
-          <MaterialCommunityIcons name="google-maps" size={16} color="#ffffff" style={{ marginRight: 4 }} />
-          <Text style={[styles.openExternalBtnText, { fontSize: scale(10) }]}>
-            Abrir Maps
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {/* Botón para restablecer / recentrar mapa */}
+          <TouchableOpacity
+            style={styles.refreshMapBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              setZoom(17);
+              setMapRevision((r) => r + 1);
+            }}
+            accessibilityLabel="Centrar y restablecer mapa"
+          >
+            <Ionicons name="refresh" size={14} color="#0f766e" />
+          </TouchableOpacity>
+
+          {/* Botón para abrir en Google Maps oficial */}
+          <TouchableOpacity
+            style={styles.openExternalBtn}
+            activeOpacity={0.8}
+            onPress={handleOpenExternalGoogleMaps}
+          >
+            <MaterialCommunityIcons name="google-maps" size={16} color="#ffffff" style={{ marginRight: 4 }} />
+            <Text style={[styles.openExternalBtnText, { fontSize: scale(10) }]}>
+              Abrir Maps
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Contenedor del Mapa Embebido */}
       <View style={[styles.mapCanvasWrapper, { height }]}>
         {Platform.OS === 'web' ? (
           <iframe
+            key={`gmap-${currentLat}-${currentLng}-${mapType}-${zoom}-${mapRevision}`}
             title="Google Maps VeciRed"
             src={embedUrl}
+            tabIndex={-1}
             width="100%"
             height="100%"
             style={{
@@ -150,22 +169,25 @@ export default function InteractiveCommunityMap({
             allowFullScreen
           />
         ) : (
-          <TouchableOpacity
-            style={styles.mobileFallback}
-            activeOpacity={0.9}
-            onPress={handleOpenExternalGoogleMaps}
-          >
-            <MaterialCommunityIcons name="map-marker-radius" size={44} color={COLORS.primaryDark} />
-            <Text style={styles.mobileFallbackTitle}>Toca para explorar en Google Maps</Text>
-            <Text style={styles.mobileFallbackSub}>
-              Coordenadas: {Number(currentLat).toFixed(4)}, {Number(currentLng).toFixed(4)}
-            </Text>
-          </TouchableOpacity>
+          <WebView
+            source={{ uri: embedUrl }}
+            style={{ flex: 1, borderRadius: 14 }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            scalesPageToFit={true}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' }]}>
+                <ActivityIndicator size="small" color={COLORS.primaryDark} />
+                <Text style={{ marginTop: 6, fontSize: 11, color: '#64748b', fontWeight: '700' }}>Cargando Mapa Satelital...</Text>
+              </View>
+            )}
+          />
         )}
 
         {/* Botonera Flotante de Controles sobre el Mapa */}
         {showControls && (
-          <View style={styles.floatingControls}>
+          <View style={styles.floatingControls} pointerEvents="box-none">
             {/* Toggle Tipo de Mapa: Satélite vs Callejero */}
             <View style={styles.mapTypeToggleGroup}>
               <TouchableOpacity
@@ -189,7 +211,7 @@ export default function InteractiveCommunityMap({
             </View>
 
             {/* Botón de Zoom y GPS */}
-            <View style={styles.controlButtonsCol}>
+            <View style={styles.controlButtonsCol} pointerEvents="box-none">
               <TouchableOpacity
                 style={styles.circleControlBtn}
                 onPress={() => setZoom((z) => Math.min(20, z + 1))}
@@ -224,7 +246,7 @@ export default function InteractiveCommunityMap({
 
         {/* Overlay Especial para Modo Emergencia (Epicentro y Cobertura 500m) */}
         {mode === 'emergency' && (
-          <View style={styles.emergencyOverlayBadge}>
+          <View style={styles.emergencyOverlayBadge} pointerEvents="none">
             <View style={styles.radarPulseDot} />
             <Text style={styles.emergencyOverlayText}>
               🔴 Radio de Cobertura Activo: {radiusMeters} metros
@@ -384,13 +406,23 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 4
   },
+  refreshMapBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#e6fffa',
+    borderWidth: 1,
+    borderColor: '#99f6e4',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   floatingControls: {
     position: 'absolute',
     top: 8,
     right: 8,
     zIndex: 10,
     alignItems: 'flex-end',
-    gap: 6
+    gap: 6,
+    pointerEvents: 'box-none'
   },
   mapTypeToggleGroup: {
     flexDirection: 'row',

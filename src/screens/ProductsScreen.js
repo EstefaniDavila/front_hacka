@@ -146,29 +146,7 @@ export default function ProductsScreen({
     >
       {/* Cabecera Verde Azulado */}
       <View style={styles.headerBox}>
-        {/* Selector de Pestaña: Servicios vs Productos Locales */}
-        <View style={styles.tabToggleRow}>
-          <TouchableOpacity
-            style={styles.tabToggleBtn}
-            activeOpacity={0.8}
-            onPress={() => onNavigate('services')}
-          >
-            <Ionicons name="construct-outline" size={14} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-            <Text style={[styles.tabToggleBtnText, { fontSize: scale(11) }]}>
-              Servicios y Oficios
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabToggleBtn, styles.tabToggleBtnActive]}
-            activeOpacity={0.8}
-          >
-            <MaterialCommunityIcons name="storefront" size={15} color="#ffffff" style={{ marginRight: 6 }} />
-            <Text style={[styles.tabToggleBtnText, styles.tabToggleBtnTextActive, { fontSize: scale(11) }]}>
-              Productos Locales
-            </Text>
-          </TouchableOpacity>
-        </View>
-
+        
         <View style={styles.headerTitleRow}>
           <View style={styles.headerLeft}>
             <MaterialCommunityIcons name="storefront" size={26} color={COLORS.primaryDark} style={{ marginRight: 8 }} />

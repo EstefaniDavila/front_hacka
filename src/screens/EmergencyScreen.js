@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Linking,
   Text,
   TouchableOpacity,
   StyleSheet,
@@ -146,6 +147,58 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     }
   };
 
+
+  const isEmergencyOwner = (emg) => {
+    if (!emg) return false;
+    const currentUserId = user?.id || session?.user?.id || profile?.id;
+    if (emg.reported_by && currentUserId && String(emg.reported_by) === String(currentUserId)) {
+      return true;
+    }
+    const myClean = (myName || '').toLowerCase().trim();
+    const repClean = (emg.reporter_name || '').toLowerCase().trim();
+    if (myClean && repClean && (myClean === repClean || repClean.includes(myClean))) {
+      return true;
+    }
+    return emg.is_mine === true;
+  };
+
+  const handleDeleteEmergency = (emg) => {
+    if (!emg || !emg.id) return;
+    Alert.alert(
+      '🗑️ Eliminar Alerta Comunitaria',
+      `¿Estás seguro de que deseas eliminar la alerta "${emg.title}"? Esta acción la removerá para toda la comunidad.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (token) {
+                await api.deleteEmergency(emg.id, token);
+              }
+              const updatedList = activeEmergenciesList.filter((e) => String(e.id) !== String(emg.id));
+              setActiveEmergenciesList(updatedList);
+              if (activeEmergency && String(activeEmergency.id) === String(emg.id)) {
+                const nextEmg = updatedList[0] || null;
+                setActiveEmergency(nextEmg);
+                if (nextEmg) {
+                  loadVolunteersForEmergency(nextEmg.id);
+                } else {
+                  setVolunteers([]);
+                }
+              }
+              Alert.alert('✅ Alerta Eliminada', 'Tu alerta fue retirada de la comunidad exitosamente.');
+            } catch (err) {
+              console.warn('[EmergencyScreen] Error eliminando alerta:', err);
+              Alert.alert('Aviso', 'No se pudo eliminar la alerta o no tienes permisos suficientes.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const scale = (val) => Math.round(val * fontScale);
 
   const emergencyTypes = [
@@ -224,6 +277,19 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       '🎉 ¡Gracias Vecino!',
       `Te has sumado a la brigada de respuesta comunitaria de Zona A. Distancia calculada: ${calculatedMeters} metros.`
     );
+  };
+
+    const handleEmergencyCall = (phoneNumber, serviceName = 'Emergencia') => {
+    const cleanNumber = String(phoneNumber).replace(/[^0-9+]/g, '');
+    const url = `tel:${cleanNumber}`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = url;
+    } else {
+      Linking.openURL(url).catch((err) => {
+        console.warn('Error abriendo llamada:', err);
+        Alert.alert('Llamada de Emergencia', `Marcando ${serviceName} al ${phoneNumber}...`);
+      });
+    }
   };
 
   const handleTriggerAlert = async () => {
@@ -421,6 +487,16 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                         size={18}
                         color={isSelected ? "#dc2626" : "#cbd5e1"}
                       />
+
+                      {isEmergencyOwner(emg) && (
+                        <TouchableOpacity
+                          style={styles.deleteAlertBtnSmall}
+                          onPress={() => handleDeleteEmergency(emg)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="trash-outline" size={15} color="#dc2626" />
+                        </TouchableOpacity>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -464,6 +540,19 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                 <Ionicons name="map-outline" size={16} color="#0f766e" />
                 <Text style={styles.viewMapShortcutText}>Ver ubicación en el Mapa de Emergencia ➔</Text>
               </TouchableOpacity>
+
+              {isEmergencyOwner(activeEmergency) && (
+                <TouchableOpacity
+                  style={styles.deleteEmergencyBtn}
+                  onPress={() => handleDeleteEmergency(activeEmergency)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={[styles.deleteEmergencyBtnText, { fontSize: scale(12) }]}>
+                    Eliminar mi Alerta Comunitaria (Creador)
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={styles.calmBox}>
@@ -537,6 +626,52 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       {/* VISTA 2: MAPA DE EMERGENCIA Y BRIGADA VECINAL */}
       {activeTab === 'map' && (
         <View>
+          {/* Selector de alerta en mapa */}
+          {activeEmergenciesList && activeEmergenciesList.length > 1 && (
+            <View style={[styles.alertListCard, { marginBottom: 14 }]}>
+              <View style={styles.alertListHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16, marginRight: 6 }}>🗺️</Text>
+                  <Text style={[styles.alertListTitle, { fontSize: scale(13) }]}>
+                    Coordinar en el mapa ({activeEmergenciesList.length})
+                  </Text>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {activeEmergenciesList.map((emg) => {
+                  const isSelected = String(emg.id) === String(activeEmergency?.id);
+                  const icon = getEmgIcon(emg.emergency_type || emg.type || emg.title);
+                  return (
+                    <TouchableOpacity
+                      key={emg.id}
+                      style={[
+                        styles.tagBtn,
+                        isSelected && styles.tagBtnActive,
+                        { marginRight: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }
+                      ]}
+                      onPress={() => {
+                        setActiveEmergency(emg);
+                        loadVolunteersForEmergency(emg.id);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 13, marginRight: 4 }}>{icon}</Text>
+                      <Text
+                        style={[
+                          styles.tagBtnText,
+                          isSelected && styles.tagBtnTextActive,
+                          { fontSize: scale(11), fontWeight: isSelected ? '800' : '600' }
+                        ]}
+                      >
+                        {emg.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Mapa Satelital Interactivo de Google Maps con Epicentro y Brigada */}
           <InteractiveCommunityMap
             latitude={activeEmergency?.latitude || userCoords.lat}
@@ -564,7 +699,28 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
             </Text>
 
             <View style={styles.volunteerList}>
-              {volunteers.map((vol) => (
+              {volunteers.length === 0 ? (
+                <View style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 18,
+                  paddingHorizontal: 12,
+                  backgroundColor: '#f8fafc',
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: '#e2e8f0',
+                  marginVertical: 8
+                }}>
+                  <Text style={{ fontSize: 24, marginBottom: 4 }}>🤝</Text>
+                  <Text style={{ fontWeight: '800', color: '#334155', textAlign: 'center', fontSize: scale(12) }}>
+                    Aún no hay brigadistas registrados para esta alerta
+                  </Text>
+                  <Text style={{ color: '#64748b', textAlign: 'center', marginTop: 3, fontSize: scale(11) }}>
+                    ¡Sé el primero en sumarte a la brigada para coordinar auxilio vecinal inmediato!
+                  </Text>
+                </View>
+              ) : (
+                volunteers.map((vol) => (
                 <View key={vol.id} style={styles.volunteerItem}>
                   <View style={styles.volunteerAvatarCircle}>
                     <Text style={{ fontSize: 22 }}>{vol.avatar}</Text>
@@ -577,7 +733,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                     <Text style={[styles.volSkill, { fontSize: scale(11) }]}>{vol.skill}</Text>
                   </View>
                 </View>
-              ))}
+              ))
+              )}
             </View>
 
             <TouchableOpacity
@@ -602,19 +759,22 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
         <View style={styles.hotlinesRow}>
           <TouchableOpacity
             style={styles.hotlinePill}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Bomberos 116')}
+            onPress={() => handleEmergencyCall('116', 'Bomberos')}
+            activeOpacity={0.7}
           >
             <Text style={styles.hotlinePillText}>🚒 Bomberos: 116</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.hotlinePill}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando Policía 105')}
+            onPress={() => handleEmergencyCall('105', 'Policía')}
+            activeOpacity={0.7}
           >
             <Text style={styles.hotlinePillText}>👮 Policía: 105</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.hotlinePill}
-            onPress={() => Alert.alert('Llamada de Emergencia', 'Marcando SAMU 106')}
+            onPress={() => handleEmergencyCall('106', 'SAMU')}
+            activeOpacity={0.7}
           >
             <Text style={styles.hotlinePillText}>🚑 SAMU: 106</Text>
           </TouchableOpacity>
@@ -810,6 +970,26 @@ const styles = StyleSheet.create({
   },
   mapAlertPillTextActive: {
     color: '#ffffff'
+  },
+  deleteEmergencyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626',
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    marginTop: 10
+  },
+  deleteEmergencyBtnText: {
+    color: '#ffffff',
+    fontWeight: '800'
+  },
+  deleteAlertBtnSmall: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#fee2e2',
+    marginLeft: 6
   },
   activeEmergencyBox: {
     backgroundColor: '#fff1f2',
