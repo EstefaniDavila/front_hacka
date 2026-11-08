@@ -79,6 +79,7 @@ export default function ProductsScreen({
             style={[styles.searchInput, { fontSize: scale(12) }]}
             placeholder="Buscar pan casero, empanadas, miel..."
             placeholderTextColor="#94a3b8"
+            returnKeyType="search"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />

@@ -106,6 +106,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      
       {/* Cabecera de Servicios (Verde Azulado) */}
       <View style={styles.headerBox}>
         <View style={styles.headerTitleRow}>

@@ -9,7 +9,10 @@ import {
   Image,
   Switch,
   ActivityIndicator,
-  Alert
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
@@ -27,6 +30,24 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
   const [desc, setDesc] = useState('Reparación de fugas, cableado e instalaciones en Zona A.');
   const [availability, setAvailability] = useState('Lunes a Sábado 8am - 6pm');
   const [visible, setVisible] = useState(true);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Categorías de servicio desde el backend
   const [categories, setCategories] = useState([]);
@@ -199,7 +220,21 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 90 : 90 }
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
       {/* PASO 2 DE 3: ¿QUÉ DESEAS COMPARTIR? */}
       {subStep === 2 && (
         <View>
@@ -410,11 +445,57 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
           </View>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+
+      {/* Barra accesoria para ocultar teclado al publicar */}
+      {keyboardHeight > 0 && (
+        <View style={styles.keyboardToolbar}>
+          <Text style={[styles.keyboardToolbarHint, { fontSize: scale(11) }]}>
+            ✏️ Editando publicación barrial
+          </Text>
+          <TouchableOpacity
+            style={styles.keyboardCloseBtn}
+            onPress={() => Keyboard.dismiss()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.keyboardCloseBtnText}>✓ Listo / Ocultar</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4
+  },
+  keyboardToolbarHint: {
+    color: COLORS.textMuted,
+    fontWeight: '600'
+  },
+  keyboardCloseBtn: {
+    backgroundColor: COLORS.primaryDark,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  keyboardCloseBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 12
+  },
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 16, paddingBottom: 90 },
   headerCard: {

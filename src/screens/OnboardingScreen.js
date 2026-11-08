@@ -8,7 +8,10 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
-  Platform
+  Platform,
+  StatusBar,
+  Keyboard,
+  KeyboardAvoidingView
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
@@ -29,7 +32,7 @@ export default function OnboardingScreen({
   const [password, setPassword] = useState('VecinaMartha2026!');
   const [selectedSkill, setSelectedSkill] = useState('🩺 Enfermería / Primeros auxilios');
   const [customSkill, setCustomSkill] = useState('');
-  
+
   // DNI: Frente y Reverso
   const [dniFrontScanned, setDniFrontScanned] = useState(false);
   const [dniBackScanned, setDniBackScanned] = useState(false);
@@ -47,6 +50,24 @@ export default function OnboardingScreen({
   const [detectedAddress, setDetectedAddress] = useState('Calle Los Nogales 214, Mz B Lote 4');
   const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2');
   const [addressConfirmed, setAddressConfirmed] = useState(true);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Estado de envío
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -228,7 +249,7 @@ export default function OnboardingScreen({
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        
+
         {/* Barra Superior con Progreso */}
         <View style={styles.headerProgress}>
           <Text style={[styles.stepIndicatorText, { fontSize: scale(12) }]}>
@@ -239,570 +260,604 @@ export default function OnboardingScreen({
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
-          {/* PASO 1: BIENVENIDA */}
-          {step === 1 && (
-            <View style={styles.stepCard}>
-              <View style={styles.iconCircleBig}>
-                <Text style={{ fontSize: 50 }}>🏘️</Text>
-              </View>
-              <Text style={[styles.title, { fontSize: scale(22) }]}>
-                ¡Bienvenida a VeciRed IA!
-              </Text>
-              <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                La red barrial inteligente de vecinos verificados. Conecta con oficios de tu zona, apoya a tu comunidad y actúa rápido en emergencias.
-              </Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        >
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 50 }
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+          >
 
-              <View style={styles.featurePillsWrap}>
-                <View style={styles.pillBadge}>
-                  <Text style={styles.pillBadgeText}>🔒 100% Vecinos Reales con DNI</Text>
+            {/* PASO 1: BIENVENIDA */}
+            {step === 1 && (
+              <View style={styles.stepCard}>
+                <View style={styles.iconCircleBig}>
+                  <Text style={{ fontSize: 50 }}>🏘️</Text>
                 </View>
-                <View style={styles.pillBadge}>
-                  <Text style={styles.pillBadgeText}>📍 Ubicación GPS Comunal</Text>
-                </View>
-                <View style={styles.pillBadge}>
-                  <Text style={styles.pillBadgeText}>⚡ Asistencia Inmediata en Emergencias</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.primaryButton}
-                activeOpacity={0.8}
-                onPress={() => setStep(2)}
-              >
-                <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                  EMPEZAR REGISTRO
+                <Text style={[styles.title, { fontSize: scale(22) }]}>
+                  ¡Bienvenida a VeciRed IA!
                 </Text>
-              </TouchableOpacity>
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  La red barrial inteligente de vecinos verificados. Conecta con oficios de tu zona, apoya a tu comunidad y actúa rápido en emergencias.
+                </Text>
 
-              {onNavigateToLogin ? (
+                <View style={styles.featurePillsWrap}>
+                  <View style={styles.pillBadge}>
+                    <Text style={styles.pillBadgeText}>🔒 100% Vecinos Reales con DNI</Text>
+                  </View>
+                  <View style={styles.pillBadge}>
+                    <Text style={styles.pillBadgeText}>📍 Ubicación GPS Comunal</Text>
+                  </View>
+                  <View style={styles.pillBadge}>
+                    <Text style={styles.pillBadgeText}>⚡ Asistencia Inmediata en Emergencias</Text>
+                  </View>
+                </View>
+
                 <TouchableOpacity
-                  style={styles.secondaryLoginButton}
+                  style={styles.primaryButton}
                   activeOpacity={0.8}
-                  onPress={onNavigateToLogin}
+                  onPress={() => setStep(2)}
                 >
-                  <Text style={[styles.secondaryLoginButtonText, { fontSize: scale(14) }]}>
-                    ¿Ya eres vecino registrado? INICIAR SESIÓN
+                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                    EMPEZAR REGISTRO
                   </Text>
                 </TouchableOpacity>
-              ) : null}
-            </View>
-          )}
 
-          {/* PASO 2: CELULAR, NOMBRE, CORREO, CONTRASEÑA Y PROFESIÓN / HABILIDAD */}
-          {step === 2 && (
-            <View style={styles.stepCard}>
-              <View style={styles.iconCircle}>
-                <Text style={{ fontSize: 32 }}>📱</Text>
+                {onNavigateToLogin ? (
+                  <TouchableOpacity
+                    style={styles.secondaryLoginButton}
+                    activeOpacity={0.8}
+                    onPress={onNavigateToLogin}
+                  >
+                    <Text style={[styles.secondaryLoginButtonText, { fontSize: scale(14) }]}>
+                      ¿Ya eres vecino registrado? INICIAR SESIÓN
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-              <Text style={[styles.title, { fontSize: scale(20) }]}>
-                Tus Datos de Contacto y Acceso
-              </Text>
-              <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                Crea tus credenciales de acceso y tu habilidad vecinal para coordinar apoyo en tu barrio.
-              </Text>
+            )}
 
-              {/* Nombre Completo */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Nombre Completo *</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Ej: Doña Martha Quispe"
-                />
-              </View>
-
-              {/* Correo Electrónico */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Correo Electrónico *</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="ejemplo@correo.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-
-              {/* Contraseña */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Contraseña de Acceso *</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Mínimo 6 caracteres"
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
-              </View>
-
-              {/* Número de Celular */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Número de Celular *</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  placeholder="984 555 123"
-                />
-              </View>
-
-              {/* Profesión u Habilidad vecinal */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>
-                  Profesión u Oficio / Habilidad Vecinal *
+            {/* PASO 2: CELULAR, NOMBRE, CORREO, CONTRASEÑA Y PROFESIÓN / HABILIDAD */}
+            {step === 2 && (
+              <View style={styles.stepCard}>
+                <View style={styles.iconCircle}>
+                  <Text style={{ fontSize: 32 }}>📱</Text>
+                </View>
+                <Text style={[styles.title, { fontSize: scale(20) }]}>
+                  Tus Datos de Contacto y Acceso
                 </Text>
-                <Text style={[styles.inputSubLabel, { fontSize: scale(10) }]}>
-                  Si no tienes un oficio específico, elige la opción de "Apoyo general".
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  Crea tus credenciales de acceso y tu habilidad vecinal para coordinar apoyo en tu barrio.
                 </Text>
 
-                <View style={styles.skillsSelectorWrap}>
-                  {SKILL_OPTIONS.map((opt, idx) => {
-                    const isSelected = selectedSkill === opt && !customSkill.trim();
-                    return (
+                {/* Nombre Completo */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Nombre Completo *</Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: scale(13) }]}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Ej: Doña Martha Quispe"
+                    returnKeyType="next"
+                  />
+                </View>
+
+                {/* Correo Electrónico */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Correo Electrónico *</Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: scale(13) }]}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="ejemplo@correo.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                {/* Contraseña */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Contraseña de Acceso *</Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: scale(13) }]}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Mínimo 6 caracteres"
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                {/* Número de Celular */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>Número de Celular *</Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: scale(13) }]}
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                    placeholder="984 555 123"
+                    returnKeyType="done"
+                  />
+                </View>
+
+                {/* Profesión u Habilidad vecinal */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { fontSize: scale(12) }]}>
+                    Profesión u Oficio / Habilidad Vecinal *
+                  </Text>
+                  <Text style={[styles.inputSubLabel, { fontSize: scale(10) }]}>
+                    Si no tienes un oficio específico, elige la opción de "Apoyo general".
+                  </Text>
+
+                  <View style={styles.skillsSelectorWrap}>
+                    {SKILL_OPTIONS.map((opt, idx) => {
+                      const isSelected = selectedSkill === opt && !customSkill.trim();
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          style={[styles.skillOptionPill, isSelected && styles.skillOptionPillSelected]}
+                          onPress={() => {
+                            setSelectedSkill(opt);
+                            setCustomSkill('');
+                          }}
+                        >
+                          <Text style={[styles.skillOptionText, isSelected && styles.skillOptionTextSelected, { fontSize: scale(11) }]}>
+                            {opt}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Opción de escribir una habilidad personalizada */}
+                  <Text style={[styles.orCustomText, { fontSize: scale(11) }]}>
+                    O escribe otra profesión u ocupación:
+                  </Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: scale(13), marginTop: 4 }]}
+                    placeholder="Ej: Conductor, Cuidador de adultos, etc."
+                    returnKeyType="done"
+                    value={customSkill}
+                    onChangeText={(val) => {
+                      setCustomSkill(val);
+                      if (val.trim()) setSelectedSkill('');
+                    }}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  activeOpacity={0.8}
+                  onPress={() => setStep(3)}
+                >
+                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                    CONTINUAR AL ESCANEO DNI
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* PASO 3: FOTO DEL DNI (FRENTE Y DETRÁS) */}
+            {step === 3 && (
+              <View style={styles.stepCard}>
+                <View style={styles.iconCircle}>
+                  <Text style={{ fontSize: 32 }}>🪪</Text>
+                </View>
+                <Text style={[styles.title, { fontSize: scale(20) }]}>
+                  Foto del DNI (Frente y Reverso)
+                </Text>
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  Por seguridad comunitaria, sube la foto del DNI por ambos lados para verificar que resides en la zona.
+                </Text>
+
+                {/* CONTENEDOR FRENTE DEL DNI */}
+                <View style={styles.dniSideCard}>
+                  <View style={styles.dniSideHeader}>
+                    <Text style={[styles.dniSideTitle, { fontSize: scale(13) }]}>
+                      📸 1. Frente del DNI (Anverso)
+                    </Text>
+                    {dniFrontScanned ? (
+                      <View style={styles.badgeSuccess}>
+                        <Text style={styles.badgeSuccessText}>✓ Capturado</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.badgePendingText}>Pendiente</Text>
+                    )}
+                  </View>
+
+                  <View style={styles.dniPreviewBox}>
+                    {scanningDni === 'front' || scanningDni === 'both' ? (
+                      <View style={styles.scanningWrap}>
+                        <ActivityIndicator size="small" color={COLORS.primary} />
+                        <Text style={[styles.scanningLabel, { fontSize: scale(11) }]}>
+                          Escaneando frente con OCR...
+                        </Text>
+                      </View>
+                    ) : dniFrontScanned ? (
+                      <View style={styles.dniScannedView}>
+                        <Text style={{ fontSize: 26, marginRight: 8 }}>🇵🇪</Text>
+                        <View>
+                          <Text style={[styles.dniDataName, { fontSize: scale(12) }]}>
+                            MARTHA QUISPE MAMANI
+                          </Text>
+                          <Text style={[styles.dniDataNumber, { fontSize: scale(11) }]}>
+                            DNI: ****8921 • Nac: 12/04/1958
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
                       <TouchableOpacity
-                        key={idx}
-                        style={[styles.skillOptionPill, isSelected && styles.skillOptionPillSelected]}
-                        onPress={() => {
-                          setSelectedSkill(opt);
-                          setCustomSkill('');
-                        }}
+                        style={styles.cameraPlaceholder}
+                        onPress={() => handleScanDni('front')}
                       >
-                        <Text style={[styles.skillOptionText, isSelected && styles.skillOptionTextSelected, { fontSize: scale(11) }]}>
-                          {opt}
+                        <Text style={{ fontSize: 28 }}>📷</Text>
+                        <Text style={[styles.cameraText, { fontSize: scale(11) }]}>
+                          Tomar foto al FRENTE del DNI
                         </Text>
                       </TouchableOpacity>
-                    );
-                  })}
+                    )}
+                  </View>
                 </View>
 
-                {/* Opción de escribir una habilidad personalizada */}
-                <Text style={[styles.orCustomText, { fontSize: scale(11) }]}>
-                  O escribe otra profesión u ocupación:
-                </Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13), marginTop: 4 }]}
-                  placeholder="Ej: Conductor, Cuidador de adultos, etc."
-                  value={customSkill}
-                  onChangeText={(val) => {
-                    setCustomSkill(val);
-                    if (val.trim()) setSelectedSkill('');
-                  }}
-                />
-              </View>
+                {/* CONTENEDOR REVERSO DEL DNI */}
+                <View style={styles.dniSideCard}>
+                  <View style={styles.dniSideHeader}>
+                    <Text style={[styles.dniSideTitle, { fontSize: scale(13) }]}>
+                      📸 2. Reverso del DNI (Posterior)
+                    </Text>
+                    {dniBackScanned ? (
+                      <View style={styles.badgeSuccess}>
+                        <Text style={styles.badgeSuccessText}>✓ Capturado</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.badgePendingText}>Pendiente</Text>
+                    )}
+                  </View>
 
-              <TouchableOpacity
-                style={styles.primaryButton}
-                activeOpacity={0.8}
-                onPress={() => setStep(3)}
-              >
-                <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                  CONTINUAR AL ESCANEO DNI
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* PASO 3: FOTO DEL DNI (FRENTE Y DETRÁS) */}
-          {step === 3 && (
-            <View style={styles.stepCard}>
-              <View style={styles.iconCircle}>
-                <Text style={{ fontSize: 32 }}>🪪</Text>
-              </View>
-              <Text style={[styles.title, { fontSize: scale(20) }]}>
-                Foto del DNI (Frente y Reverso)
-              </Text>
-              <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                Por seguridad comunitaria, sube la foto del DNI por ambos lados para verificar que resides en la zona.
-              </Text>
-
-              {/* CONTENEDOR FRENTE DEL DNI */}
-              <View style={styles.dniSideCard}>
-                <View style={styles.dniSideHeader}>
-                  <Text style={[styles.dniSideTitle, { fontSize: scale(13) }]}>
-                    📸 1. Frente del DNI (Anverso)
-                  </Text>
-                  {dniFrontScanned ? (
-                    <View style={styles.badgeSuccess}>
-                      <Text style={styles.badgeSuccessText}>✓ Capturado</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.badgePendingText}>Pendiente</Text>
-                  )}
-                </View>
-
-                <View style={styles.dniPreviewBox}>
-                  {scanningDni === 'front' || scanningDni === 'both' ? (
-                    <View style={styles.scanningWrap}>
-                      <ActivityIndicator size="small" color={COLORS.primary} />
-                      <Text style={[styles.scanningLabel, { fontSize: scale(11) }]}>
-                        Escaneando frente con OCR...
-                      </Text>
-                    </View>
-                  ) : dniFrontScanned ? (
-                    <View style={styles.dniScannedView}>
-                      <Text style={{ fontSize: 26, marginRight: 8 }}>🇵🇪</Text>
-                      <View>
-                        <Text style={[styles.dniDataName, { fontSize: scale(12) }]}>
-                          MARTHA QUISPE MAMANI
-                        </Text>
-                        <Text style={[styles.dniDataNumber, { fontSize: scale(11) }]}>
-                          DNI: ****8921 • Nac: 12/04/1958
+                  <View style={styles.dniPreviewBox}>
+                    {scanningDni === 'back' || scanningDni === 'both' ? (
+                      <View style={styles.scanningWrap}>
+                        <ActivityIndicator size="small" color={COLORS.primary} />
+                        <Text style={[styles.scanningLabel, { fontSize: scale(11) }]}>
+                          Escaneando reverso (Ubigeo & Huella)...
                         </Text>
                       </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.cameraPlaceholder}
-                      onPress={() => handleScanDni('front')}
-                    >
-                      <Text style={{ fontSize: 28 }}>📷</Text>
-                      <Text style={[styles.cameraText, { fontSize: scale(11) }]}>
-                        Tomar foto al FRENTE del DNI
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-
-              {/* CONTENEDOR REVERSO DEL DNI */}
-              <View style={styles.dniSideCard}>
-                <View style={styles.dniSideHeader}>
-                  <Text style={[styles.dniSideTitle, { fontSize: scale(13) }]}>
-                    📸 2. Reverso del DNI (Posterior)
-                  </Text>
-                  {dniBackScanned ? (
-                    <View style={styles.badgeSuccess}>
-                      <Text style={styles.badgeSuccessText}>✓ Capturado</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.badgePendingText}>Pendiente</Text>
-                  )}
-                </View>
-
-                <View style={styles.dniPreviewBox}>
-                  {scanningDni === 'back' || scanningDni === 'both' ? (
-                    <View style={styles.scanningWrap}>
-                      <ActivityIndicator size="small" color={COLORS.primary} />
-                      <Text style={[styles.scanningLabel, { fontSize: scale(11) }]}>
-                        Escaneando reverso (Ubigeo & Huella)...
-                      </Text>
-                    </View>
-                  ) : dniBackScanned ? (
-                    <View style={styles.dniScannedView}>
-                      <Text style={{ fontSize: 26, marginRight: 8 }}>🧬</Text>
-                      <View>
-                        <Text style={[styles.dniDataName, { fontSize: scale(12) }]}>
-                          UBIGEO: 150101 • HUELLA DIGITAL REGISTRADA
-                        </Text>
-                        <Text style={[styles.dniDataNumber, { fontSize: scale(11) }]}>
-                          Código barras validado con RENIEC
-                        </Text>
+                    ) : dniBackScanned ? (
+                      <View style={styles.dniScannedView}>
+                        <Text style={{ fontSize: 26, marginRight: 8 }}>🧬</Text>
+                        <View>
+                          <Text style={[styles.dniDataName, { fontSize: scale(12) }]}>
+                            UBIGEO: 150101 • HUELLA DIGITAL REGISTRADA
+                          </Text>
+                          <Text style={[styles.dniDataNumber, { fontSize: scale(11) }]}>
+                            Código barras validado con RENIEC
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.cameraPlaceholder}
-                      onPress={() => handleScanDni('back')}
-                    >
-                      <Text style={{ fontSize: 28 }}>📷</Text>
-                      <Text style={[styles.cameraText, { fontSize: scale(11) }]}>
-                        Tomar foto al REVERSO del DNI
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.cameraPlaceholder}
+                        onPress={() => handleScanDni('back')}
+                      >
+                        <Text style={{ fontSize: 28 }}>📷</Text>
+                        <Text style={[styles.cameraText, { fontSize: scale(11) }]}>
+                          Tomar foto al REVERSO del DNI
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-              </View>
 
-              {/* Botón rápido para capturar ambos lados si no se hizo individualmente */}
-              {(!dniFrontScanned || !dniBackScanned) && (
+                {/* Botón rápido para capturar ambos lados si no se hizo individualmente */}
+                {(!dniFrontScanned || !dniBackScanned) && (
+                  <TouchableOpacity
+                    style={styles.scanBothButton}
+                    onPress={handleScanBothDni}
+                  >
+                    <Text style={[styles.scanBothButtonText, { fontSize: scale(13) }]}>
+                      ⚡ Simular Escaneo Automático de Ambos Lados
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
-                  style={styles.scanBothButton}
-                  onPress={handleScanBothDni}
+                  style={[
+                    styles.primaryButton,
+                    (!dniFrontScanned || !dniBackScanned) && { opacity: 0.5 }
+                  ]}
+                  disabled={!dniFrontScanned || !dniBackScanned}
+                  activeOpacity={0.8}
+                  onPress={() => setStep(4)}
                 >
-                  <Text style={[styles.scanBothButtonText, { fontSize: scale(13) }]}>
-                    ⚡ Simular Escaneo Automático de Ambos Lados
+                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                    CONTINUAR A BIOMETRÍA
                   </Text>
                 </TouchableOpacity>
-              )}
+              </View>
+            )}
 
-              <TouchableOpacity
-                style={[
-                  styles.primaryButton,
-                  (!dniFrontScanned || !dniBackScanned) && { opacity: 0.5 }
-                ]}
-                disabled={!dniFrontScanned || !dniBackScanned}
-                activeOpacity={0.8}
-                onPress={() => setStep(4)}
-              >
-                <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                  CONTINUAR A BIOMETRÍA
+            {/* PASO 4: BIOMETRÍA FACIAL (PRUEBA DE VIDA) */}
+            {step === 4 && (
+              <View style={styles.stepCard}>
+                <View style={styles.iconCircle}>
+                  <Text style={{ fontSize: 32 }}>👤</Text>
+                </View>
+                <Text style={[styles.title, { fontSize: scale(20) }]}>
+                  Biometría Facial
                 </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* PASO 4: BIOMETRÍA FACIAL (PRUEBA DE VIDA) */}
-          {step === 4 && (
-            <View style={styles.stepCard}>
-              <View style={styles.iconCircle}>
-                <Text style={{ fontSize: 32 }}>👤</Text>
-              </View>
-              <Text style={[styles.title, { fontSize: scale(20) }]}>
-                Biometría Facial
-              </Text>
-              <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                Prueba de vida (Liveness check) para asegurar que la persona del DNI eres tú.
-              </Text>
-
-              <View style={styles.faceOvalBox}>
-                {scanningFace ? (
-                  <View style={styles.scanningWrap}>
-                    <ActivityIndicator size="large" color={COLORS.primary} />
-                    <Text style={[styles.scanningLabel, { fontSize: scale(12) }]}>
-                      Validando rostro con RENIEC...
-                    </Text>
-                  </View>
-                ) : faceScanned ? (
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 52 }}>✅</Text>
-                    <Text style={[styles.faceSuccessText, { fontSize: scale(12) }]}>
-                      ¡Coincidencia Biométrica 99.4%!
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 62 }}>👵</Text>
-                    <Text style={[styles.faceHintText, { fontSize: scale(11) }]}>
-                      Mira a la cámara y parpadea
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <TouchableOpacity
-                style={[styles.primaryButton, scanningFace && { opacity: 0.6 }]}
-                disabled={scanningFace}
-                activeOpacity={0.8}
-                onPress={handleScanFace}
-              >
-                <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
-                  {scanningFace ? 'ESCANEANDO...' : '🤳 ESCANEAR ROSTRO'}
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  Prueba de vida (Liveness check) para asegurar que la persona del DNI eres tú.
                 </Text>
-              </TouchableOpacity>
-            </View>
-          )}
 
-          {/* PASO 5: UBICACIÓN GPS Y CONFIRMACIÓN / CORRECCIÓN */}
-          {step === 5 && (
-            <View style={styles.stepCard}>
-              <View style={styles.iconCircle}>
-                <Text style={{ fontSize: 32 }}>📍</Text>
-              </View>
-              <Text style={[styles.title, { fontSize: scale(20) }]}>
-                Confirmación de Dirección
-              </Text>
-              <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                La aplicación móvil solicita permiso GPS para ubicarte dentro del cuadrante comunal seguro.
-              </Text>
-
-              <View style={styles.mapSimulationBox}>
-                <Text style={{ fontSize: 36, marginBottom: 6 }}>🗺️</Text>
-                
-                <View style={styles.gpsDetectedBadge}>
-                  <Text style={[styles.gpsBadgeText, { fontSize: scale(11) }]}>
-                    📍 Ubicación Detectada por GPS
-                  </Text>
+                <View style={styles.faceOvalBox}>
+                  {scanningFace ? (
+                    <View style={styles.scanningWrap}>
+                      <ActivityIndicator size="large" color={COLORS.primary} />
+                      <Text style={[styles.scanningLabel, { fontSize: scale(12) }]}>
+                        Validando rostro con RENIEC...
+                      </Text>
+                    </View>
+                  ) : faceScanned ? (
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 52 }}>✅</Text>
+                      <Text style={[styles.faceSuccessText, { fontSize: scale(12) }]}>
+                        ¡Coincidencia Biométrica 99.4%!
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 62 }}>👵</Text>
+                      <Text style={[styles.faceHintText, { fontSize: scale(11) }]}>
+                        Mira a la cámara y parpadea
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
+                <TouchableOpacity
+                  style={[styles.primaryButton, scanningFace && { opacity: 0.6 }]}
+                  disabled={scanningFace}
+                  activeOpacity={0.8}
+                  onPress={handleScanFace}
+                >
+                  <Text style={[styles.primaryButtonText, { fontSize: scale(15) }]}>
+                    {scanningFace ? 'ESCANEANDO...' : '🤳 ESCANEAR ROSTRO'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* PASO 5: UBICACIÓN GPS Y CONFIRMACIÓN / CORRECCIÓN */}
+            {step === 5 && (
+              <View style={styles.stepCard}>
+                <View style={styles.iconCircle}>
+                  <Text style={{ fontSize: 32 }}>📍</Text>
+                </View>
+                <Text style={[styles.title, { fontSize: scale(20) }]}>
+                  Confirmación de Dirección
+                </Text>
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  La aplicación móvil solicita permiso GPS para ubicarte dentro del cuadrante comunal seguro.
+                </Text>
+
+                <View style={styles.mapSimulationBox}>
+                  <Text style={{ fontSize: 36, marginBottom: 6 }}>🗺️</Text>
+
+                  <View style={styles.gpsDetectedBadge}>
+                    <Text style={[styles.gpsBadgeText, { fontSize: scale(11) }]}>
+                      📍 Ubicación Detectada por GPS
+                    </Text>
+                  </View>
+
+                  {!isEditingAddress ? (
+                    <View style={styles.addressDisplayBox}>
+                      <Text style={[styles.addressTextPrimary, { fontSize: scale(13) }]}>
+                        {detectedAddress}
+                      </Text>
+                      <Text style={[styles.addressTextSecondary, { fontSize: scale(11) }]}>
+                        {detectedZone}
+                      </Text>
+                      <Text style={[styles.gpsAccuracyText, { fontSize: scale(10) }]}>
+                        Precisión: ±3 metros • Permiso GPS Concedido
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.editAddressForm}>
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Dirección de tu casa:</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
+                        value={detectedAddress}
+                        onChangeText={setDetectedAddress}
+                        placeholder="Calle / Jirón y Número"
+                      />
+
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Zona y Manzana:</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12) }]}
+                        value={detectedZone}
+                        onChangeText={setDetectedZone}
+                        placeholder="Ej: Zona A - Manzana 2"
+                      />
+                    </View>
+                  )}
+                </View>
+
+                {/* Botón si es o no es su dirección */}
                 {!isEditingAddress ? (
-                  <View style={styles.addressDisplayBox}>
-                    <Text style={[styles.addressTextPrimary, { fontSize: scale(13) }]}>
-                      {detectedAddress}
-                    </Text>
-                    <Text style={[styles.addressTextSecondary, { fontSize: scale(11) }]}>
-                      {detectedZone}
-                    </Text>
-                    <Text style={[styles.gpsAccuracyText, { fontSize: scale(10) }]}>
-                      Precisión: ±3 metros • Permiso GPS Concedido
-                    </Text>
+                  <View style={styles.addressActionButtons}>
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setAddressConfirmed(true);
+                        setStep(6);
+                      }}
+                    >
+                      <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
+                        ✅ SÍ, ES MI DIRECCIÓN
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.editAddressButton}
+                      activeOpacity={0.8}
+                      onPress={() => setIsEditingAddress(true)}
+                    >
+                      <Text style={[styles.editAddressButtonText, { fontSize: scale(13) }]}>
+                        ✏️ No es mi dirección / Corregir manualmente
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
-                  <View style={styles.editAddressForm}>
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Dirección de tu casa:</Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
-                      value={detectedAddress}
-                      onChangeText={setDetectedAddress}
-                      placeholder="Calle / Jirón y Número"
-                    />
-
-                    <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Zona y Manzana:</Text>
-                    <TextInput
-                      style={[styles.input, { fontSize: scale(12) }]}
-                      value={detectedZone}
-                      onChangeText={setDetectedZone}
-                      placeholder="Ej: Zona A - Manzana 2"
-                    />
+                  <View style={styles.addressActionButtons}>
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setIsEditingAddress(false);
+                        setAddressConfirmed(true);
+                        setStep(6);
+                      }}
+                    >
+                      <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
+                        💾 GUARDAR Y CONFIRMAR DIRECCIÓN
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
+            )}
 
-              {/* Botón si es o no es su dirección */}
-              {!isEditingAddress ? (
-                <View style={styles.addressActionButtons}>
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      setAddressConfirmed(true);
-                      setStep(6);
-                    }}
-                  >
-                    <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
-                      ✅ SÍ, ES MI DIRECCIÓN
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.editAddressButton}
-                    activeOpacity={0.8}
-                    onPress={() => setIsEditingAddress(true)}
-                  >
-                    <Text style={[styles.editAddressButtonText, { fontSize: scale(13) }]}>
-                      ✏️ No es mi dirección / Corregir manualmente
-                    </Text>
-                  </TouchableOpacity>
+            {/* PASO 6: IDENTIDAD VERIFICADA & TAMAÑO DE FUENTE SENIOR */}
+            {step === 6 && (
+              <View style={styles.stepCard}>
+                <View style={[styles.iconCircleBig, { backgroundColor: COLORS.primarySurface }]}>
+                  <Text style={{ fontSize: 44 }}>🛡️</Text>
                 </View>
-              ) : (
-                <View style={styles.addressActionButtons}>
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      setIsEditingAddress(false);
-                      setAddressConfirmed(true);
-                      setStep(6);
-                    }}
-                  >
-                    <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
-                      💾 GUARDAR Y CONFIRMAR DIRECCIÓN
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* PASO 6: IDENTIDAD VERIFICADA & TAMAÑO DE FUENTE SENIOR */}
-          {step === 6 && (
-            <View style={styles.stepCard}>
-              <View style={[styles.iconCircleBig, { backgroundColor: COLORS.primarySurface }]}>
-                <Text style={{ fontSize: 44 }}>🛡️</Text>
-              </View>
-              <Text style={[styles.title, { fontSize: scale(22), color: COLORS.primaryDark }]}>
-                ¡Registro Completado!
-              </Text>
-              <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
-                Tus datos quedaron guardados en tu dispositivo y protegidos en la base de datos de VeciRed.
-              </Text>
-
-              {submitError ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>⚠️ {submitError}</Text>
-                </View>
-              ) : null}
-
-              {/* Ficha Resumen de Identidad */}
-              <View style={styles.summaryCard}>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>👤 Vecino:</Text>
-                  <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{name}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>✉️ Correo:</Text>
-                  <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{email}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>📞 Celular:</Text>
-                  <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{phone}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>💼 Habilidad:</Text>
-                  <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
-                    {customSkill.trim() || selectedSkill}
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>🪪 DNI:</Text>
-                  <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
-                    ✓ Verificado con Foto (Frente y Reverso)
-                  </Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>📍 Domicilio:</Text>
-                  <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
-                    {detectedAddress} ({detectedZone})
-                  </Text>
-                </View>
-              </View>
-
-              {/* Selector de Accesibilidad Senior */}
-              <View style={styles.seniorSelectorBox}>
-                <Text style={[styles.seniorTitle, { fontSize: scale(12) }]}>
-                  👁️ Elige tu tamaño de letra preferido (Accesibilidad):
+                <Text style={[styles.title, { fontSize: scale(22), color: COLORS.primaryDark }]}>
+                  ¡Registro Completado!
                 </Text>
-                <View style={styles.seniorButtonsRow}>
-                  <TouchableOpacity
-                    onPress={() => setFontScale(1.0)}
-                    style={[styles.seniorBtn, fontScale === 1.0 && styles.seniorBtnActive]}
-                  >
-                    <Text style={[styles.seniorBtnText, fontScale === 1.0 && styles.seniorBtnTextActive]}>
-                      A Normal
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setFontScale(1.15)}
-                    style={[styles.seniorBtn, fontScale === 1.15 && styles.seniorBtnActive]}
-                  >
-                    <Text style={[styles.seniorBtnText, fontScale === 1.15 && styles.seniorBtnTextActive]}>
-                      A+ Grande
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setFontScale(1.30)}
-                    style={[styles.seniorBtn, fontScale === 1.30 && styles.seniorBtnActive]}
-                  >
-                    <Text style={[styles.seniorBtnText, fontScale === 1.30 && styles.seniorBtnTextActive]}>
-                      A++ Senior
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                <Text style={[styles.subtitle, { fontSize: scale(13) }]}>
+                  Tus datos quedaron guardados en tu dispositivo y protegidos en la base de datos de VeciRed.
+                </Text>
 
-              <TouchableOpacity
-                style={[styles.enterAppButton, isSubmitting && { opacity: 0.7 }]}
-                activeOpacity={0.8}
-                disabled={isSubmitting}
-                onPress={handleCompleteRegistration}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator color={COLORS.white} size="small" />
-                ) : (
-                  <Text style={[styles.enterAppButtonText, { fontSize: scale(16) }]}>
-                    🚀 ENTRAR A LA APLICACIÓN
+                {submitError ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>⚠️ {submitError}</Text>
+                  </View>
+                ) : null}
+
+                {/* Ficha Resumen de Identidad */}
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>👤 Vecino:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{name}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>✉️ Correo:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{email}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>📞 Celular:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>{phone}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>💼 Habilidad:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {customSkill.trim() || selectedSkill}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>🪪 DNI:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      ✓ Verificado con Foto (Frente y Reverso)
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>📍 Domicilio:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {detectedAddress} ({detectedZone})
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Selector de Accesibilidad Senior */}
+                <View style={styles.seniorSelectorBox}>
+                  <Text style={[styles.seniorTitle, { fontSize: scale(12) }]}>
+                    👁️ Elige tu tamaño de letra preferido (Accesibilidad):
                   </Text>
-                )}
+                  <View style={styles.seniorButtonsRow}>
+                    <TouchableOpacity
+                      onPress={() => setFontScale(1.0)}
+                      style={[styles.seniorBtn, fontScale === 1.0 && styles.seniorBtnActive]}
+                    >
+                      <Text style={[styles.seniorBtnText, fontScale === 1.0 && styles.seniorBtnTextActive]}>
+                        A Normal
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setFontScale(1.15)}
+                      style={[styles.seniorBtn, fontScale === 1.15 && styles.seniorBtnActive]}
+                    >
+                      <Text style={[styles.seniorBtnText, fontScale === 1.15 && styles.seniorBtnTextActive]}>
+                        A+ Grande
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setFontScale(1.30)}
+                      style={[styles.seniorBtn, fontScale === 1.30 && styles.seniorBtnActive]}
+                    >
+                      <Text style={[styles.seniorBtnText, fontScale === 1.30 && styles.seniorBtnTextActive]}>
+                        A++ Senior
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.enterAppButton, isSubmitting && { opacity: 0.7 }]}
+                  activeOpacity={0.8}
+                  disabled={isSubmitting}
+                  onPress={handleCompleteRegistration}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Text style={[styles.enterAppButtonText, { fontSize: scale(16) }]}>
+                      🚀 ENTRAR A LA APLICACIÓN
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+          </ScrollView>
+
+          {/* Barra accesoria flotante para cerrar teclado de 1 toque */}
+          {keyboardHeight > 0 && (
+            <View style={styles.keyboardToolbar}>
+              <Text style={[styles.keyboardToolbarHint, { fontSize: scale(11) }]}>
+                ⌨️ Teclado activo • Desliza o toca para cerrar
+              </Text>
+              <TouchableOpacity
+                style={styles.keyboardCloseBtn}
+                onPress={() => Keyboard.dismiss()}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.keyboardCloseBtnText}>✓ Listo / Ocultar</Text>
               </TouchableOpacity>
             </View>
           )}
-
-        </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </SafeAreaView>
   );
@@ -811,11 +866,15 @@ export default function OnboardingScreen({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.white
+    backgroundColor: COLORS.white,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background
+    backgroundColor: COLORS.background,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center'
   },
   headerProgress: {
     paddingHorizontal: 20,
@@ -1234,16 +1293,33 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '900'
   },
-  errorBox: {
-    backgroundColor: '#fee2e2',
-    padding: 10,
-    borderRadius: 8,
-    width: '100%',
-    marginBottom: 10
+  keyboardToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4
   },
-  errorText: {
-    color: '#b91c1c',
-    fontSize: 12,
+  keyboardToolbarHint: {
+    color: COLORS.textMuted,
     fontWeight: '600'
+  },
+  keyboardCloseBtn: {
+    backgroundColor: COLORS.primaryDark,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8
+  },
+  keyboardCloseBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 12
   }
 });

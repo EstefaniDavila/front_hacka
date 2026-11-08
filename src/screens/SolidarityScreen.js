@@ -103,8 +103,8 @@ export default function SolidarityScreen({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+
       {/* Cabecera en VERDE AZULADO (Teal) unificada con el resto de la app */}
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
@@ -271,7 +271,7 @@ export default function SolidarityScreen({
                 {post.author_name} • {post.block_code}
               </Text>
             </View>
-            
+
             <View style={styles.wantHelpBtn}>
               <Text style={[styles.wantHelpBtnText, { fontSize: scale(11) }]}>
                 🤝 Quiero ayudar
@@ -325,7 +325,7 @@ export default function SolidarityScreen({
                 <Text style={[styles.modalPostDesc, { fontSize: scale(13) }]}>
                   "{selectedPost.description}"
                 </Text>
-                
+
                 <View style={styles.detailLocationBox}>
                   <Text style={[styles.detailLocItem, { fontSize: scale(11) }]}>
                     📍 {selectedPost.block_code}
@@ -412,8 +412,7 @@ export default function SolidarityScreen({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ paddingBottom: 60 }} style={{ maxHeight: 520, padding: 16 }}>
               {/* Selector de Tipo de Publicación */}
               <Text style={[styles.formLabel, { fontSize: scale(12) }]}>Tipo de ayuda:</Text>
               <View style={styles.typeSelectorGrid}>

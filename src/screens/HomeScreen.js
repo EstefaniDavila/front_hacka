@@ -51,7 +51,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
       
       {/* Header Héroe Verde Azulado (Teal) */}
       <View style={styles.heroCard}>

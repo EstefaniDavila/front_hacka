@@ -447,7 +447,8 @@ import {
   Text,
   SafeAreaView,
   StatusBar,
-  TouchableOpacity
+  TouchableOpacity,
+  Platform
 } from 'react-native';
 import { COLORS } from './src/theme/colors';
 
@@ -533,60 +534,62 @@ export default function App() {
 
       <View style={styles.container}>
         
-        {/* Cabecera Principal de la App (VeciRed IA) */}
-        <View style={styles.appHeader}>
-          <View style={styles.appHeaderLeft}>
-            <View style={styles.appLogoCircle}>
-              <Text style={{ fontSize: 18 }}>🏘️</Text>
-            </View>
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={[styles.appBrandText, { fontSize: scale(15) }]}>
-                  VeciRed
-                </Text>
-                <Text style={[styles.appBrandIa, { fontSize: scale(15) }]}>
-                  {' '}IA
+        {/* Cabecera Principal de la App (VeciRed IA) - Se oculta en Chat y Detalle para evitar doble barra */}
+        {currentTab !== 'chat' && currentTab !== 'detail' && (
+          <View style={styles.appHeader}>
+            <View style={styles.appHeaderLeft}>
+              <View style={styles.appLogoCircle}>
+                <Text style={{ fontSize: 18 }}>🏘️</Text>
+              </View>
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={[styles.appBrandText, { fontSize: scale(15) }]}>
+                    VeciRed
+                  </Text>
+                  <Text style={[styles.appBrandIa, { fontSize: scale(15) }]}>
+                    {' '}IA
+                  </Text>
+                </View>
+                <Text style={[styles.appLocationText, { fontSize: scale(10) }]}>
+                  📍 Mi comunidad • Zona A
                 </Text>
               </View>
-              <Text style={[styles.appLocationText, { fontSize: scale(10) }]}>
-                📍 Mi comunidad • Zona A
-              </Text>
+            </View>
+
+            <View style={styles.appHeaderRight}>
+              {/* Botón de Chat Comunitario con Indicador de mensajes */}
+              <TouchableOpacity
+                style={[styles.headerIconButton, currentTab === 'chat' && styles.headerIconActive]}
+                onPress={() => {
+                  setActiveChatContact(null);
+                  handleNavigate(currentTab === 'chat' ? previousTab : 'chat');
+                }}
+              >
+                <Text style={{ fontSize: 18 }}>💬</Text>
+                <View style={styles.chatBadge}>
+                  <Text style={styles.chatBadgeText}>2</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Campana de Notificaciones con Punto Rojo (Emergencias) */}
+              <TouchableOpacity
+                style={styles.headerIconButton}
+                onPress={() => handleNavigate('emergency')}
+              >
+                <Text style={{ fontSize: 18 }}>🔔</Text>
+                <View style={styles.bellRedDot} />
+              </TouchableOpacity>
+
+              {/* Avatar del Usuario -> Perfil */}
+              <TouchableOpacity
+                style={[styles.avatarButton, currentTab === 'profile' && styles.avatarButtonActive]}
+                onPress={() => handleNavigate('profile')}
+              >
+                <Text style={{ fontSize: 18 }}>👵</Text>
+              </TouchableOpacity>
             </View>
           </View>
-
-          <View style={styles.appHeaderRight}>
-            {/* Botón de Chat Comunitario con Indicador de mensajes */}
-            <TouchableOpacity
-              style={[styles.headerIconButton, currentTab === 'chat' && styles.headerIconActive]}
-              onPress={() => {
-                setActiveChatContact(null);
-                handleNavigate(currentTab === 'chat' ? previousTab : 'chat');
-              }}
-            >
-              <Text style={{ fontSize: 18 }}>💬</Text>
-              <View style={styles.chatBadge}>
-                <Text style={styles.chatBadgeText}>2</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Campana de Notificaciones con Punto Rojo (Emergencias) */}
-            <TouchableOpacity
-              style={styles.headerIconButton}
-              onPress={() => handleNavigate('emergency')}
-            >
-              <Text style={{ fontSize: 18 }}>🔔</Text>
-              <View style={styles.bellRedDot} />
-            </TouchableOpacity>
-
-            {/* Avatar del Usuario -> Perfil */}
-            <TouchableOpacity
-              style={[styles.avatarButton, currentTab === 'profile' && styles.avatarButtonActive]}
-              onPress={() => handleNavigate('profile')}
-            >
-              <Text style={{ fontSize: 18 }}>👵</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        )}
 
         {/* Barra de Alerta Permanente en Rojo (salvo en chat o detalle) */}
         {currentTab !== 'chat' && currentTab !== 'detail' && (
@@ -705,14 +708,20 @@ export default function App() {
   );
 }
 
+const STATUSBAR_HEIGHT = Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0;
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.white
+    backgroundColor: COLORS.white,
+    paddingTop: STATUSBAR_HEIGHT
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background
+    backgroundColor: COLORS.background,
+    width: '100%',
+    maxWidth: 600, // Adaptación a tablets y pantallas anchas: centrado limpio estilo app móvil
+    alignSelf: 'center'
   },
   appHeader: {
     flexDirection: 'row',
