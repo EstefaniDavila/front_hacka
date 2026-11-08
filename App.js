@@ -75,7 +75,7 @@ class ScreenErrorBoundary extends React.Component {
 }
 
 function MainApp() {
-  const { profile, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, profile, isAuthenticated, isLoading, logout, updateUserProfile } = useAuth();
 
   // Control de sesión adicional para permitir alternar entre pantallas
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -135,26 +135,56 @@ function MainApp() {
     setUserProfile((prev) => {
       const merged = { ...prev, ...updated };
       customStorage.setItem('vecired_user_profile', JSON.stringify(merged)).catch(() => {});
+      if (user?.id) {
+        customStorage.setItem('vecired_user_profile_' + user.id, JSON.stringify(merged)).catch(() => {});
+      }
+      if (user?.email) {
+        customStorage.setItem('vecired_user_profile_' + user.email, JSON.stringify(merged)).catch(() => {});
+      }
       return merged;
     });
+
+    if (updateUserProfile) {
+      try {
+        await updateUserProfile(updated);
+      } catch (err) {
+        console.warn('Error en updateUserProfile:', err);
+      }
+    }
   };
 
-  // Sincronizar datos si el backend retorna un perfil real autenticado
+  // Sincronizar datos si el backend retorna un perfil real o si el usuario inicia/cierra sesión
   useEffect(() => {
-    if (profile) {
-      setUserProfile((prev) => ({
-        ...prev,
-        name: profile.full_name || prev.name,
-        phone: profile.phone || prev.phone,
-        skill: profile.skill || prev.skill,
-        address: profile.address || prev.address
-      }));
-      if (profile.font_scale_preference) {
+    async function restoreProfileOnAuth() {
+      let localData = null;
+      try {
+        const key = user?.id
+          ? 'vecired_user_profile_' + user.id
+          : user?.email
+          ? 'vecired_user_profile_' + user.email
+          : 'vecired_user_profile';
+        const raw = (await customStorage.getItem(key)) || (await customStorage.getItem('vecired_user_profile'));
+        if (raw) localData = JSON.parse(raw);
+      } catch {}
+
+      if (profile || localData) {
+        setUserProfile((prev) => ({
+          ...prev,
+          name: localData?.name || profile?.full_name || prev.name,
+          phone: localData?.phone || profile?.phone || prev.phone,
+          skill: localData?.skill || profile?.skill || prev.skill,
+          address: localData?.address || profile?.address || prev.address,
+          avatar: localData?.avatar || profile?.avatar_url || prev.avatar
+        }));
+      }
+
+      if (profile?.font_scale_preference) {
         const val = parseFloat(profile.font_scale_preference);
         if (!isNaN(val)) setFontScale(val);
       }
     }
-  }, [profile]);
+    restoreProfileOnAuth();
+  }, [user, profile]);
 
   const scale = (val) => Math.round(val * fontScale);
 

@@ -10,6 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { customStorage } from '../services/supabase';
 
 export default function ProfileScreen({
   fontScale = 1.0,
@@ -49,7 +50,7 @@ export default function ProfileScreen({
 
   const avatarOptions = ['👤', '👵', '👨‍🔧', '👩‍⚕️', '👨‍🏫', '👩‍🍳', '👷', '🧑‍💻'];
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!editName.trim()) {
       Alert.alert('Campo obligatorio', 'Por favor ingresa tu nombre completo.');
       return;
@@ -61,6 +62,9 @@ export default function ProfileScreen({
       address: editAddress.trim(),
       avatar: editAvatar
     };
+    try {
+      await customStorage.setItem('vecired_user_profile', JSON.stringify(updated));
+    } catch {}
     if (onSaveProfile) {
       onSaveProfile(updated);
     }

@@ -15,7 +15,7 @@ import { COLORS } from '../theme/colors';
 import { customStorage } from '../services/supabase';
 import { api } from '../services/api';
 
-const CHATS_STORAGE_KEY = 'vecired_conversations_v3';
+const CHATS_STORAGE_KEY = 'vecired_conversations_v5';
 
 export default function ChatScreen({
   fontScale = 1.0,
@@ -31,6 +31,7 @@ export default function ChatScreen({
   const [conversations, setConversations] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [inputText, setInputText] = useState('');
+  const [sendingAs, setSendingAs] = useState('me'); // 'me' = Andy (Tú) | 'them' = Vecino que te escribió
   const [isTyping, setIsTyping] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const scrollViewRef = useRef(null);
@@ -43,8 +44,34 @@ export default function ChatScreen({
     'Muchas gracias vecino 🙏'
   ];
 
-  // Semillas por defecto con vecinos reales de la comunidad (Matías Aponte y Rosa Flores)
+  // Conversaciones iniciales comunitarias (Imanol Montes, Matías Aponte y Rosa Flores)
   const getDefaultSeedConversations = () => [
+    {
+      id: 'chat-imanol-montes',
+      name: 'Imanol Montes',
+      avatar: '🧑‍💼',
+      badge: 'Vecino Verificado',
+      zone: 'Zona A • Mz 2 (Lote 8)',
+      topic: 'Reparación de computadoras',
+      lastMessage: 'Hola Andy, vi tu publicación en el barrio. ¿Podrías apoyarme con la revisión de una laptop?',
+      time: '11:16 AM',
+      unread: 1,
+      phone: '912345678',
+      messages: [
+        {
+          id: 'msg-imanol-1',
+          sender: 'them',
+          text: '¡Hola Andy! Te escribo desde mi cuenta de vecino.',
+          time: '11:15 AM'
+        },
+        {
+          id: 'msg-imanol-2',
+          sender: 'them',
+          text: 'Vi que publicaste sobre reparación de computadoras. Tengo una laptop que no enciende la pantalla, ¿podrías apoyarme con una revisión?',
+          time: '11:16 AM'
+        }
+      ]
+    },
     {
       id: 'chat-matias-aponte',
       name: 'Matías Aponte',
@@ -54,7 +81,7 @@ export default function ChatScreen({
       topic: 'Albañilería y Pintura',
       lastMessage: '¡Listo vecino! Mañana a las 9:00 AM paso por tu casa a revisar el trabajo 🛠️',
       time: '10:45 AM',
-      unread: 1,
+      unread: 0,
       phone: '987654321',
       messages: [
         {
@@ -89,7 +116,7 @@ export default function ChatScreen({
       avatar: '👩‍🍳',
       badge: 'Vecina de Confianza',
       zone: 'Zona A • Mz 4',
-      topic: 'Reparación de computadoras',
+      topic: 'Consulta de Mantenimiento',
       lastMessage: 'Hola Andy, ¿puedes revisar mi laptop más tarde por favor?',
       time: 'Ayer',
       unread: 0,
@@ -111,7 +138,7 @@ export default function ChatScreen({
     }
   ];
 
-  // 1. Cargar y sanear conversaciones del storage
+  // 1. Cargar y sanear conversaciones del storage asegurando a Imanol Montes
   useEffect(() => {
     let mounted = true;
 
@@ -122,7 +149,7 @@ export default function ChatScreen({
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            // Filtrar cualquier conversación donde el interlocutor sea el mismo usuario actual
+            // Filtrar cualquier auto-chat donde el interlocutor sea el mismo usuario actual
             list = parsed.filter(
               (c) => c && c.name && c.name.trim().toLowerCase() !== currentUserName.toLowerCase()
             );
@@ -132,15 +159,23 @@ export default function ChatScreen({
         console.warn('[ChatScreen] Error leyendo storage de chats:', e);
       }
 
-      // Si no hay conversaciones guardadas o quedaron vacías tras filtrar auto-chats, sembrar vecinos
+      // Si la lista está vacía, sembrar las 3 conversaciones por defecto
       if (list.length === 0) {
         list = getDefaultSeedConversations();
-        try {
-          await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(list));
-        } catch {}
       }
 
-      // 2. Si se solicitó abrir chat con un contacto específico (desde Servicios, Perfil o Muro)
+      // Asegurar que Imanol Montes SIEMPRE esté en la lista
+      const hasImanol = list.some((c) => c && c.name && c.name.toLowerCase().includes('imanol'));
+      if (!hasImanol) {
+        const imanolDefault = getDefaultSeedConversations()[0];
+        list.unshift(imanolDefault);
+      }
+
+      try {
+        await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(list));
+      } catch {}
+
+      // 2. Si se solicitó abrir chat con un contacto específico (desde Servicios o Muro)
       if (initialContact && initialContact.name) {
         const contactName = initialContact.name.trim();
 
@@ -213,106 +248,132 @@ export default function ChatScreen({
     };
   }, [initialContact, currentUserName]);
 
-  // Generador inteligente de respuestas del vecino según contexto del mensaje
-  const generateNeighborResponse = (userText, neighborName) => {
+  // Generador inteligente de respuestas en tiempo real según el vecino y el texto enviado
+  const generateNeighborResponse = (userText, neighbor) => {
     const lower = userText.toLowerCase();
+    const neighborName = neighbor?.name || 'Vecino';
+    const isImanol = neighborName.toLowerCase().includes('imanol');
+    const isMatias = neighborName.toLowerCase().includes('mat');
 
-    if (
-      lower.includes('hora') ||
-      lower.includes('cuando') ||
-      lower.includes('cuándo') ||
-      lower.includes('acomoda') ||
-      lower.includes('tiempo') ||
-      lower.includes('hoy') ||
-      lower.includes('mañana') ||
-      lower.includes('tarde')
-    ) {
-      return `¡Hola vecino! Me acomoda hoy a partir de las 4:30 PM o mañana por la mañana a las 9:00 AM. ¿A qué hora te viene mejor para pasar? ⏰`;
+    if (isImanol) {
+      if (
+        lower.includes('hora') ||
+        lower.includes('cuando') ||
+        lower.includes('cuándo') ||
+        lower.includes('hoy') ||
+        lower.includes('mañana') ||
+        lower.includes('tarde') ||
+        lower.includes('puedo') ||
+        lower.includes('5') ||
+        lower.includes('4') ||
+        lower.includes('acomoda')
+      ) {
+        return `¡Excelente Andy! A esa hora te espero en mi casa (Mz 2 Lote 8). Es la casa de reja blanca frente a la losa. ¿Traes tus herramientas o necesitas que te tenga algo listo? ⏰`;
+      }
+
+      if (
+        lower.includes('marca') ||
+        lower.includes('modelo') ||
+        lower.includes('pantalla') ||
+        lower.includes('enciende') ||
+        lower.includes('luz') ||
+        lower.includes('cargador') ||
+        lower.includes('problema') ||
+        lower.includes('laptop') ||
+        lower.includes('pc')
+      ) {
+        return `Es una Lenovo ThinkPad. Al conectarla prenden las luces del teclado pero la pantalla se queda totalmente en negro. Ojalá tenga solución vecina, la uso para trabajar 💻`;
+      }
+
+      if (
+        lower.includes('precio') ||
+        lower.includes('cuánto') ||
+        lower.includes('cuanto') ||
+        lower.includes('costo') ||
+        lower.includes('cobras') ||
+        lower.includes('soles') ||
+        lower.includes('s/') ||
+        lower.includes('presupuesto')
+      ) {
+        return `Me parece muy razonable ese precio Andy. La confianza entre vecinos vale mucho. Con gusto te lo cancelo por Yape penas lo revises 🤝`;
+      }
+
+      if (
+        lower.includes('voy') ||
+        lower.includes('camino') ||
+        lower.includes('llegando') ||
+        lower.includes('donde') ||
+        lower.includes('dónde') ||
+        lower.includes('dirección') ||
+        lower.includes('direccion')
+      ) {
+        return `¡Listo Andy, ya te estoy esperando en la puerta! Mi casa tiene portón blanco. Cualquier cosa me timbras directamente 📞`;
+      }
+
+      if (
+        lower.includes('gracias') ||
+        lower.includes('apoyo') ||
+        lower.includes('cuenta conmigo') ||
+        lower.includes('dale') ||
+        lower.includes('listo') ||
+        lower.includes('perfecto')
+      ) {
+        return `¡Muchas gracias a ti Andy! En la comunidad nos da mucha tranquilidad contar con tu apoyo para estos servicios 👍`;
+      }
+
+      return `¡Entendido Andy! Quedo a la espera de tu confirmación. Avísame cualquier detalle por aquí para coordinar.`;
     }
 
-    if (
-      lower.includes('precio') ||
-      lower.includes('cuánto') ||
-      lower.includes('cuanto') ||
-      lower.includes('costo') ||
-      lower.includes('cobras') ||
-      lower.includes('soles') ||
-      lower.includes('s/')
-    ) {
-      return `El precio es el indicado en la publicación vecinal. Incluye la revisión y la garantía comunitaria de confianza 🤝`;
+    if (isMatias) {
+      if (lower.includes('hora') || lower.includes('cuando') || lower.includes('tiempo')) {
+        return `¡Listo vecino! Mañana a primera hora a las 9:00 AM paso por tu casa a revisar la pared y llevar la pintura 🛠️`;
+      }
+      if (lower.includes('precio') || lower.includes('costo') || lower.includes('cuanto')) {
+        return `El precio referencial es el publicado e incluye resane y mano de obra vecinal de garantía 🤝`;
+      }
+      return `¡Conforme vecino! Cualquier novedad me timbras al teléfono y pasamos a revisar la obra 👍`;
     }
 
-    if (
-      lower.includes('camino') ||
-      lower.includes('voy') ||
-      lower.includes('llegando') ||
-      lower.includes('dirección') ||
-      lower.includes('direccion') ||
-      lower.includes('donde') ||
-      lower.includes('dónde') ||
-      lower.includes('ubicación')
-    ) {
-      return `¡Excelente! Te espero en la Mz 2. Cualquier detalle me timbras directamente con el botón de llamada 📞`;
-    }
-
-    if (
-      lower.includes('gracias') ||
-      lower.includes('apoyo') ||
-      lower.includes('amable') ||
-      lower.includes('buena onda') ||
-      lower.includes('cuenta con')
-    ) {
-      return `¡No te preocupes vecino, para eso estamos en VeciRed! Un gusto darnos una mano siempre 🙌`;
-    }
-
-    if (
-      lower.includes('laptop') ||
-      lower.includes('computadora') ||
-      lower.includes('pc') ||
-      lower.includes('reparar') ||
-      lower.includes('pantalla') ||
-      lower.includes('disco')
-    ) {
-      return `¡Perfecto! Pásame tu manzana o lote exacto para coordinar la revisión del equipo 💻`;
-    }
-
+    // Default dinámico para otros vecinos
     return `¡Entendido! Con gusto te apoyo con eso. ¿En qué dirección o manzana exacta te encuentras para acercarme?`;
   };
 
-  // 3. Enviar mensaje del usuario y simular respuesta bidireccional interactiva del vecino
+  // 3. Enviar mensaje (soporta enviar como Andy o responder como el Vecino en vivo)
   const handleSendMessage = async (textToSend) => {
     const content = textToSend || inputText.trim();
     if (!content || !selectedChat) return;
 
-    const myMessage = {
+    const currentChat = selectedChat;
+    const isSendingAsNeighbor = sendingAs === 'them';
+
+    const newMessage = {
       id: 'msg-' + Date.now(),
-      sender: 'me',
+      sender: isSendingAsNeighbor ? 'them' : 'me',
       text: content,
       time: 'Ahora'
     };
 
-    const currentChat = selectedChat;
-    const updatedMessages = [...(currentChat.messages || []), myMessage];
-    const chatAfterMyMsg = {
+    const updatedMessages = [...(currentChat.messages || []), newMessage];
+    const chatAfterMsg = {
       ...currentChat,
       lastMessage: content,
       time: 'Ahora',
       messages: updatedMessages
     };
 
-    setSelectedChat(chatAfterMyMsg);
+    setSelectedChat(chatAfterMsg);
 
     const updatedConversations = conversations.map((c) =>
-      c.id === currentChat.id ? chatAfterMyMsg : c
+      c.id === currentChat.id ? chatAfterMsg : c
     );
     if (!updatedConversations.some((c) => c.id === currentChat.id)) {
-      updatedConversations.unshift(chatAfterMyMsg);
+      updatedConversations.unshift(chatAfterMsg);
     }
 
     setConversations(updatedConversations);
     setInputText('');
 
-    // Persistir mensaje enviado
+    // Persistir de inmediato en customStorage
     try {
       await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(updatedConversations));
     } catch (e) {
@@ -324,48 +385,49 @@ export default function ChatScreen({
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 60);
 
-    // Activar indicador de que el vecino está escribiendo
-    setIsTyping(true);
+    // Si el usuario envió como Andy ('me'), activar respuesta interactiva del vecino en tiempo real
+    if (!isSendingAsNeighbor) {
+      setIsTyping(true);
 
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
-    }
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+      }
 
-    // El vecino responde interactivamente tras 1.2 segundos (bidireccional)
-    typingTimerRef.current = setTimeout(async () => {
-      const neighborReply = generateNeighborResponse(content, currentChat.name);
+      typingTimerRef.current = setTimeout(async () => {
+        const neighborReply = generateNeighborResponse(content, currentChat);
 
-      const themMessage = {
-        id: 'msg-rep-' + Date.now(),
-        sender: 'them',
-        text: neighborReply,
-        time: 'Ahora'
-      };
-
-      setSelectedChat((prevChat) => {
-        if (!prevChat || prevChat.id !== currentChat.id) return prevChat;
-        const withReply = {
-          ...prevChat,
-          lastMessage: neighborReply,
-          time: 'Ahora',
-          messages: [...(prevChat.messages || []), themMessage]
+        const themMessage = {
+          id: 'msg-rep-' + Date.now(),
+          sender: 'them',
+          text: neighborReply,
+          time: 'Ahora'
         };
 
-        setConversations((prevList) => {
-          const listWithReply = prevList.map((c) => (c.id === currentChat.id ? withReply : c));
-          customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(listWithReply)).catch(() => {});
-          return listWithReply;
+        setSelectedChat((prevChat) => {
+          if (!prevChat || prevChat.id !== currentChat.id) return prevChat;
+          const withReply = {
+            ...prevChat,
+            lastMessage: neighborReply,
+            time: 'Ahora',
+            messages: [...(prevChat.messages || []), themMessage]
+          };
+
+          setConversations((prevList) => {
+            const listWithReply = prevList.map((c) => (c.id === currentChat.id ? withReply : c));
+            customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(listWithReply)).catch(() => {});
+            return listWithReply;
+          });
+
+          return withReply;
         });
 
-        return withReply;
-      });
+        setIsTyping(false);
 
-      setIsTyping(false);
-
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 80);
-    }, 1250);
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 80);
+      }, 1200);
+    }
 
     // Opcional: sincronizar en backend
     try {
@@ -377,7 +439,7 @@ export default function ChatScreen({
   const handleResetChats = () => {
     Alert.alert(
       '¿Restablecer mensajes?',
-      'Se reiniciarán tus conversaciones comunitarias con los vecinos de confianza del barrio.',
+      'Se reiniciarán tus conversaciones comunitarias con los vecinos del barrio (Imanol Montes, Matías Aponte y Rosa Flores).',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -436,7 +498,7 @@ export default function ChatScreen({
             onPress={() =>
               Alert.alert(
                 'Llamada Comunitaria Directa',
-                `¿Deseas llamar a ${selectedChat.name} al ${selectedChat.phone || '987-654-321'} para coordinar?`,
+                `¿Deseas llamar a ${selectedChat.name} al ${selectedChat.phone || '912-345-678'} para coordinar?`,
                 [
                   { text: 'Cancelar', style: 'cancel' },
                   { text: 'Llamar', onPress: () => {} }
@@ -549,6 +611,50 @@ export default function ChatScreen({
             )}
           </ScrollView>
 
+          {/* Barra de Alternancia de Cuenta: Escribir como Andy o Responder como el Vecino en Vivo */}
+          <View style={styles.roleSelectorBar}>
+            <Text style={[styles.roleSelectorLabel, { fontSize: scale(10) }]}>
+              Modo de chat en vivo:
+            </Text>
+            <View style={styles.roleToggleGroup}>
+              <TouchableOpacity
+                style={[styles.roleToggleBtn, sendingAs === 'me' && styles.roleToggleBtnActive]}
+                onPress={() => setSendingAs('me')}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 13, marginRight: 4 }}>👨‍🔧</Text>
+                <Text
+                  style={[
+                    styles.roleToggleText,
+                    sendingAs === 'me' && styles.roleToggleTextActive,
+                    { fontSize: scale(10) }
+                  ]}
+                >
+                  {currentUserName} (Tú)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.roleToggleBtn,
+                  sendingAs === 'them' && styles.roleToggleBtnActiveNeighbor
+                ]}
+                onPress={() => setSendingAs('them')}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 13, marginRight: 4 }}>{selectedChat.avatar || '🧑‍💼'}</Text>
+                <Text
+                  style={[
+                    styles.roleToggleText,
+                    sendingAs === 'them' && styles.roleToggleTextActiveNeighbor,
+                    { fontSize: scale(10) }
+                  ]}
+                >
+                  Responder como {selectedChat.name}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Respuestas Rápidas Sugeridas */}
           <View style={styles.quickRepliesContainer}>
             <ScrollView
@@ -573,8 +679,16 @@ export default function ChatScreen({
           {/* Barra de Entrada de Texto con botón Enviar visible */}
           <View style={styles.inputContainer}>
             <TextInput
-              style={[styles.textInput, { fontSize: scale(13) }]}
-              placeholder={`Escribe un mensaje a ${selectedChat.name}...`}
+              style={[
+                styles.textInput,
+                sendingAs === 'them' && styles.textInputNeighbor,
+                { fontSize: scale(13) }
+              ]}
+              placeholder={
+                sendingAs === 'them'
+                  ? `Escribir en vivo como ${selectedChat.name}...`
+                  : `Escribe un mensaje a ${selectedChat.name}...`
+              }
               placeholderTextColor={COLORS.textMuted}
               value={inputText}
               onChangeText={setInputText}
@@ -582,7 +696,11 @@ export default function ChatScreen({
               returnKeyType="send"
             />
             <TouchableOpacity
-              style={[styles.sendButton, !inputText.trim() && { opacity: 0.6 }]}
+              style={[
+                styles.sendButton,
+                sendingAs === 'them' && { backgroundColor: '#0284c7' },
+                !inputText.trim() && { opacity: 0.6 }
+              ]}
               disabled={!inputText.trim()}
               onPress={() => handleSendMessage()}
             >
@@ -616,7 +734,7 @@ export default function ChatScreen({
             </View>
           </View>
 
-          {/* Botón para reiniciar/limpiar chats a los vecinos de ejemplo */}
+          {/* Botón para reiniciar/limpiar chats a los vecinos modelo */}
           <TouchableOpacity
             style={styles.resetHeaderBtn}
             activeOpacity={0.8}
@@ -966,6 +1084,52 @@ const styles = StyleSheet.create({
     color: '#ccfbf1',
     fontWeight: '900'
   },
+  roleSelectorBar: {
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  roleSelectorLabel: {
+    color: '#64748b',
+    fontWeight: '700'
+  },
+  roleToggleGroup: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  roleToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
+  },
+  roleToggleBtnActive: {
+    backgroundColor: '#0d9488',
+    borderColor: '#0d9488'
+  },
+  roleToggleBtnActiveNeighbor: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7'
+  },
+  roleToggleText: {
+    color: '#475569',
+    fontWeight: '700'
+  },
+  roleToggleTextActive: {
+    color: '#ffffff'
+  },
+  roleToggleTextActiveNeighbor: {
+    color: '#ffffff'
+  },
   quickRepliesContainer: {
     paddingVertical: 6,
     backgroundColor: COLORS.white,
@@ -1005,6 +1169,10 @@ const styles = StyleSheet.create({
     borderColor: '#cbd5e1',
     color: '#0f172a',
     fontWeight: '600'
+  },
+  textInputNeighbor: {
+    borderColor: '#38bdf8',
+    backgroundColor: '#f0f9ff'
   },
   sendButton: {
     backgroundColor: COLORS.primary,

@@ -2,7 +2,7 @@
 // VECIRED IA — CONTEXTO GLOBAL DE AUTENTICACIÓN Y SESIÓN REAL
 // ==========================================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, customStorage } from '../services/supabase';
 import { api } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -65,24 +65,105 @@ export function AuthProvider({ children }) {
   }, []);
 
   // -------------------------------------------------------------
-  // Carga del perfil desde el Backend FastAPI usando el JWT
+  // Carga del perfil desde el Backend FastAPI usando el JWT y Storage persistente
   // -------------------------------------------------------------
   const loadUserProfile = async (token) => {
     if (!token) return null;
     try {
-      const profileData = await api.getMyProfile(token);
-      setProfile(profileData);
+      const profileData = await api.getMyProfile(token).catch(() => null);
+
+      // Restaurar datos guardados localmente para este usuario si el backend aún no los tiene
+      let localSaved = null;
+      try {
+        const key = user?.id ? 'vecired_user_profile_' + user.id : (user?.email ? 'vecired_user_profile_' + user.email : 'vecired_user_profile');
+        const raw = await customStorage.getItem(key) || await customStorage.getItem('vecired_user_profile');
+        if (raw) localSaved = JSON.parse(raw);
+      } catch {}
+
+      const merged = {
+        ...(profileData || {}),
+        full_name: localSaved?.name || profileData?.full_name || user?.user_metadata?.full_name || 'Andy Manchego',
+        phone: localSaved?.phone || profileData?.phone || user?.user_metadata?.phone || '937263104',
+        skill: localSaved?.skill || profileData?.skill || user?.user_metadata?.skill || 'Apoyo general',
+        address: localSaved?.address || profileData?.address || user?.user_metadata?.address || 'Zona A • Manzana 2',
+        avatar_url: localSaved?.avatar || profileData?.avatar_url || user?.user_metadata?.avatar || '👨‍🔧'
+      };
+
+      setProfile(merged);
 
       // Consulta del estado de verificación de identidad si aplica
       const statusData = await api.getVerificationStatus(token).catch(() => null);
       if (statusData) {
         setVerificationStatus(statusData);
       }
-      return profileData;
+      return merged;
     } catch (err) {
       console.warn('[VeciRed Auth] No se pudo obtener perfil del backend:', err.message);
       return null;
     }
+  };
+
+  // -------------------------------------------------------------
+  // Actualización persistente del perfil del usuario (DB + Storage + Supabase)
+  // -------------------------------------------------------------
+  const updateUserProfile = async (updateData) => {
+    const token = session?.access_token;
+    const userId = user?.id || 'default';
+    const userEmail = user?.email || 'default';
+
+    // 1. Guardar de inmediato en almacenamiento local persistente (general y por cuenta)
+    try {
+      await customStorage.setItem('vecired_user_profile', JSON.stringify(updateData));
+      await customStorage.setItem('vecired_user_profile_' + userId, JSON.stringify(updateData));
+      await customStorage.setItem('vecired_user_profile_' + userEmail, JSON.stringify(updateData));
+    } catch (e) {
+      console.warn('Error guardando perfil en storage local:', e);
+    }
+
+    // 2. Actualizar metadata de Supabase Auth
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: updateData.name,
+          phone: updateData.phone,
+          skill: updateData.skill,
+          address: updateData.address,
+          avatar: updateData.avatar
+        }
+      });
+    } catch (e) {
+      console.warn('Error actualizando Supabase Auth metadata:', e);
+    }
+
+    // 3. Actualizar perfil en Backend FastAPI / PostgreSQL
+    if (token) {
+      try {
+        const backendPayload = {
+          full_name: updateData.name,
+          phone: updateData.phone,
+          skill: updateData.skill,
+          avatar_url: updateData.avatar
+        };
+        const updatedApi = await api.updateMyProfile(backendPayload, token);
+        if (updatedApi) {
+          setProfile(updatedApi);
+        }
+      } catch (err) {
+        console.warn('Error actualizando perfil en backend:', err?.message);
+      }
+    }
+
+    // Actualizar estado reactivo de profile local
+    setProfile((prev) => ({
+      ...(prev || {}),
+      full_name: updateData.name,
+      phone: updateData.phone,
+      skill: updateData.skill,
+      address: updateData.address,
+      avatar_url: updateData.avatar
+    }));
+
+    return true;
   };
 
   // -------------------------------------------------------------
@@ -112,6 +193,26 @@ export function AuthProvider({ children }) {
       // Actualizar estados reactivos
       setSession(data.session);
       setUser(data.user);
+
+      // Cargar perfil restaurando cualquier edición previa guardada de este usuario
+      try {
+        const raw = await customStorage.getItem('vecired_user_profile_' + data.user.id) ||
+                    await customStorage.getItem('vecired_user_profile_' + data.user.email) ||
+                    await customStorage.getItem('vecired_user_profile');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.name) {
+            setProfile((prev) => ({
+              ...(prev || {}),
+              full_name: parsed.name,
+              phone: parsed.phone,
+              skill: parsed.skill,
+              address: parsed.address,
+              avatar_url: parsed.avatar
+            }));
+          }
+        }
+      } catch {}
 
       // Cargar perfil desde el backend con el JWT real
       await loadUserProfile(data.session.access_token);
@@ -275,6 +376,7 @@ export function AuthProvider({ children }) {
     logout,
     resetPassword,
     submitVerification,
+    updateUserProfile,
     refreshProfile: () => session?.access_token && loadUserProfile(session.access_token)
   };
 
