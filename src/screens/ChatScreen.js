@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,67 +11,23 @@ import {
   Platform
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { customStorage } from '../services/supabase';
+import { api } from '../services/api';
+
+const CHATS_STORAGE_KEY = 'vecired_conversations_v2';
 
 export default function ChatScreen({
   fontScale = 1.0,
   onBack,
-  initialContact = null
+  initialContact = null,
+  onClearInitialContact = null
 }) {
   const scale = (val) => Math.round(val * fontScale);
 
-  // Lista de conversaciones comunitarias
-    const [conversations, setConversations] = useState(() => {
-    if (!initialContact) return [];
-    return [{
-      id: 'chat-new-' + Date.now(),
-      name: initialContact.name || 'Vecino',
-      avatar: initialContact.avatar || '👤',
-      badge: initialContact.badge || 'Vecino Verificado',
-      zone: initialContact.zone || 'Zona A',
-      topic: initialContact.topic || 'Coordinación Vecinal',
-      lastMessage: 'Iniciaste una conversación.',
-      time: 'Ahora',
-      unread: 0,
-      phone: initialContact.phone || 'Número coordinado',
-      messages: [
-        {
-          id: 'init-1',
-          sender: 'them',
-          text: `Hola, conversemos sobre ${initialContact.topic || 'la coordinación comunitaria'}.`,
-          time: 'Ahora'
-        }
-      ]
-    }];
-  });
-
-  // Si se envió un contacto inicial, abrir ese chat de inmediato
-  const [selectedChat, setSelectedChat] = useState(() => {
-    if (!initialContact) return null;
-    const existing = conversations.find(c => c.name === initialContact.name);
-    if (existing) return existing;
-    return {
-      id: 'chat-new-' + Date.now(),
-      name: initialContact.name || 'Vecino',
-      avatar: initialContact.avatar || '👤',
-      badge: initialContact.badge || 'Vecino Verificado',
-      zone: initialContact.zone || 'Zona A',
-      topic: initialContact.topic || 'Coordinación Vecinal',
-      lastMessage: 'Iniciaste una conversación.',
-      time: 'Ahora',
-      unread: 0,
-      phone: initialContact.phone || 'Número coordinado',
-      messages: [
-        {
-          id: 'init-1',
-          sender: 'them',
-          text: `Hola vecina, conversemos sobre ${initialContact.topic || 'la coordinación comunitaria'}.`,
-          time: 'Ahora'
-        }
-      ]
-    };
-  });
-
+  const [conversations, setConversations] = useState([]);
+  const [selectedChat, setSelectedChat] = useState(null);
   const [inputText, setInputText] = useState('');
+  const [isLoaded, setIsLoaded] = useState(false);
   const scrollViewRef = useRef(null);
 
   const quickReplies = [
@@ -81,7 +37,76 @@ export default function ChatScreen({
     'Muchas gracias vecino 🙏'
   ];
 
-  const handleSendMessage = (textToSend) => {
+  // 1. Cargar conversaciones guardadas permanentemente en storage
+  useEffect(() => {
+    let mounted = true;
+
+    async function initChats() {
+      let list = [];
+      try {
+        const raw = await customStorage.getItem(CHATS_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            list = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('[ChatScreen] Error leyendo storage de chats:', e);
+      }
+
+      // 2. Si se abrió para contactar a un vecino específico (desde Servicios o Muro)
+      if (initialContact && initialContact.name) {
+        const contactName = initialContact.name.trim();
+        let targetChat = list.find((c) => c.name && c.name.trim() === contactName);
+
+        if (!targetChat) {
+          targetChat = {
+            id: 'chat-' + (initialContact.id || Date.now()),
+            name: contactName,
+            avatar: initialContact.avatar || '👤',
+            badge: initialContact.badge || 'Proveedor Verificado',
+            zone: initialContact.zone || 'Zona A',
+            topic: initialContact.topic || 'Coordinación de Servicio',
+            lastMessage: 'Iniciaste una conversación.',
+            time: 'Ahora',
+            unread: 0,
+            phone: initialContact.phone || '987654321',
+            messages: [
+              {
+                id: 'msg-init-' + Date.now(),
+                sender: 'them',
+                text: `¡Hola vecina! Gracias por contactarme sobre ${initialContact.topic || 'el servicio'}. ¿En qué te puedo apoyar?`,
+                time: 'Ahora'
+              }
+            ]
+          };
+          list = [targetChat, ...list.filter((c) => c.name !== contactName)];
+          await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(list));
+        }
+
+        if (mounted) {
+          setConversations(list);
+          setSelectedChat(targetChat);
+          setIsLoaded(true);
+        }
+      } else {
+        if (mounted) {
+          setConversations(list);
+          setIsLoaded(true);
+        }
+      }
+    }
+
+    initChats();
+
+    return () => {
+      mounted = false;
+    };
+  }, [initialContact]);
+
+  // 3. Enviar mensaje y persistir en storage
+  const handleSendMessage = async (textToSend) => {
     const content = textToSend || inputText.trim();
     if (!content || !selectedChat) return;
 
@@ -92,18 +117,40 @@ export default function ChatScreen({
       time: 'Ahora'
     };
 
+    const updatedMessages = [...(selectedChat.messages || []), newMessage];
     const updatedChat = {
       ...selectedChat,
       lastMessage: content,
       time: 'Ahora',
-      messages: [...selectedChat.messages, newMessage]
+      messages: updatedMessages
     };
 
     setSelectedChat(updatedChat);
-    setConversations(prev =>
-      prev.map(c => c.id === selectedChat.id ? updatedChat : c)
+
+    const updatedConversations = conversations.map((c) =>
+      c.id === selectedChat.id ? updatedChat : c
     );
+
+    if (!updatedConversations.some((c) => c.id === selectedChat.id)) {
+      updatedConversations.unshift(updatedChat);
+    }
+
+    setConversations(updatedConversations);
     setInputText('');
+
+    // Guardar en Storage para que persista al salir y volver
+    try {
+      await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(updatedConversations));
+    } catch (e) {
+      console.warn('[ChatScreen] Error guardando mensaje en storage:', e);
+    }
+
+    // Opcional: sincronizar en backend
+    try {
+      await api.sendChatMessage(selectedChat.id, content);
+    } catch {
+      // Ignorar si el backend está en desarrollo
+    }
   };
 
   // VISTA 1: DETALLE DE CONVERSACIÓN (CHAT ABIERTO)
@@ -115,11 +162,8 @@ export default function ChatScreen({
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => {
-              if (initialContact && onBack) {
-                onBack();
-              } else {
-                setSelectedChat(null);
-              }
+              if (onClearInitialContact) onClearInitialContact();
+              setSelectedChat(null);
             }}
           >
             <Text style={{ fontSize: 20, color: COLORS.primaryDark }}>←</Text>
@@ -146,7 +190,7 @@ export default function ChatScreen({
           {/* Botón de Llamada Rápida */}
           <TouchableOpacity
             style={styles.phoneCallBtn}
-            onPress={() => alert(`Llamando al vecino (${selectedChat.phone})...`)}
+            onPress={() => alert(`Llamando al vecino (${selectedChat.phone || 'coordinado'})...`)}
           >
             <Text style={{ fontSize: 16 }}>📞</Text>
           </TouchableOpacity>
@@ -177,7 +221,7 @@ export default function ChatScreen({
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
-            {selectedChat.messages.map((msg) => {
+            {(selectedChat.messages || []).map((msg) => {
               const isMe = msg.sender === 'me';
               return (
                 <View
@@ -298,53 +342,49 @@ export default function ChatScreen({
           </View>
         ) : (
           conversations.map((conv) => (
-          <TouchableOpacity
-            key={conv.id}
-            style={styles.conversationCard}
-            activeOpacity={0.8}
-            onPress={() => setSelectedChat(conv)}
-          >
-            <View style={styles.convAvatarCircle}>
-              <Text style={{ fontSize: 26 }}>{conv.avatar}</Text>
-            </View>
+            <TouchableOpacity
+              key={conv.id}
+              style={styles.conversationCard}
+              activeOpacity={0.8}
+              onPress={() => setSelectedChat(conv)}
+            >
+              <View style={styles.convAvatarCircle}>
+                <Text style={{ fontSize: 26 }}>{conv.avatar}</Text>
+              </View>
 
-            <View style={{ flex: 1 }}>
-              <View style={styles.convTopRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={[styles.convName, { fontSize: scale(13) }]}>
-                    {conv.name}
-                  </Text>
-                  <View style={styles.verifiedMini}>
-                    <Text style={{ fontSize: 8, color: COLORS.white }}>✓</Text>
+              <View style={{ flex: 1 }}>
+                <View style={styles.convTopRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={[styles.convName, { fontSize: scale(13) }]}>
+                      {conv.name}
+                    </Text>
+                    <View style={styles.verifiedMini}>
+                      <Text style={{ fontSize: 8, color: COLORS.white }}>✓</Text>
+                    </View>
                   </View>
+                  <Text style={[styles.convTime, { fontSize: scale(10) }]}>
+                    {conv.time}
+                  </Text>
                 </View>
-                <Text style={[styles.convTime, { fontSize: scale(10) }]}>
-                  {conv.time}
+
+                <Text style={[styles.convTopic, { fontSize: scale(10) }]}>
+                  📌 {conv.topic}
+                </Text>
+                <Text
+                  style={[
+                    styles.convLastMessage,
+                    conv.unread > 0 && styles.convLastMessageUnread,
+                    { fontSize: scale(11) }
+                  ]}
+                  numberOfLines={1}
+                >
+                  {conv.lastMessage}
                 </Text>
               </View>
 
-              <Text style={[styles.convTopic, { fontSize: scale(10) }]}>
-                📌 {conv.topic}
-              </Text>
-              <Text
-                style={[
-                  styles.convLastMessage,
-                  conv.unread > 0 && styles.convLastMessageUnread,
-                  { fontSize: scale(11) }
-                ]}
-                numberOfLines={1}
-              >
-                {conv.lastMessage}
-              </Text>
-            </View>
-
-            {conv.unread > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadText}>{conv.unread}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))
+              <Text style={styles.convChevron}>›</Text>
+            </TouchableOpacity>
+          ))
         )}
       </ScrollView>
     </View>
@@ -352,71 +392,75 @@ export default function ChatScreen({
 }
 
 const styles = StyleSheet.create({
-  emptyListBox: {
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
-    padding: 30,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
-    marginTop: 20
-  },
-  emptyListTitle: {
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-    marginBottom: 8
-  },
-  emptyListSub: {
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18
-  },
-
   container: {
     flex: 1,
-    backgroundColor: COLORS.background
+    backgroundColor: '#f8fafc'
   },
   header: {
-    backgroundColor: COLORS.white,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border
   },
   headerTitle: {
     fontWeight: '900',
-    color: COLORS.primaryDeep
+    color: COLORS.primaryDark
   },
   headerSub: {
-    color: COLORS.textSecondary,
-    fontWeight: '600'
+    color: COLORS.textMuted,
+    fontWeight: '500',
+    marginTop: 2
   },
   listContent: {
-    padding: 14,
-    gap: 10,
-    paddingBottom: 90
+    padding: 16,
+    paddingBottom: 40
+  },
+  emptyListBox: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+    marginTop: 24
+  },
+  emptyListTitle: {
+    fontWeight: '800',
+    color: COLORS.primaryDark,
+    marginBottom: 8,
+    textAlign: 'center'
+  },
+  emptyListSub: {
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 18
   },
   conversationCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    padding: 12,
-    borderRadius: 14,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 12
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1
   },
   convAvatarCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: COLORS.primarySurface,
-    borderWidth: 1.5,
-    borderColor: COLORS.primaryPale,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    marginRight: 12
   },
   convTopRow: {
     flexDirection: 'row',
@@ -426,77 +470,67 @@ const styles = StyleSheet.create({
   },
   convName: {
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: '#0f172a'
   },
   verifiedMini: {
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    width: 14,
-    height: 14,
+    width: 13,
+    height: 13,
+    borderRadius: 6.5,
     alignItems: 'center',
     justifyContent: 'center'
   },
   convTime: {
     color: COLORS.textMuted,
-    fontWeight: '600'
+    fontWeight: '500'
   },
   convTopic: {
-    color: COLORS.primaryDark,
+    color: COLORS.primary,
     fontWeight: '700',
     marginBottom: 2
   },
   convLastMessage: {
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontWeight: '500'
   },
   convLastMessageUnread: {
-    color: COLORS.textPrimary,
-    fontWeight: '800'
+    color: '#0f172a',
+    fontWeight: '700'
   },
-  unreadBadge: {
-    backgroundColor: COLORS.primary,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  unreadText: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontWeight: '900'
+  convChevron: {
+    fontSize: 20,
+    color: '#cbd5e1',
+    marginLeft: 8
   },
   chatDetailContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    width: '100%',
-    maxWidth: 600,
-    alignSelf: 'center'
+    backgroundColor: '#f8fafc'
   },
   chatDetailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
     backgroundColor: COLORS.white,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    gap: 10
+    gap: 12
   },
   backButton: {
-    padding: 6
+    padding: 4
   },
   chatHeaderAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.primarySurface,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center'
   },
   chatHeaderName: {
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: '#0f172a'
   },
   verifiedBadge: {
     backgroundColor: COLORS.primary,
@@ -507,47 +541,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   verifiedBadgeText: {
-    color: COLORS.white,
     fontSize: 9,
+    color: COLORS.white,
     fontWeight: '900'
   },
   chatHeaderSubtitle: {
-    color: COLORS.textSecondary,
-    fontWeight: '600'
+    color: COLORS.textMuted,
+    fontWeight: '500'
   },
   phoneCallBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primaryPale,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
     alignItems: 'center',
     justifyContent: 'center'
   },
   topicCard: {
-    backgroundColor: COLORS.primarySurface,
-    paddingHorizontal: 14,
+    backgroundColor: '#f0fdfa',
     paddingVertical: 8,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.primaryPale
+    borderBottomColor: '#ccfbf1'
   },
   topicCardText: {
-    color: COLORS.textSecondary
+    color: '#0d9488',
+    marginBottom: 2
   },
   topicCardSecure: {
-    color: COLORS.primaryDark,
-    fontWeight: '700',
-    marginTop: 2
+    color: '#14b8a6',
+    fontWeight: '500'
   },
   messagesList: {
     flex: 1
   },
   messagesContent: {
-    padding: 14,
-    gap: 10
+    padding: 16,
+    paddingBottom: 20
   },
   messageRow: {
     flexDirection: 'row',
-    marginBottom: 4
+    marginBottom: 12
   },
   messageRowMe: {
     justifyContent: 'flex-end'
@@ -557,30 +593,29 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '82%',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18
   },
   bubbleMe: {
-    backgroundColor: COLORS.primaryDark,
-    borderBottomRightRadius: 2
+    backgroundColor: COLORS.primary,
+    borderBottomRightRadius: 4
   },
   bubbleThem: {
     backgroundColor: COLORS.white,
-    borderBottomLeftRadius: 2,
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: COLORS.border
+    borderColor: '#e2e8f0'
   },
   messageText: {
-    lineHeight: 18
+    lineHeight: 19,
+    fontWeight: '500'
   },
   messageTextMe: {
-    color: COLORS.white,
-    fontWeight: '600'
+    color: COLORS.white
   },
   messageTextThem: {
-    color: COLORS.textPrimary,
-    fontWeight: '500'
+    color: '#0f172a'
   },
   messageFooter: {
     flexDirection: 'row',
@@ -589,34 +624,34 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   messageTime: {
-    fontWeight: '600'
+    fontWeight: '500'
   },
   messageTimeMe: {
     color: '#ccfbf1'
   },
   messageTimeThem: {
-    color: COLORS.textMuted
+    color: '#94a3b8'
   },
   checkmarks: {
-    color: '#5eead4',
+    color: '#ccfbf1',
     fontWeight: '900'
   },
   quickRepliesContainer: {
+    paddingVertical: 6,
     backgroundColor: COLORS.white,
-    paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border
+    borderTopColor: '#f1f5f9'
   },
   quickReplyPill: {
-    backgroundColor: COLORS.primarySurface,
-    paddingHorizontal: 10,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.primaryPale
+    borderColor: '#e2e8f0'
   },
   quickReplyText: {
-    color: COLORS.primaryDark,
+    color: '#334155',
     fontWeight: '700'
   },
   inputContainer: {

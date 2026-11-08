@@ -434,8 +434,12 @@ function MainApp() {
           {currentTab === 'chat' && (
             <ChatScreen
               fontScale={fontScale}
-              onBack={() => setCurrentTab(previousTab || 'home')}
+              onBack={() => {
+                setActiveChatContact(null);
+                setCurrentTab(previousTab || 'home');
+              }}
               initialContact={activeChatContact}
+              onClearInitialContact={() => setActiveChatContact(null)}
             />
           )}
           </ScreenErrorBoundary>

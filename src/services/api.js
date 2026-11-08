@@ -3,7 +3,7 @@
 // ==========================================================
 import { Platform } from 'react-native';
 
-export const LOCAL_PC_IP = '192.168.0.175';
+export const LOCAL_PC_IP = '192.168.1.33';
 
 export const API_BASE_URL = Platform.OS === 'web'
   ? ((typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
@@ -352,6 +352,55 @@ export const api = {
       },
       token
     );
+  },
+
+  // ==========================================================
+  // MÓDULO DE CHAT COMUNITARIO
+  // ==========================================================
+  async getChats(token) {
+    try {
+      return await request('/chats', { method: 'GET' }, token);
+    } catch {
+      return [];
+    }
+  },
+
+  async getChatMessages(conversationId, token) {
+    try {
+      return await request(`/chats/${conversationId}/messages`, { method: 'GET' }, token);
+    } catch {
+      return [];
+    }
+  },
+
+  async sendChatMessage(conversationId, text, token) {
+    try {
+      return await request(
+        `/chats/${conversationId}/messages`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ text })
+        },
+        token
+      );
+    } catch {
+      return null;
+    }
+  },
+
+  async createChat(chatData, token) {
+    try {
+      return await request(
+        '/chats',
+        {
+          method: 'POST',
+          body: JSON.stringify(chatData)
+        },
+        token
+      );
+    } catch {
+      return null;
+    }
   }
 };
 
