@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 
 export default function OnboardingScreen({
   onFinishLogin,
@@ -837,7 +838,15 @@ export default function OnboardingScreen({
                 </Text>
 
                 <View style={styles.mapSimulationBox}>
-                  <Text style={{ fontSize: 36, marginBottom: 6 }}>🗺️</Text>
+                  <InteractiveCommunityMap
+                    latitude={-12.0463}
+                    longitude={-77.0427}
+                    title="Ubicación Domiciliaria Comunal"
+                    subtitle={detectedZone || "Zona A • Los Olivos, Lima"}
+                    height={190}
+                    mode="picker"
+                    fontScale={fontScale}
+                  />
 
                   <View style={styles.gpsDetectedBadge}>
                     <Text style={[styles.gpsBadgeText, { fontSize: scale(11) }]}>

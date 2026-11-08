@@ -11,6 +11,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
+import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 
 export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered }) {
   const { session } = useAuth();
@@ -301,39 +302,19 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
       {/* VISTA 2: MAPA DE EMERGENCIA Y BRIGADA VECINAL */}
       {activeTab === 'map' && (
         <View>
-          {/* Espacio para el Mapa Satelital Comunitario del Backend */}
-          <View style={styles.mapContainerCard}>
-            <View style={styles.mapContainerHeader}>
-              <Ionicons name="map" size={18} color="#dc2626" style={{ marginRight: 6 }} />
-              <Text style={[styles.mapContainerTitle, { fontSize: scale(13) }]}>
-                Mapa Satelital de la Emergencia (En vivo)
-              </Text>
-            </View>
-
-            <View style={styles.satelliteMapCanvas}>
-              <View style={styles.satelliteRadarWave} />
-              <View style={styles.satelliteRadarWaveInner} />
-              <View style={styles.mapCenterPin}>
-                <MaterialCommunityIcons name="alert-decagram" size={36} color="#dc2626" />
-                <View style={styles.pinLabel}>
-                  <Text style={styles.pinLabelText}>Zona A • Mz 2 (Epicentro)</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Banner de integración listo para el backend */}
-            <View style={styles.backendReadyBanner}>
-              <Ionicons name="hardware-chip-outline" size={16} color="#0f766e" />
-              <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={styles.backendReadyTitle}>
-                  Módulo Geoespacial VeciRed Activo
-                </Text>
-                <Text style={styles.backendReadySub}>
-                  Coordenadas: -12.0463, -77.0427 • Radio de cobertura: 500 metros
-                </Text>
-              </View>
-            </View>
-          </View>
+          {/* Mapa Satelital Interactivo de Google Maps con Epicentro y Brigada */}
+          <InteractiveCommunityMap
+            latitude={activeEmergency?.latitude || -12.0463}
+            longitude={activeEmergency?.longitude || -77.0427}
+            title={activeEmergency?.title || 'Epicentro de Emergencia Comunitaria'}
+            subtitle="Zona A • Manzana 2 (Cuadrante Barrial)"
+            height={260}
+            mode="emergency"
+            radiusMeters={500}
+            volunteers={volunteers}
+            fontScale={fontScale}
+            onOpenChat={onOpenChat}
+          />
 
           {/* Vecinos en Guardia / Brigada Vecinal */}
           <View style={styles.brigadeCard}>
