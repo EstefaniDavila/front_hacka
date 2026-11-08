@@ -19,12 +19,24 @@ import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
+export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType = null }) {
   const { session } = useAuth();
   const token = session?.access_token || null;
 
-  const [subStep, setSubStep] = useState(2); // 2: Seleccionar qué compartir, 3: Formulario
-  const [formType, setFormType] = useState('servicio');
+  const [subStep, setSubStep] = useState(initialType ? 3 : 2); // 2: Seleccionar qué compartir, 3: Formulario
+  const [formType, setFormType] = useState(initialType || 'servicio');
+
+  useEffect(() => {
+    if (initialType) {
+      setFormType(initialType);
+      const match = publishTypes.find(t => t.id === initialType);
+      if (match) {
+        setUnit(match.defaultUnit);
+        setPrice(initialType === 'servicio' || initialType === 'producto' ? '' : '0.00');
+      }
+      setSubStep(3);
+    }
+  }, [initialType]);
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
   const [unit, setUnit] = useState('servicio');
@@ -248,7 +260,12 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
                   activeOpacity={0.8}
                   onPress={() => handleSelectType(item)}
                 >
-                  <Text style={{ fontSize: 32, marginBottom: 8 }}>{item.icon}</Text>
+                  {item.id === 'servicio' && <MaterialCommunityIcons name="wrench-outline" size={32} color="#2563eb" style={{ marginBottom: 8 }} />}
+                  {item.id === 'producto' && <MaterialCommunityIcons name="storefront-outline" size={32} color="#d97706" style={{ marginBottom: 8 }} />}
+                  {item.id === 'necesito_ayuda' && <MaterialCommunityIcons name="hand-heart-outline" size={32} color="#059669" style={{ marginBottom: 8 }} />}
+                  {item.id === 'puedo_apoyar' && <MaterialCommunityIcons name="account-group-outline" size={32} color="#0d9488" style={{ marginBottom: 8 }} />}
+                  {item.id === 'donar' && <MaterialCommunityIcons name="gift-outline" size={32} color="#7c3aed" style={{ marginBottom: 8 }} />}
+                  {item.id === 'intercambiar' && <MaterialCommunityIcons name="swap-horizontal-circle-outline" size={32} color="#4f46e5" style={{ marginBottom: 8 }} />}
                   <Text style={[styles.typeTitle, { fontSize: scale(13) }]}>{item.title}</Text>
                   <Text style={[styles.typeSub, { fontSize: scale(10) }]}>{item.sub}</Text>
                 </TouchableOpacity>
@@ -265,12 +282,24 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
 
         {subStep === 3 && (
           <View style={styles.formCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <TouchableOpacity onPress={() => setSubStep(2)} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 13, color: COLORS.primaryDark, fontWeight: '700' }}>← Cambiar tipo</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (initialType) {
+                    onNavigate(initialType === 'producto' ? 'products' : 'services');
+                  } else {
+                    setSubStep(2);
+                  }
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 }}
+              >
+                <Feather name="arrow-left" size={14} color={COLORS.primaryDark} style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 12, color: COLORS.primaryDark, fontWeight: '700' }}>
+                  {initialType ? 'Volver' : 'Cambiar tipo'}
+                </Text>
               </TouchableOpacity>
-              <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                <Text style={{ fontSize: 11, color: COLORS.primaryDark, fontWeight: '800' }}>
+              <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: '#bfdbfe' }}>
+                <Text style={{ fontSize: 11, color: '#1d4ed8', fontWeight: '800' }}>
                   {publishTypes.find((t) => t.id === formType)?.title}
                 </Text>
               </View>

@@ -93,6 +93,7 @@ function MainApp() {
   const scale = (val) => Math.round(val * fontScale);
 
   const [servicesSearchQuery, setServicesSearchQuery] = useState('');
+  const [publishInitialType, setPublishInitialType] = useState(null);
 
   const handleNavigate = (tab, params = null) => {
     if (params?.serviceId) {
@@ -100,6 +101,9 @@ function MainApp() {
     }
     if (params?.search !== undefined) {
       setServicesSearchQuery(params.search);
+    }
+    if (tab === 'publish') {
+      setPublishInitialType(params?.type || null);
     }
     setPreviousTab(currentTab);
     setCurrentTab(tab);
@@ -189,7 +193,7 @@ function MainApp() {
               activeOpacity={0.8}
             >
               <View style={styles.appLogoCircle}>
-                <Text style={{ fontSize: 20 }}>🏡</Text>
+                <MaterialCommunityIcons name="home-group" size={22} color={COLORS.primaryDark} />
               </View>
               <View style={styles.headerTextContainer}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -233,7 +237,7 @@ function MainApp() {
                   handleNavigate('chat');
                 }}
               >
-                <Text style={{ fontSize: 18 }}>💬</Text>
+                <Ionicons name="chatbubbles" size={19} color={COLORS.primaryDark} />
                 <View style={styles.chatBadge}>
                   <Text style={styles.chatBadgeText}>2</Text>
                 </View>
@@ -245,7 +249,7 @@ function MainApp() {
                 activeOpacity={0.8}
                 onPress={() => handleNavigate('solidarity')}
               >
-                <Text style={{ fontSize: 18 }}>🔔</Text>
+                <Ionicons name="notifications" size={19} color={COLORS.primaryDark} />
                 <View style={styles.bellRedDot} />
               </TouchableOpacity>
 
@@ -255,7 +259,11 @@ function MainApp() {
                 activeOpacity={0.8}
                 onPress={() => handleNavigate('profile')}
               >
-                <Text style={{ fontSize: 20 }}>{userProfile.avatar || '👤'}</Text>
+                {userProfile.avatar && userProfile.avatar !== '👤' ? (
+                  <Text style={{ fontSize: 20 }}>{userProfile.avatar}</Text>
+                ) : (
+                  <Ionicons name="person-circle" size={26} color={COLORS.primaryDark} />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -361,6 +369,7 @@ function MainApp() {
             <PublishScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
+              initialType={publishInitialType}
             />
           )}
 
@@ -375,6 +384,7 @@ function MainApp() {
               onLogout={handleLogout}
               helpedCount={helpedCount}
               userProfile={userProfile}
+              onSaveProfile={(updated) => setUserProfile((prev) => ({ ...prev, ...updated }))}
               onOpenChat={() => {
                 setActiveChatContact(null);
                 handleNavigate('chat');

@@ -235,9 +235,10 @@ export default function SolidarityScreen({
         <TouchableOpacity
           style={styles.publishBtn}
           activeOpacity={0.85}
-          onPress={() => setPublishModalVisible(true)}
+          onPress={() => onNavigate('publish', { type: 'necesito_ayuda' })}
         >
-          <Text style={[styles.publishBtnText, { fontSize: scale(12) }]}>+ Publicar</Text>
+          <Ionicons name="add" size={14} color="#ffffff" style={{ marginRight: 2 }} />
+          <Text style={[styles.publishBtnText, { fontSize: scale(12) }]}>Publicar</Text>
         </TouchableOpacity>
       </View>
 
@@ -265,9 +266,10 @@ export default function SolidarityScreen({
           </Text>
           <TouchableOpacity
             style={styles.emptyActionBtn}
-            onPress={() => setPublishModalVisible(true)}
+            onPress={() => onNavigate('publish', { type: 'necesito_ayuda' })}
           >
-            <Text style={styles.emptyActionBtnText}>+ Crear primera publicación</Text>
+            <Ionicons name="add" size={14} color="#ffffff" style={{ marginRight: 4 }} />
+            <Text style={styles.emptyActionBtnText}>Crear primera publicación</Text>
           </TouchableOpacity>
         </View>
       ) : (
