@@ -450,6 +450,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                         }
                         if (onOpenChat) {
                           onOpenChat({
+                            userId: service.user_id,
                             name: service.provider_name || service.user?.full_name || 'Vecino',
                             topic: service.title,
                             avatar: service.provider_avatar && !service.provider_avatar.startsWith('http') ? service.provider_avatar : '👤',

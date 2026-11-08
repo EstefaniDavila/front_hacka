@@ -14,7 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { customStorage } from '../services/supabase';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
+const SHARED_CONV_ID = '69dea660-5b73-455e-8d7c-70577c624542';
 
 export default function ChatScreen({
   fontScale = 1.0,
@@ -23,24 +25,25 @@ export default function ChatScreen({
   onClearInitialContact = null,
   userProfile = null
 }) {
+  const { session, user } = useAuth();
+  const token = session?.access_token;
   const scale = (val) => Math.round(val * fontScale);
 
-  const currentUserName = (userProfile?.name || 'Andy Manchego').trim();
-  const isImanolUser = currentUserName.toLowerCase().includes('imanol');
+  const currentUserName = (userProfile?.name || user?.user_metadata?.full_name || 'Vecino').trim();
+  const isImanolUser =
+    currentUserName.toLowerCase().includes('imanol') ||
+    (user?.email || '').toLowerCase().includes('imanol');
 
-  // Clave de almacenamiento aislada por perspectiva del usuario activo
+  // Clave de almacenamiento aislada por cuenta activa
   const chatStorageKey =
-    'vecired_chats_v6_' +
-    (currentUserName ? currentUserName.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'guest');
+    'vecired_chats_v7_' +
+    (user?.id ? user.id : currentUserName ? currentUserName.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'guest');
 
   const [conversations, setConversations] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [inputText, setInputText] = useState('');
-  const [sendingAs, setSendingAs] = useState('me'); // 'me' = Usuario activo (Tú) | 'them' = Vecino que te escribió
-  const [isTyping, setIsTyping] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const scrollViewRef = useRef(null);
-  const typingTimerRef = useRef(null);
 
   const quickReplies = [
     '¡Hola vecino! Cuenta con mi apoyo 🤝',
@@ -49,12 +52,12 @@ export default function ChatScreen({
     'Muchas gracias vecino 🙏'
   ];
 
-  // Conversaciones iniciales comunitarias según la cuenta activa
+  // Conversaciones iniciales comunitarias según la perspectiva de la cuenta activa
   const getDefaultSeedConversations = () => {
     if (isImanolUser) {
       return [
         {
-          id: 'chat-andy-manchego',
+          id: SHARED_CONV_ID,
           name: 'Andy Manchego',
           avatar: '👨‍🔧',
           badge: 'Proveedor Verificado',
@@ -62,20 +65,14 @@ export default function ChatScreen({
           topic: 'Reparación de computadoras',
           lastMessage: 'Hola Imanol, con gusto te ayudo a revisar la laptop. ¿A qué hora te viene bien?',
           time: '11:20 AM',
-          unread: 1,
+          unread: 0,
           phone: '937263104',
           messages: [
             {
               id: 'msg-imanol-1',
               sender: 'me',
-              text: '¡Hola Andy! Te escribo desde mi cuenta de vecino.',
+              text: '¡Hola Andy! Te escribo desde mi cuenta. Vi que publicaste sobre reparación de computadoras. ¿Podrías apoyarme con la revisión de una laptop?',
               time: '11:15 AM'
-            },
-            {
-              id: 'msg-imanol-2',
-              sender: 'me',
-              text: 'Vi que publicaste sobre reparación de computadoras. Tengo una laptop que no enciende la pantalla, ¿podrías apoyarme con una revisión?',
-              time: '11:16 AM'
             },
             {
               id: 'msg-andy-rep-1',
@@ -110,28 +107,28 @@ export default function ChatScreen({
 
     return [
       {
-        id: 'chat-imanol-montes',
+        id: SHARED_CONV_ID,
         name: 'Imanol Montes',
         avatar: '🧑‍💼',
         badge: 'Vecino Verificado',
         zone: 'Zona A • Mz 2 (Lote 8)',
         topic: 'Reparación de computadoras',
-        lastMessage: 'Hola Andy, vi tu publicación en el barrio. ¿Podrías apoyarme con la revisión de una laptop?',
-        time: '11:16 AM',
-        unread: 1,
+        lastMessage: 'Hola Imanol, con gusto te ayudo a revisar la laptop. ¿A qué hora te viene bien?',
+        time: '11:20 AM',
+        unread: 0,
         phone: '912345678',
         messages: [
           {
             id: 'msg-imanol-1',
             sender: 'them',
-            text: '¡Hola Andy! Te escribo desde mi cuenta de vecino.',
+            text: '¡Hola Andy! Te escribo desde mi cuenta. Vi que publicaste sobre reparación de computadoras. ¿Podrías apoyarme con la revisión de una laptop?',
             time: '11:15 AM'
           },
           {
-            id: 'msg-imanol-2',
-            sender: 'them',
-            text: 'Vi que publicaste sobre reparación de computadoras. Tengo una laptop que no enciende la pantalla, ¿podrías apoyarme con una revisión?',
-            time: '11:16 AM'
+            id: 'msg-andy-rep-1',
+            sender: 'me',
+            text: 'Hola Imanol, con gusto te ayudo a revisar la laptop. ¿A qué hora te viene bien?',
+            time: '11:20 AM'
           }
         ]
       },
@@ -150,23 +147,11 @@ export default function ChatScreen({
           {
             id: 'msg-seed-1',
             sender: 'me',
-            text: '¡Hola Matías! Vi tu servicio de albañilería y pintura en VeciRed. ¿Tienes disponibilidad para una reparación en mi sala?',
+            text: '¡Hola Matías! Vi tu servicio de albañilería y pintura en VeciRed.',
             time: '10:30 AM'
           },
           {
             id: 'msg-seed-2',
-            sender: 'them',
-            text: '¡Hola Andy! Sí, claro que sí. ¿En qué parte de la Mz 2 te encuentras y qué reparación necesitas exactamente?',
-            time: '10:35 AM'
-          },
-          {
-            id: 'msg-seed-3',
-            sender: 'me',
-            text: 'Estoy en el Lote 4. Es un resane de humedad pequeño y una mano de pintura blanca.',
-            time: '10:40 AM'
-          },
-          {
-            id: 'msg-seed-4',
             sender: 'them',
             text: '¡Listo vecino! Mañana a las 9:00 AM paso por tu casa a revisar el trabajo 🛠️',
             time: '10:45 AM'
@@ -188,13 +173,7 @@ export default function ChatScreen({
           {
             id: 'msg-seed-r1',
             sender: 'them',
-            text: 'Hola vecino Andy, buenas tardes. Vi tu publicación sobre reparación de computadoras en VeciRed.',
-            time: 'Ayer'
-          },
-          {
-            id: 'msg-seed-r2',
-            sender: 'them',
-            text: '¿Haces mantenimiento a laptops lentas? La mía se calienta un poco cuando trabajo.',
+            text: 'Hola vecino Andy, buenas tardes. ¿Haces mantenimiento a laptops lentas?',
             time: 'Ayer'
           }
         ]
@@ -202,36 +181,71 @@ export default function ChatScreen({
     ];
   };
 
-  // 1. Cargar y sanear conversaciones del storage según la cuenta activa
+  // 1. Cargar conversaciones: Backend PostgreSQL primero, con respaldo en almacenamiento local
   useEffect(() => {
     let mounted = true;
 
     async function initChats() {
       let list = [];
-      try {
-        const raw = await customStorage.getItem(chatStorageKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            // Filtrar cualquier auto-chat donde el interlocutor sea el mismo usuario actual
-            list = parsed.filter(
-              (c) => c && c.name && c.name.trim().toLowerCase() !== currentUserName.toLowerCase()
-            );
+
+      // A. Intentar consultar las conversaciones reales del usuario desde el backend
+      if (token) {
+        try {
+          const backendList = await api.getChats(token);
+          if (Array.isArray(backendList) && backendList.length > 0) {
+            list = backendList.map((c) => ({
+              id: String(c.id),
+              name: c.other_user_name || c.title || 'Vecino',
+              avatar:
+                c.other_user_avatar ||
+                ((c.other_user_name || '').toLowerCase().includes('andy')
+                  ? '👨‍🔧'
+                  : (c.other_user_name || '').toLowerCase().includes('mat')
+                  ? '👷'
+                  : '🧑‍💼'),
+              badge: 'Vecino Verificado',
+              zone: 'Zona A • Mz 2',
+              topic: c.title || 'Coordinación Vecinal',
+              lastMessage: c.last_message || 'Conversación iniciada',
+              time: c.last_message_time || 'Ahora',
+              unread: c.unread_count || 0,
+              phone: c.other_user_phone || '937263104',
+              messages: []
+            }));
           }
+        } catch (err) {
+          console.warn('[ChatScreen] Error consultando backend chats:', err);
         }
-      } catch (e) {
-        console.warn('[ChatScreen] Error leyendo storage de chats:', e);
       }
 
-      // Si la lista está vacía, sembrar las conversaciones por defecto de la cuenta
+      // B. Si el backend aún no retorna lista, consultar storage local
+      if (list.length === 0) {
+        try {
+          const raw = await customStorage.getItem(chatStorageKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              list = parsed.filter(
+                (c) => c && c.name && c.name.trim().toLowerCase() !== currentUserName.toLowerCase()
+              );
+            }
+          }
+        } catch (e) {
+          console.warn('[ChatScreen] Error leyendo storage de chats:', e);
+        }
+      }
+
+      // C. Sembrar conversaciones modelo si está vacío
       if (list.length === 0) {
         list = getDefaultSeedConversations();
       } else {
-        // Asegurar que las conversaciones clave del modelo estén presentes si faltan
         const seeds = getDefaultSeedConversations();
         seeds.forEach((seed) => {
           const exists = list.some(
-            (c) => c && c.name && c.name.trim().toLowerCase() === seed.name.trim().toLowerCase()
+            (c) =>
+              c &&
+              (c.id === seed.id ||
+                (c.name && c.name.trim().toLowerCase() === seed.name.trim().toLowerCase()))
           );
           if (!exists) {
             list.push(seed);
@@ -244,15 +258,10 @@ export default function ChatScreen({
         (c) => c && c.name && c.name.trim().toLowerCase() !== currentUserName.toLowerCase()
       );
 
-      try {
-        await customStorage.setItem(chatStorageKey, JSON.stringify(list));
-      } catch {}
-
-      // 2. Si se solicitó abrir chat con un contacto específico (desde Servicios o Muro)
+      // D. Si se solicitó abrir chat con un contacto específico (desde Servicios o Muro)
       if (initialContact && initialContact.name) {
         const contactName = initialContact.name.trim();
 
-        // Evitar que el usuario se contacte a sí mismo
         if (contactName.toLowerCase() === currentUserName.toLowerCase()) {
           Alert.alert(
             'Tu propia publicación',
@@ -268,12 +277,30 @@ export default function ChatScreen({
         }
 
         let targetChat = list.find(
-          (c) => c.name && c.name.trim().toLowerCase() === contactName.toLowerCase()
+          (c) =>
+            (initialContact.userId && c.other_user_id === initialContact.userId) ||
+            (c.name && c.name.trim().toLowerCase() === contactName.toLowerCase())
         );
 
         if (!targetChat) {
+          let resolvedId = 'chat-' + (initialContact.id || Date.now());
+          if (token && initialContact.userId) {
+            try {
+              const created = await api.createChat(
+                {
+                  recipient_id: initialContact.userId,
+                  title: initialContact.topic || 'Coordinación Vecinal'
+                },
+                token
+              );
+              if (created && created.id) {
+                resolvedId = String(created.id);
+              }
+            } catch {}
+          }
+
           targetChat = {
-            id: 'chat-' + (initialContact.id || Date.now()),
+            id: resolvedId,
             name: contactName,
             avatar: initialContact.avatar || '👤',
             badge: initialContact.badge || 'Proveedor Verificado',
@@ -293,9 +320,6 @@ export default function ChatScreen({
             ]
           };
           list = [targetChat, ...list.filter((c) => c.name.trim().toLowerCase() !== contactName.toLowerCase())];
-          try {
-            await customStorage.setItem(chatStorageKey, JSON.stringify(list));
-          } catch {}
         }
 
         if (mounted) {
@@ -309,174 +333,104 @@ export default function ChatScreen({
           setIsLoaded(true);
         }
       }
+
+      try {
+        await customStorage.setItem(chatStorageKey, JSON.stringify(list));
+      } catch {}
     }
 
     initChats();
 
     return () => {
       mounted = false;
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-      }
     };
-  }, [initialContact, currentUserName]);
+  }, [initialContact, currentUserName, token]);
 
-  // Generador inteligente de respuestas en tiempo real según el vecino y el texto enviado
-  const generateNeighborResponse = (userText, neighbor) => {
-    const lower = userText.toLowerCase();
-    const neighborName = neighbor?.name || 'Vecino';
-    const isImanol = neighborName.toLowerCase().includes('imanol');
-    const isAndy = neighborName.toLowerCase().includes('andy');
-    const isMatias = neighborName.toLowerCase().includes('mat');
+  // 2. Cargar historial y sincronizar en tiempo real (Polling cada 3.5s estilo WhatsApp)
+  useEffect(() => {
+    if (!selectedChat) return;
 
-    if (isAndy) {
-      if (
-        lower.includes('hora') ||
-        lower.includes('cuando') ||
-        lower.includes('cuándo') ||
-        lower.includes('hoy') ||
-        lower.includes('mañana') ||
-        lower.includes('tarde') ||
-        lower.includes('puedo') ||
-        lower.includes('acomoda')
-      ) {
-        return `¡Hola vecino! Puedo pasar hoy a partir de las 4:00 PM o mañana temprano a las 9:00 AM para revisar tu equipo. ¿Te acomoda ese horario? 🛠️`;
+    let active = true;
+
+    async function fetchMessages() {
+      if (!token) return;
+      try {
+        const detail = await api.getChatDetail(selectedChat.id, token);
+        if (active && detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+          const mapped = detail.messages.map((m) => ({
+            id: String(m.id),
+            sender: m.is_me ? 'me' : 'them',
+            text: m.text || m.content || '',
+            time: m.time || 'Ahora'
+          }));
+
+          setSelectedChat((prev) => {
+            if (!prev || String(prev.id) !== String(selectedChat.id)) return prev;
+            return {
+              ...prev,
+              lastMessage: mapped[mapped.length - 1]?.text || prev.lastMessage,
+              messages: mapped
+            };
+          });
+        }
+      } catch (e) {
+        console.warn('[ChatScreen] Error obteniendo mensajes:', e);
       }
-
-      if (
-        lower.includes('pantalla') ||
-        lower.includes('enciende') ||
-        lower.includes('laptop') ||
-        lower.includes('pc') ||
-        lower.includes('lenta') ||
-        lower.includes('reparar') ||
-        lower.includes('lenovo') ||
-        lower.includes('revisión') ||
-        lower.includes('revision')
-      ) {
-        return `Por lo que describes puede ser un problema de flex de video o memoria RAM. Llevo mis herramientas y tester para diagnosticarlo directamente en tu domicilio 💻`;
-      }
-
-      if (
-        lower.includes('precio') ||
-        lower.includes('cuánto') ||
-        lower.includes('cuanto') ||
-        lower.includes('costo') ||
-        lower.includes('cobras') ||
-        lower.includes('soles') ||
-        lower.includes('s/') ||
-        lower.includes('presupuesto')
-      ) {
-        return `La revisión y diagnóstico básico vecinal es de S/ 15 a S/ 25 según el trabajo. Siempre con tarifa justa entre vecinos 🤝`;
-      }
-
-      if (
-        lower.includes('gracias') ||
-        lower.includes('apoyo') ||
-        lower.includes('cuenta conmigo') ||
-        lower.includes('listo') ||
-        lower.includes('perfecto')
-      ) {
-        return `¡Con todo gusto! Para eso estamos los vecinos en VeciRed. Quedamos en contacto por aquí 👍`;
-      }
-
-      return `¡Hola vecino! Claro que sí, cuenta con mi apoyo técnico. Dime en qué manzana y lote te encuentras para coordinar la visita 🛠️`;
     }
 
-    if (isImanol) {
-      if (
-        lower.includes('hora') ||
-        lower.includes('cuando') ||
-        lower.includes('cuándo') ||
-        lower.includes('hoy') ||
-        lower.includes('mañana') ||
-        lower.includes('tarde') ||
-        lower.includes('puedo') ||
-        lower.includes('5') ||
-        lower.includes('4') ||
-        lower.includes('acomoda')
-      ) {
-        return `¡Excelente Andy! A esa hora te espero en mi casa (Mz 2 Lote 8). Es la casa de reja blanca frente a la losa. ¿Traes tus herramientas o necesitas que te tenga algo listo? ⏰`;
-      }
+    fetchMessages();
 
-      if (
-        lower.includes('marca') ||
-        lower.includes('modelo') ||
-        lower.includes('pantalla') ||
-        lower.includes('enciende') ||
-        lower.includes('luz') ||
-        lower.includes('cargador') ||
-        lower.includes('problema') ||
-        lower.includes('laptop') ||
-        lower.includes('pc')
-      ) {
-        return `Es una Lenovo ThinkPad. Al conectarla prenden las luces del teclado pero la pantalla se queda totalmente en negro. Ojalá tenga solución vecina, la uso para trabajar 💻`;
-      }
+    // Intervalo de actualización en tiempo real mientras el chat esté abierto
+    const pollTimer = setInterval(async () => {
+      if (!active || !token) return;
+      try {
+        const msgs = await api.getChatMessages(selectedChat.id, token);
+        if (active && Array.isArray(msgs) && msgs.length > 0) {
+          const mapped = msgs.map((m) => ({
+            id: String(m.id),
+            sender: m.is_me ? 'me' : 'them',
+            text: m.text || m.content || '',
+            time: m.time || 'Ahora'
+          }));
 
-      if (
-        lower.includes('precio') ||
-        lower.includes('cuánto') ||
-        lower.includes('cuanto') ||
-        lower.includes('costo') ||
-        lower.includes('cobras') ||
-        lower.includes('soles') ||
-        lower.includes('s/') ||
-        lower.includes('presupuesto')
-      ) {
-        return `Me parece muy razonable ese precio Andy. La confianza entre vecinos vale mucho. Con gusto te lo cancelo por Yape penas lo revises 🤝`;
-      }
+          setSelectedChat((prev) => {
+            if (!prev || String(prev.id) !== String(selectedChat.id)) return prev;
+            const prevLen = prev.messages ? prev.messages.length : 0;
+            const lastPrev =
+              prev.messages && prev.messages.length > 0
+                ? prev.messages[prev.messages.length - 1].text
+                : '';
+            const lastNew = mapped[mapped.length - 1]?.text;
 
-      if (
-        lower.includes('voy') ||
-        lower.includes('camino') ||
-        lower.includes('llegando') ||
-        lower.includes('donde') ||
-        lower.includes('dónde') ||
-        lower.includes('dirección') ||
-        lower.includes('direccion')
-      ) {
-        return `¡Listo Andy, ya te estoy esperando en la puerta! Mi casa tiene portón blanco. Cualquier cosa me timbras directamente 📞`;
-      }
+            if (prevLen !== mapped.length || lastPrev !== lastNew) {
+              return {
+                ...prev,
+                lastMessage: lastNew || prev.lastMessage,
+                messages: mapped
+              };
+            }
+            return prev;
+          });
+        }
+      } catch {}
+    }, 3500);
 
-      if (
-        lower.includes('gracias') ||
-        lower.includes('apoyo') ||
-        lower.includes('cuenta conmigo') ||
-        lower.includes('dale') ||
-        lower.includes('listo') ||
-        lower.includes('perfecto')
-      ) {
-        return `¡Muchas gracias a ti Andy! En la comunidad nos da mucha tranquilidad contar con tu apoyo para estos servicios 👍`;
-      }
+    return () => {
+      active = false;
+      clearInterval(pollTimer);
+    };
+  }, [selectedChat?.id, token]);
 
-      return `¡Entendido Andy! Quedo a la espera de tu confirmación. Avísame cualquier detalle por aquí para coordinar.`;
-    }
-
-    if (isMatias) {
-      if (lower.includes('hora') || lower.includes('cuando') || lower.includes('tiempo')) {
-        return `¡Listo vecino! Mañana a primera hora a las 9:00 AM paso por tu casa a revisar la pared y llevar la pintura 🛠️`;
-      }
-      if (lower.includes('precio') || lower.includes('costo') || lower.includes('cuanto')) {
-        return `El precio referencial es el publicado e incluye resane y mano de obra vecinal de garantía 🤝`;
-      }
-      return `¡Conforme vecino! Cualquier novedad me timbras al teléfono y pasamos a revisar la obra 👍`;
-    }
-
-    // Default dinámico para otros vecinos
-    return `¡Entendido! Con gusto te apoyo con eso. ¿En qué dirección o manzana exacta te encuentras para acercarme?`;
-  };
-
-  // 3. Enviar mensaje (soporta enviar como el usuario activo o responder como el Vecino en vivo)
+  // 3. Enviar mensaje (Siempre desde la cuenta autenticada propia, sin bots ni simuladores)
   const handleSendMessage = async (textToSend) => {
     const content = textToSend || inputText.trim();
     if (!content || !selectedChat) return;
 
     const currentChat = selectedChat;
-    const isSendingAsNeighbor = sendingAs === 'them';
 
     const newMessage = {
       id: 'msg-' + Date.now(),
-      sender: isSendingAsNeighbor ? 'them' : 'me',
+      sender: 'me', // Siempre enviado por la cuenta que está navegando
       text: content,
       time: 'Ahora'
     };
@@ -492,75 +446,35 @@ export default function ChatScreen({
     setSelectedChat(chatAfterMsg);
 
     const updatedConversations = conversations.map((c) =>
-      c.id === currentChat.id ? chatAfterMsg : c
+      String(c.id) === String(currentChat.id) ? chatAfterMsg : c
     );
-    if (!updatedConversations.some((c) => c.id === currentChat.id)) {
+    if (!updatedConversations.some((c) => String(c.id) === String(currentChat.id))) {
       updatedConversations.unshift(chatAfterMsg);
     }
 
     setConversations(updatedConversations);
     setInputText('');
 
-    // Persistir de inmediato en customStorage aislado por cuenta
+    // Scroll inmediato hacia el final
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+
+    // Persistir de inmediato en la base de datos PostgreSQL de Supabase con token
+    if (token) {
+      try {
+        await api.sendChatMessage(currentChat.id, content, token);
+      } catch (e) {
+        console.warn('[ChatScreen] Error enviando mensaje a backend:', e);
+      }
+    }
+
+    // Persistir localmente en customStorage como respaldo
     try {
       await customStorage.setItem(chatStorageKey, JSON.stringify(updatedConversations));
     } catch (e) {
-      console.warn('[ChatScreen] Error guardando mensaje:', e);
+      console.warn('[ChatScreen] Error guardando mensaje localmente:', e);
     }
-
-    // Scroll inmediato
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 60);
-
-    // Si el usuario envió como el perfil activo ('me'), activar respuesta interactiva del vecino en tiempo real
-    if (!isSendingAsNeighbor) {
-      setIsTyping(true);
-
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-      }
-
-      typingTimerRef.current = setTimeout(async () => {
-        const neighborReply = generateNeighborResponse(content, currentChat);
-
-        const themMessage = {
-          id: 'msg-rep-' + Date.now(),
-          sender: 'them',
-          text: neighborReply,
-          time: 'Ahora'
-        };
-
-        setSelectedChat((prevChat) => {
-          if (!prevChat || prevChat.id !== currentChat.id) return prevChat;
-          const withReply = {
-            ...prevChat,
-            lastMessage: neighborReply,
-            time: 'Ahora',
-            messages: [...(prevChat.messages || []), themMessage]
-          };
-
-          setConversations((prevList) => {
-            const listWithReply = prevList.map((c) => (c.id === currentChat.id ? withReply : c));
-            customStorage.setItem(chatStorageKey, JSON.stringify(listWithReply)).catch(() => {});
-            return listWithReply;
-          });
-
-          return withReply;
-        });
-
-        setIsTyping(false);
-
-        setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 80);
-      }, 1200);
-    }
-
-    // Opcional: sincronizar en backend
-    try {
-      await api.sendChatMessage(currentChat.id, content);
-    } catch {}
   };
 
   // Restablecer / limpiar historial de chats si el usuario lo desea
@@ -723,65 +637,7 @@ export default function ChatScreen({
                 </View>
               );
             })}
-
-            {/* Indicador interactivo de que el vecino está escribiendo */}
-            {isTyping && (
-              <View style={[styles.messageRow, styles.messageRowThem]}>
-                <View style={styles.bubbleSenderAvatar}>
-                  <Text style={{ fontSize: 16 }}>{selectedChat.avatar || '👤'}</Text>
-                </View>
-                <View style={styles.bubbleThemTyping}>
-                  <Text style={[styles.typingText, { fontSize: scale(11) }]}>
-                    ✍️ {selectedChat.name} está escribiendo...
-                  </Text>
-                </View>
-              </View>
-            )}
           </ScrollView>
-
-          {/* Barra de Alternancia de Cuenta: Escribir como Andy o Responder como el Vecino en Vivo */}
-          <View style={styles.roleSelectorBar}>
-            <Text style={[styles.roleSelectorLabel, { fontSize: scale(10) }]}>
-              Modo de chat en vivo:
-            </Text>
-            <View style={styles.roleToggleGroup}>
-              <TouchableOpacity
-                style={[styles.roleToggleBtn, sendingAs === 'me' && styles.roleToggleBtnActive]}
-                onPress={() => setSendingAs('me')}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 13, marginRight: 4 }}>👨‍🔧</Text>
-                <Text
-                  style={[
-                    styles.roleToggleText,
-                    sendingAs === 'me' && styles.roleToggleTextActive,
-                    { fontSize: scale(10) }
-                  ]}
-                >
-                  {currentUserName} (Tú)
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.roleToggleBtn,
-                  sendingAs === 'them' && styles.roleToggleBtnActiveNeighbor
-                ]}
-                onPress={() => setSendingAs('them')}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 13, marginRight: 4 }}>{selectedChat.avatar || '🧑‍💼'}</Text>
-                <Text
-                  style={[
-                    styles.roleToggleText,
-                    sendingAs === 'them' && styles.roleToggleTextActiveNeighbor,
-                    { fontSize: scale(10) }
-                  ]}
-                >
-                  Responder como {selectedChat.name}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
 
           {/* Respuestas Rápidas Sugeridas */}
           <View style={styles.quickRepliesContainer}>
@@ -804,19 +660,11 @@ export default function ChatScreen({
             </ScrollView>
           </View>
 
-          {/* Barra de Entrada de Texto con botón Enviar visible */}
+          {/* Barra de Entrada de Texto estilo WhatsApp */}
           <View style={styles.inputContainer}>
             <TextInput
-              style={[
-                styles.textInput,
-                sendingAs === 'them' && styles.textInputNeighbor,
-                { fontSize: scale(13) }
-              ]}
-              placeholder={
-                sendingAs === 'them'
-                  ? `Escribir en vivo como ${selectedChat.name}...`
-                  : `Escribe un mensaje a ${selectedChat.name}...`
-              }
+              style={[styles.textInput, { fontSize: scale(13) }]}
+              placeholder={`Escribe un mensaje a ${selectedChat.name}...`}
               placeholderTextColor={COLORS.textMuted}
               value={inputText}
               onChangeText={setInputText}
@@ -826,7 +674,6 @@ export default function ChatScreen({
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                sendingAs === 'them' && { backgroundColor: '#0284c7' },
                 !inputText.trim() && { opacity: 0.6 }
               ]}
               disabled={!inputText.trim()}
@@ -862,7 +709,7 @@ export default function ChatScreen({
             </View>
           </View>
 
-          {/* Botón para reiniciar/limpiar chats a los vecinos modelo */}
+          {/* Botón para reiniciar/limpiar chats */}
           <TouchableOpacity
             style={styles.resetHeaderBtn}
             activeOpacity={0.8}
@@ -961,33 +808,32 @@ const styles = StyleSheet.create({
   resetHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 10,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
     paddingVertical: 5,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#a7f3d0'
+    borderColor: '#e2e8f0'
   },
   resetHeaderBtnText: {
-    color: COLORS.primaryDark,
-    fontWeight: '700'
+    fontWeight: '700',
+    color: COLORS.primaryDark
   },
   listContent: {
     padding: 16,
-    paddingBottom: 40
+    paddingBottom: 80
   },
   emptyListBox: {
     backgroundColor: COLORS.white,
+    padding: 28,
     borderRadius: 20,
-    padding: 32,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
-    marginTop: 24
+    marginTop: 20
   },
   emptyListTitle: {
-    fontWeight: '800',
+    fontWeight: '900',
     color: COLORS.primaryDark,
     marginBottom: 8,
     textAlign: 'center'
@@ -1001,14 +847,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: 16,
     padding: 14,
+    borderRadius: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#f1f5f9',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1
   },
@@ -1029,111 +875,115 @@ const styles = StyleSheet.create({
   },
   convName: {
     fontWeight: '800',
-    color: '#0f172a'
-  },
-  verifiedMini: {
-    backgroundColor: COLORS.primary,
-    width: 13,
-    height: 13,
-    borderRadius: 6.5,
-    alignItems: 'center',
-    justifyContent: 'center'
+    color: COLORS.text
   },
   convTime: {
     color: COLORS.textMuted,
     fontWeight: '500'
   },
   convTopic: {
-    color: COLORS.primary,
+    color: '#0d9488',
     fontWeight: '700',
-    marginBottom: 2
+    marginBottom: 3
   },
   convLastMessage: {
     color: COLORS.textMuted,
     fontWeight: '500'
   },
   convLastMessageUnread: {
-    color: '#0f172a',
-    fontWeight: '700'
+    color: COLORS.text,
+    fontWeight: '800'
   },
-  chatDetailContainer: {
-    flex: 1,
-    backgroundColor: '#f8fafc'
-  },
-  chatDetailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: 12
-  },
-  backButton: {
-    padding: 4
-  },
-  chatHeaderAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  chatHeaderName: {
-    fontWeight: '800',
-    color: '#0f172a'
-  },
-  verifiedBadge: {
-    backgroundColor: COLORS.primary,
+  verifiedMini: {
+    backgroundColor: '#059669',
     width: 14,
     height: 14,
     borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  chatHeaderSubtitle: {
-    color: COLORS.textMuted,
-    fontWeight: '500'
+  chatDetailContainer: {
+    flex: 1,
+    backgroundColor: '#f0fdf4'
   },
-  phoneCallBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
+  chatDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border
+  },
+  backButton: {
+    padding: 6,
+    marginRight: 6
+  },
+  chatHeaderAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10
+  },
+  chatHeaderName: {
+    fontWeight: '800',
+    color: COLORS.text
+  },
+  verifiedBadge: {
+    backgroundColor: '#059669',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center'
   },
+  chatHeaderSubtitle: {
+    color: COLORS.textMuted,
+    fontWeight: '600'
+  },
+  phoneCallBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ecfdf5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#a7f3d0'
+  },
   topicCard: {
     backgroundColor: '#f0fdfa',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccfbf1'
+    borderBottomColor: '#ccfbf1',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
   topicCardText: {
-    color: '#0d9488',
-    marginBottom: 2
+    color: '#0f766e',
+    fontWeight: '700'
   },
   topicCardSecure: {
-    color: '#14b8a6',
-    fontWeight: '500'
+    color: '#0d9488',
+    fontWeight: '600'
   },
   messagesList: {
-    flex: 1
+    flex: 1,
+    paddingHorizontal: 14
   },
   messagesContent: {
-    padding: 16,
-    paddingBottom: 20
+    paddingVertical: 14,
+    gap: 8
   },
   messageRow: {
     flexDirection: 'row',
-    marginBottom: 12,
-    alignItems: 'flex-end'
+    alignItems: 'flex-end',
+    marginBottom: 4
   },
   messageRowMe: {
     justifyContent: 'flex-end'
@@ -1142,23 +992,23 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start'
   },
   bubbleSenderAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#f1f5f9',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 6,
     marginBottom: 2
   },
   messageBubble: {
     maxWidth: '78%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
     borderRadius: 18
   },
   bubbleMe: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#0d9488',
     borderBottomRightRadius: 4
   },
   bubbleThem: {
@@ -1169,35 +1019,24 @@ const styles = StyleSheet.create({
   },
   bubbleSenderName: {
     fontWeight: '800',
-    color: COLORS.primaryDark,
-    marginBottom: 3
-  },
-  bubbleThemTyping: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderBottomLeftRadius: 4
-  },
-  typingText: {
-    color: COLORS.textSecondary,
-    fontStyle: 'italic'
+    color: '#0f766e',
+    marginBottom: 2
   },
   messageText: {
-    lineHeight: 19,
+    lineHeight: 18,
     fontWeight: '500'
   },
   messageTextMe: {
-    color: COLORS.white
+    color: '#ffffff'
   },
   messageTextThem: {
-    color: '#0f172a'
+    color: '#1e293b'
   },
   messageFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    marginTop: 4
+    marginTop: 3
   },
   messageTime: {
     fontWeight: '500'
@@ -1209,105 +1048,59 @@ const styles = StyleSheet.create({
     color: '#94a3b8'
   },
   checkmarks: {
-    color: '#ccfbf1',
-    fontWeight: '900'
-  },
-  roleSelectorBar: {
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  roleSelectorLabel: {
-    color: '#64748b',
-    fontWeight: '700'
-  },
-  roleToggleGroup: {
-    flexDirection: 'row',
-    gap: 6
-  },
-  roleToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1'
-  },
-  roleToggleBtnActive: {
-    backgroundColor: '#0d9488',
-    borderColor: '#0d9488'
-  },
-  roleToggleBtnActiveNeighbor: {
-    backgroundColor: '#0284c7',
-    borderColor: '#0284c7'
-  },
-  roleToggleText: {
-    color: '#475569',
-    fontWeight: '700'
-  },
-  roleToggleTextActive: {
-    color: '#ffffff'
-  },
-  roleToggleTextActiveNeighbor: {
-    color: '#ffffff'
+    color: '#a7f3d0',
+    fontWeight: '800'
   },
   quickRepliesContainer: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
     paddingVertical: 6,
-    backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9'
   },
   quickReplyPill: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f1f5f9',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#e2e8f0'
   },
   quickReplyText: {
-    color: '#334155',
-    fontWeight: '700'
+    fontWeight: '700',
+    color: COLORS.primaryDark
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    gap: 8,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10
+    gap: 8
   },
   textInput: {
     flex: 1,
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 22,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderWidth: 1.5,
-    borderColor: '#cbd5e1',
-    color: '#0f172a',
-    fontWeight: '600'
-  },
-  textInputNeighbor: {
-    borderColor: '#38bdf8',
-    backgroundColor: '#f0f9ff'
+    paddingVertical: 8,
+    color: COLORS.text,
+    minHeight: 40
   },
   sendButton: {
-    backgroundColor: COLORS.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#0d9488',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    shadowColor: '#0d9488',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3
   }
 });

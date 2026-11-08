@@ -365,6 +365,14 @@ export const api = {
     }
   },
 
+  async getChatDetail(conversationId, token) {
+    try {
+      return await request(`/chats/${conversationId}`, { method: 'GET' }, token);
+    } catch {
+      return null;
+    }
+  },
+
   async getChatMessages(conversationId, token) {
     try {
       return await request(`/chats/${conversationId}/messages`, { method: 'GET' }, token);
