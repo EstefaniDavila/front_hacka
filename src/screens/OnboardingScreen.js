@@ -205,7 +205,6 @@ export default function OnboardingScreen({
   };
 
   // ==========================================================
-  // HANDLERS PASO 2: VERIFICACIÓN FACIAL CON INSIGHTFACE
   // ==========================================================
   const handleFaceCaptured = (photo) => {
     if (!photo || !photo.uri) return;
