@@ -101,6 +101,7 @@ function MainApp() {
   const [isEmergencyBannerDismissed, setIsEmergencyBannerDismissed] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [targetEmergency, setTargetEmergency] = useState(null);
 
   // Verificación de estado de backend y sondeo en tiempo real de alertas comunitarias
   useEffect(() => {
@@ -563,6 +564,7 @@ function MainApp() {
               }}
               userProfile={userProfile}
               onDismissBanner={() => setIsEmergencyBannerDismissed(true)}
+              targetEmergency={targetEmergency}
             />
           )}
 
@@ -626,6 +628,17 @@ function MainApp() {
           activeEmergency={activeEmergency}
           onViewEmergency={(notif) => {
             setShowNotificationsModal(false);
+            const emg = notif?.rawEmergency || activeEmergency || {
+              id: notif?.emergency_id || notif?.id || 'demo-1',
+              title: notif?.title ? notif.title.replace(/🚨\s*ALERTA\s*COMUNITARIA:\s*/i, '').replace(/\[DEMO\]\s*/i, '') : 'Emergencia Comunitaria',
+              description: notif?.body || 'Emergencia en curso.',
+              emergency_type: 'medical',
+              latitude: -12.0463,
+              longitude: -77.0427
+            };
+            setTargetEmergency(emg);
+            setActiveEmergency(emg);
+            setIsEmergencyBannerDismissed(false);
             handleNavigate('emergency');
           }}
         />

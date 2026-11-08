@@ -36,7 +36,7 @@ function getEmgBgColor(type) {
   return '#fee2e2';
 }
 
-export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered, userProfile, onDismissBanner }) {
+export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered, userProfile, onDismissBanner, targetEmergency }) {
   const { session, profile, user } = useAuth();
   const token = session?.access_token;
 
@@ -57,6 +57,14 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     const d = Math.round(R * c);
     return d < 15 ? 15 : d;
   };
+  useEffect(() => {
+    if (targetEmergency) {
+      setActiveTab('map');
+      setActiveEmergency(targetEmergency);
+      loadVolunteersForEmergency(targetEmergency.id);
+    }
+  }, [targetEmergency]);
+
   const [activeTab, setActiveTab] = useState('alert'); // 'alert' | 'map'
   const [activeEmergency, setActiveEmergency] = useState(null);
   const [activeEmergenciesList, setActiveEmergenciesList] = useState([]);
@@ -613,31 +621,39 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                   </Text>
                 </View>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingRight: 16 }}>
                 {activeEmergenciesList.map((emg) => {
                   const isSelected = String(emg.id) === String(activeEmergency?.id);
                   const icon = getEmgIcon(emg.emergency_type || emg.type || emg.title);
                   return (
                     <TouchableOpacity
                       key={emg.id}
-                      style={[
-                        styles.tagBtn,
-                        isSelected && styles.tagBtnActive,
-                        { marginRight: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }
-                      ]}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginRight: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: 20,
+                        backgroundColor: isSelected ? '#fee2e2' : '#ffffff',
+                        borderWidth: 1.5,
+                        borderColor: isSelected ? '#dc2626' : '#cbd5e1',
+                        flexShrink: 0
+                      }}
                       onPress={() => {
                         setActiveEmergency(emg);
                         loadVolunteersForEmergency(emg.id);
                       }}
                       activeOpacity={0.8}
                     >
-                      <Text style={{ fontSize: 13, marginRight: 4 }}>{icon}</Text>
+                      <Text style={{ fontSize: 13, marginRight: 5 }}>{icon}</Text>
                       <Text
-                        style={[
-                          styles.tagBtnText,
-                          isSelected && styles.tagBtnTextActive,
-                          { fontSize: scale(11), fontWeight: isSelected ? '800' : '600' }
-                        ]}
+                        style={{
+                          fontSize: scale(11),
+                          fontWeight: isSelected ? '800' : '600',
+                          color: isSelected ? '#991b1b' : '#334155'
+                        }}
+                        numberOfLines={1}
                       >
                         {emg.title}
                       </Text>

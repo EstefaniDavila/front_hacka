@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 
 const LOCATION_STORAGE_KEY = '@vecired_detected_location';
 
@@ -7,30 +8,50 @@ const LOCATION_STORAGE_KEY = '@vecired_detected_location';
  * Retorna { latitude, longitude, accuracy }
  */
 export async function getRawGpsPosition(timeoutMs = 8000) {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return null;
-  }
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
+  // 1. Intentar con expo-location para dispositivos móviles (Android / iOS)
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status === 'granted') {
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+      if (pos && pos.coords) {
+        return {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
           accuracy: pos.coords.accuracy || 10
-        });
-      },
-      (err) => {
-        console.warn('[LocationService] No se pudo obtener GPS directo:', err?.message);
-        resolve(null);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: timeoutMs,
-        maximumAge: 30000 // 30 segundos
+        };
       }
-    );
-  });
+    }
+  } catch (expoErr) {
+    console.warn('[LocationService] expo-location no disponible:', expoErr?.message);
+  }
+
+  // 2. Fallback para navegador web con navigator.geolocation
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy || 10
+          });
+        },
+        (err) => {
+          console.warn('[LocationService] No se pudo obtener GPS directo:', err?.message);
+          resolve(null);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: timeoutMs,
+          maximumAge: 30000 // 30 segundos
+        }
+      );
+    });
+  }
+
+  return null;
 }
 
 /**
