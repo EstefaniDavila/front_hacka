@@ -14,6 +14,7 @@ import {
 import { COLORS } from './src/theme/colors';
 import { api } from './src/services/api';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { getOrDetectUserLocation } from './src/services/locationService';
 import { customStorage } from './src/services/supabase';
 
 // Pantallas de Autenticación
@@ -96,6 +97,7 @@ function MainApp() {
   const [fontScale, setFontScale] = useState(1.0);
   const [helpedCount, setHelpedCount] = useState(0);
   const [activeEmergency, setActiveEmergency] = useState(null);
+  const [isEmergencyBannerDismissed, setIsEmergencyBannerDismissed] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
@@ -242,6 +244,9 @@ function MainApp() {
   const [publishInitialType, setPublishInitialType] = useState(null);
 
   const handleNavigate = (tab, params = null) => {
+    if (tab === 'emergency') {
+      setIsEmergencyBannerDismissed(true);
+    }
     if (params?.serviceId) {
       setSelectedServiceId(params.serviceId);
     }
@@ -422,12 +427,19 @@ function MainApp() {
         )}
 
         {/* Banner de Emergencia Comunitaria Activa */}
-        {activeEmergency && currentTab !== 'emergency' && (
+        {activeEmergency && !isEmergencyBannerDismissed && currentTab !== 'emergency' && (
           <EmergencyBanner
             emergencyTitle={activeEmergency.title || activeEmergency.name}
             emergency={activeEmergency}
-            onOpenEmergency={() => handleNavigate('emergency')}
-            onPressView={() => handleNavigate('emergency')}
+            onOpenEmergency={() => {
+              setIsEmergencyBannerDismissed(true);
+              handleNavigate('emergency');
+            }}
+            onPressView={() => {
+              setIsEmergencyBannerDismissed(true);
+              handleNavigate('emergency');
+            }}
+            onDismiss={() => setIsEmergencyBannerDismissed(true)}
             fontScale={fontScale}
           />
         )}
@@ -519,7 +531,12 @@ function MainApp() {
               onNavigate={handleNavigate}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
-              onAlertTriggered={(alert) => setActiveEmergency(alert)}
+              onAlertTriggered={(alert) => {
+                setIsEmergencyBannerDismissed(false);
+                setActiveEmergency(alert);
+              }}
+              userProfile={userProfile}
+              onDismissBanner={() => setIsEmergencyBannerDismissed(true)}
             />
           )}
 

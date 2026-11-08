@@ -355,6 +355,28 @@ export const api = {
     );
   },
 
+  async getEmergencyVolunteers(emergencyId = null, token = null) {
+    try {
+      const endpoint = emergencyId ? `/emergencies/volunteers?emergency_id=${emergencyId}` : '/emergencies/volunteers';
+      const data = await request(endpoint, { method: 'GET' }, token);
+      if (Array.isArray(data)) return data;
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async joinEmergencyBrigade(volunteerData, token = null) {
+    return request(
+      '/emergencies/volunteers',
+      {
+        method: 'POST',
+        body: JSON.stringify(volunteerData)
+      },
+      token
+    );
+  },
+
   // ==========================================================
   // MÓDULO DE NOTIFICACIONES Y ALERTAS
   // ==========================================================
