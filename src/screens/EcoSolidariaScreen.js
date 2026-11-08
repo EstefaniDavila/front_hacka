@@ -7,7 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  Modal
+  Modal,
+  TextInput
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { mockEmergencyNeeds } from '../data/mockData';
@@ -18,6 +19,57 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
   const [modalVisible, setModalVisible] = useState(false);
   const [hasContributed, setHasContributed] = useState(false);
   const [contributionQty, setContributionQty] = useState(1);
+
+  // Pantalla especial "Se necesita" (Solicitud de Recursos Urgentes)
+  const [needModalVisible, setNeedModalVisible] = useState(false);
+  const [needCategory, setNeedCategory] = useState('Agua Potable');
+  const [needUrgency, setNeedUrgency] = useState('Alta (Hoy)');
+  const [needDescription, setNeedDescription] = useState('');
+  const [needLocation, setNeedLocation] = useState('Manzana 2, Lote ');
+  const [needContact, setNeedContact] = useState('');
+
+  // Pantalla especial "Puedo aportar" (Ofrecer Recursos o Ayuda)
+  const [offerModalVisible, setOfferModalVisible] = useState(false);
+  const [offerCategory, setOfferCategory] = useState('Agua Potable');
+  const [offerType, setOfferType] = useState('Donación');
+  const [offerDelivery, setOfferDelivery] = useState('Centro de Acopio');
+  const [offerDescription, setOfferDescription] = useState('');
+  const [offerContact, setOfferContact] = useState('');
+
+  const handleCreateNeed = () => {
+    if (!needDescription.trim()) {
+      Alert.alert('Falta descripción', 'Describe brevemente qué insumos o ayuda requiere tu familia.');
+      return;
+    }
+    const newNeedItem = {
+      id: Date.now().toString(),
+      resource_name: needCategory,
+      category: needCategory,
+      quantity_required: 10,
+      quantity_committed: 0,
+      unit: 'unidades',
+      urgency: needUrgency.includes('Inmediata') ? 'crítica' : 'alta',
+      status: 'active',
+      description: needDescription.trim(),
+      location: needLocation.trim() || 'Manzana 2',
+      contact: needContact.trim()
+    };
+    setNeeds(prev => [newNeedItem, ...prev]);
+    setNeedModalVisible(false);
+    setNeedDescription('');
+    Alert.alert('🚨 Solicitud Publicada', 'Tu requerimiento fue enviado al Muro de Emergencia y notificado a la brigada vecinal.');
+  };
+
+  const handleCreateOffer = () => {
+    if (!offerDescription.trim()) {
+      Alert.alert('Falta descripción', 'Describe qué recurso o apoyo estás ofreciendo a los vecinos.');
+      return;
+    }
+    setOfferModalVisible(false);
+    setOfferDescription('');
+    onIncrementHelped();
+    Alert.alert('🤝 ¡Aporte Registrado!', `Tu ofrecimiento de ${offerCategory} (${offerType}) ha sido publicado. ¡Muchas gracias por solidarizarte con Zona A!`);
+  };
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -134,7 +186,7 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
         <TouchableOpacity
           style={styles.actionBtnNeed}
           activeOpacity={0.85}
-          onPress={() => onNavigate('publish', { type: 'necesito_ayuda' })}
+          onPress={() => setNeedModalVisible(true)}
         >
           <View style={styles.btnPlusCircle}>
             <Ionicons name="add" size={20} color="#ffffff" />
@@ -146,7 +198,7 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
         <TouchableOpacity
           style={styles.actionBtnOffer}
           activeOpacity={0.85}
-          onPress={() => onNavigate('publish', { type: 'puedo_apoyar' })}
+          onPress={() => setOfferModalVisible(true)}
         >
           <View style={styles.btnHandsCircle}>
             <MaterialCommunityIcons name="hand-heart" size={18} color="#ffffff" />
@@ -356,6 +408,261 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
         </View>
       </Modal>
 
+
+      {/* ========================================================================= */}
+      {/* PANTALLA ESPECIAL 1: "SE NECESITA" (SOLICITUD DE RECURSOS URGENTES)      */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={needModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setNeedModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.specialModalContainer}>
+            {/* Cabecera Roja de Emergencia */}
+            <View style={styles.emergencyModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.specialHeaderIconCircle}>
+                  <Ionicons name="alert-circle" size={22} color="#ffffff" />
+                </View>
+                <View>
+                  <Text style={styles.specialHeaderTitle}>Solicitar Recursos Urgentes</Text>
+                  <Text style={styles.specialHeaderSub}>Emergencia Activa: Inundación en Zona A</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setNeedModalVisible(false)} style={styles.closeSpecialModalBtn}>
+                <Ionicons name="close" size={20} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.specialModalBody} showsVerticalScrollIndicator={false}>
+              {/* Categoría del Recurso */}
+              <Text style={styles.formInputLabel}>¿Qué recurso necesitas con urgencia? *</Text>
+              <View style={styles.optionsWrapRow}>
+                {[
+                  { label: '💧 Agua Potable', val: 'Agua Potable' },
+                  { label: '🍞 Alimentos / Víveres', val: 'Alimentos / Víveres' },
+                  { label: '💊 Medicinas / Primeros Aux.', val: 'Medicinas / Primeros Aux.' },
+                  { label: '🛏️ Frazadas / Ropa Seca', val: 'Frazadas / Ropa Seca' },
+                  { label: '🔦 Linternas / Baterías', val: 'Linternas / Baterías' },
+                  { label: '🛠️ Herramientas / Palas', val: 'Herramientas / Palas' },
+                  { label: '🦺 Evacuación / Rescate', val: 'Evacuación / Rescate' }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.val}
+                    style={[styles.specialOptionChip, needCategory === item.val && styles.specialOptionChipActive]}
+                    onPress={() => setNeedCategory(item.val)}
+                  >
+                    <Text style={[styles.specialOptionChipText, needCategory === item.val && styles.specialOptionChipTextActive]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Nivel de Urgencia */}
+              <Text style={styles.formInputLabel}>Nivel de Urgencia *</Text>
+              <View style={styles.optionsWrapRow}>
+                {[
+                  { label: '🔴 Inmediata (< 2 horas)', val: 'Inmediata (< 2 horas)', color: '#dc2626' },
+                  { label: '🟠 Alta (Hoy mismo)', val: 'Alta (Hoy)', color: '#ea580c' },
+                  { label: '🟡 Prioritaria (24 horas)', val: 'Prioritaria (24 horas)', color: '#d97706' }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.val}
+                    style={[
+                      styles.urgencyChip,
+                      needUrgency === item.val && { borderColor: item.color, backgroundColor: item.color + '15' }
+                    ]}
+                    onPress={() => setNeedUrgency(item.val)}
+                  >
+                    <Text style={[styles.urgencyChipText, needUrgency === item.val && { color: item.color, fontWeight: '800' }]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Detalle */}
+              <Text style={styles.formInputLabel}>Descripción de la necesidad *</Text>
+              <TextInput
+                style={styles.specialTextInput}
+                placeholder="Ej: Familia de 4 personas (2 niños). Necesitamos 2 bidones de agua de 7L y pañales en Manzana 2..."
+                placeholderTextColor="#94a3b8"
+                value={needDescription}
+                onChangeText={setNeedDescription}
+                multiline
+                numberOfLines={3}
+              />
+
+              {/* Ubicación */}
+              <Text style={styles.formInputLabel}>Ubicación exacta en el barrio</Text>
+              <TextInput
+                style={styles.specialTextInputSingle}
+                placeholder="Ej: Manzana 2 Lote 14 (frente al parque)"
+                placeholderTextColor="#94a3b8"
+                value={needLocation}
+                onChangeText={setNeedLocation}
+              />
+
+              {/* Teléfono de Contacto */}
+              <Text style={styles.formInputLabel}>Teléfono / WhatsApp de coordinación</Text>
+              <TextInput
+                style={styles.specialTextInputSingle}
+                placeholder="Ej: 987 654 321"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+                value={needContact}
+                onChangeText={setNeedContact}
+              />
+
+              {/* Botón de Enviar Solicitud */}
+              <TouchableOpacity
+                style={styles.specialSubmitNeedBtn}
+                activeOpacity={0.85}
+                onPress={handleCreateNeed}
+              >
+                <Ionicons name="megaphone" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text style={styles.specialSubmitBtnText}>Publicar Solicitud de Emergencia</Text>
+              </TouchableOpacity>
+              <View style={{ height: 30 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* PANTALLA ESPECIAL 2: "PUEDO APORTAR" (OFRECER AYUDA O RECURSOS)            */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={offerModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setOfferModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.specialModalContainer}>
+            {/* Cabecera Verde de Solidaridad */}
+            <View style={styles.solidarityModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.specialHeaderIconCircleTeal}>
+                  <MaterialCommunityIcons name="hand-heart" size={22} color="#ffffff" />
+                </View>
+                <View>
+                  <Text style={styles.specialHeaderTitle}>Puedo Aportar / Ayudar</Text>
+                  <Text style={styles.specialHeaderSub}>Solidaridad Vecinal en Zona A</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setOfferModalVisible(false)} style={styles.closeSpecialModalBtn}>
+                <Ionicons name="close" size={20} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.specialModalBody} showsVerticalScrollIndicator={false}>
+              {/* Categoría del Aporte */}
+              <Text style={styles.formInputLabel}>¿Qué recurso o apoyo puedes aportar? *</Text>
+              <View style={styles.optionsWrapRow}>
+                {[
+                  { label: '💧 Bidones de Agua', val: 'Agua Potable' },
+                  { label: '🥫 Víveres y Alimentos', val: 'Víveres y Alimentos' },
+                  { label: '🛏️ Frazadas / Colchones', val: 'Frazadas / Colchones' },
+                  { label: '🦺 Voluntariado / Rescate', val: 'Voluntariado / Rescate' },
+                  { label: '🚗 Transporte / Camioneta', val: 'Transporte / Camioneta' },
+                  { label: '🏠 Espacio Seco / Albergue', val: 'Espacio Seco / Albergue' },
+                  { label: '⚡ Generador / Baterías', val: 'Generador / Baterías' }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.val}
+                    style={[styles.specialOptionChipTeal, offerCategory === item.val && styles.specialOptionChipTealActive]}
+                    onPress={() => setOfferCategory(item.val)}
+                  >
+                    <Text style={[styles.specialOptionChipTealText, offerCategory === item.val && styles.specialOptionChipTealTextActive]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Modalidad */}
+              <Text style={styles.formInputLabel}>Modalidad del aporte *</Text>
+              <View style={styles.optionsWrapRow}>
+                {[
+                  { label: '🎁 Donación Definitiva', val: 'Donación' },
+                  { label: '🔄 Préstamo Solidario (con devolución)', val: 'Préstamo' }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.val}
+                    style={[styles.specialOptionChipTeal, offerType === item.val && styles.specialOptionChipTealActive]}
+                    onPress={() => setOfferType(item.val)}
+                  >
+                    <Text style={[styles.specialOptionChipTealText, offerType === item.val && styles.specialOptionChipTealTextActive]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Punto de Entrega */}
+              <Text style={styles.formInputLabel}>¿Cómo coordinamos la entrega? *</Text>
+              <View style={styles.optionsWrapRow}>
+                {[
+                  { label: '🏫 En Centro de Acopio (Comunal)', val: 'Centro de Acopio' },
+                  { label: '🏠 En mi domicilio (Mz 2)', val: 'Mi domicilio' },
+                  { label: '🚚 Puedo llevarlo al punto afectado', val: 'Entrega a domicilio' }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.val}
+                    style={[styles.specialOptionChipTeal, offerDelivery === item.val && styles.specialOptionChipTealActive]}
+                    onPress={() => setOfferDelivery(item.val)}
+                  >
+                    <Text style={[styles.specialOptionChipTealText, offerDelivery === item.val && styles.specialOptionChipTealTextActive]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Descripción */}
+              <Text style={styles.formInputLabel}>Detalle y cantidad del aporte *</Text>
+              <TextInput
+                style={styles.specialTextInput}
+                placeholder="Ej: Tengo 3 bidones de 7L sin abrir y 2 mantas limpias. Disponibles de inmediato..."
+                placeholderTextColor="#94a3b8"
+                value={offerDescription}
+                onChangeText={setOfferDescription}
+                multiline
+                numberOfLines={3}
+              />
+
+              {/* Teléfono */}
+              <Text style={styles.formInputLabel}>Teléfono / WhatsApp para coordinar</Text>
+              <TextInput
+                style={styles.specialTextInputSingle}
+                placeholder="Ej: 991 223 344"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+                value={offerContact}
+                onChangeText={setOfferContact}
+              />
+
+              {/* Botón de Registrar Aporte */}
+              <TouchableOpacity
+                style={styles.specialSubmitOfferBtn}
+                activeOpacity={0.85}
+                onPress={handleCreateOffer}
+              >
+                <MaterialCommunityIcons name="hand-heart" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text style={styles.specialSubmitBtnText}>Registrar Mi Aporte Vecinal</Text>
+              </TouchableOpacity>
+              <View style={{ height: 30 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Espaciador inferior */}
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
@@ -713,5 +1020,186 @@ const styles = StyleSheet.create({
   modalSendMsgBtnText: {
     color: COLORS.primaryDark,
     fontWeight: '800'
-  }
+  },
+  specialModalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    maxHeight: '85%',
+    width: '100%',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8
+  },
+  emergencyModalHeader: {
+    backgroundColor: '#dc2626',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16
+  },
+  solidarityModalHeader: {
+    backgroundColor: '#0d9488',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16
+  },
+  specialHeaderIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  specialHeaderIconCircleTeal: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  specialHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#ffffff'
+  },
+  specialHeaderSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600'
+  },
+  closeSpecialModalBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  specialModalBody: {
+    padding: 16
+  },
+  formInputLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginTop: 10,
+    marginBottom: 6
+  },
+  optionsWrapRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8
+  },
+  specialOptionChip: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  specialOptionChipActive: {
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626'
+  },
+  specialOptionChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155'
+  },
+  specialOptionChipTextActive: {
+    color: '#ffffff'
+  },
+  specialOptionChipTeal: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  specialOptionChipTealActive: {
+    backgroundColor: '#0d9488',
+    borderColor: '#0d9488'
+  },
+  specialOptionChipTealText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155'
+  },
+  specialOptionChipTealTextActive: {
+    color: '#ffffff'
+  },
+  urgencyChip: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  urgencyChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b'
+  },
+  specialTextInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    padding: 10,
+    fontSize: 12,
+    color: '#0f172a',
+    textAlignVertical: 'top',
+    minHeight: 70
+  },
+  specialTextInputSingle: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 12,
+    color: '#0f172a'
+  },
+  specialSubmitNeedBtn: {
+    backgroundColor: '#dc2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 18,
+    shadowColor: '#dc2626',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4
+  },
+  specialSubmitOfferBtn: {
+    backgroundColor: '#0d9488',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 18,
+    shadowColor: '#0d9488',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4
+  },
+  specialSubmitBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.3
+  },
 });

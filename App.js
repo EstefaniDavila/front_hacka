@@ -131,6 +131,7 @@ function MainApp() {
   const scale = (val) => Math.round(val * fontScale);
 
   const [servicesSearchQuery, setServicesSearchQuery] = useState('');
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [publishInitialType, setPublishInitialType] = useState(null);
 
   const handleNavigate = (tab, params = null) => {
@@ -271,14 +272,17 @@ function MainApp() {
                 style={[styles.headerIconButton, currentTab === 'chat' && styles.headerIconActive]}
                 activeOpacity={0.8}
                 onPress={() => {
+                  setUnreadMessagesCount(0);
                   setActiveChatContact(null);
                   handleNavigate('chat');
                 }}
               >
                 <Ionicons name="chatbubbles" size={19} color={COLORS.primaryDark} />
-                <View style={styles.chatBadge}>
-                  <Text style={styles.chatBadgeText}>2</Text>
-                </View>
+                {unreadMessagesCount > 0 && (
+                  <View style={styles.chatBadge}>
+                    <Text style={styles.chatBadgeText}>{unreadMessagesCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               {/* Botón de Notificaciones */}

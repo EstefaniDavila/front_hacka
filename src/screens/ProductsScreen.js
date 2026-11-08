@@ -28,21 +28,38 @@ export default function ProductsScreen({
 
   const scale = (val) => Math.round(val * fontScale);
 
-  const categories = [
-    { id: 'all', name: 'Todos', icon: '▦' },
-    { id: 'Panadería y Masas', name: 'Panadería', icon: '🍞' },
-    { id: 'Comida Casera y Menú', name: 'Comida Casera', icon: '🍲' },
-    { id: 'Verduras, Frutas y Abarrotes', name: 'Abarrotes', icon: '🥦' },
-    { id: 'Repostería y Postres', name: 'Repostería', icon: '🍰' },
-    { id: 'Artesanía y Confección', name: 'Confección', icon: '🧵' }
-  ];
+  const [categories, setCategories] = useState([
+    { id: 'all', name: 'Todos', icon: '▦' }
+  ]);
 
   const [productsList, setProductsList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
     loadProducts();
   }, [searchQuery, activeCategory]);
+
+  const loadCategories = async () => {
+    try {
+      const data = await api.getProductCategories();
+      if (Array.isArray(data) && data.length > 0) {
+        setCategories([
+          { id: 'all', name: 'Todos', icon: '▦' },
+          ...data.map((c) => ({
+            id: c.name,
+            name: c.name,
+            icon: '🏪'
+          }))
+        ]);
+      }
+    } catch (err) {
+      console.warn('[ProductsScreen] Error cargando categorías de BD:', err);
+    }
+  };
 
   const confirmDeleteProduct = (prod) => {
     Alert.alert(

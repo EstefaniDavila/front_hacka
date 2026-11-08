@@ -48,6 +48,8 @@ export default function SolidarityScreen({
   const [newPostDesc, setNewPostDesc] = useState('');
   const [newPostCategory, setNewPostCategory] = useState('Apoyo temporal');
   const [newPostDate, setNewPostDate] = useState('Hoy / Próximos días');
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState('Noviembre 2026');
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -218,7 +220,123 @@ export default function SolidarityScreen({
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+  
+      {/* ========================================================================= */}
+      {/* MODAL DE CALENDARIO INTERACTIVO DESPLEGABLE                               */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={showCalendarModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowCalendarModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.calendarModalBox}>
+            {/* Header del Calendario */}
+            <View style={styles.calendarHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="calendar" size={20} color="#0d9488" />
+                <Text style={styles.calendarMonthText}>{calendarMonth}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCalendarModal(false)}
+                style={styles.closeCalendarBtn}
+              >
+                <Ionicons name="close" size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Accesos rápidos dentro del calendario */}
+            <View style={styles.calendarQuickRow}>
+              {[
+                { label: 'Hoy (8 Nov)', val: '2026-11-08' },
+                { label: 'Mañana (9 Nov)', val: '2026-11-09' },
+                { label: 'Fin de Semana', val: '2026-11-14' }
+              ].map((q) => (
+                <TouchableOpacity
+                  key={q.label}
+                  style={[styles.calendarQuickPill, newPostDate === q.val && styles.calendarQuickPillActive]}
+                  onPress={() => {
+                    setNewPostDate(q.val);
+                    setShowCalendarModal(false);
+                  }}
+                >
+                  <Text style={[styles.calendarQuickPillText, newPostDate === q.val && styles.calendarQuickPillTextActive]}>
+                    {q.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Días de la semana */}
+            <View style={styles.weekDaysRow}>
+              {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((day) => (
+                <Text key={day} style={styles.weekDayText}>{day}</Text>
+              ))}
+            </View>
+
+            {/* Grilla de Días de Noviembre 2026 (Nov 1 es Domingo, posición 7) */}
+            <View style={styles.daysGrid}>
+              {/* Espacios vacíos antes del 1 (Lu..Sá = 6 días del mes anterior) */}
+              {[26, 27, 28, 29, 30, 31].map((prevDay) => (
+                <View key={'prev-' + prevDay} style={styles.dayCellDisabled}>
+                  <Text style={styles.dayTextDisabled}>{prevDay}</Text>
+                </View>
+              ))}
+
+              {/* Días del 1 al 30 de Noviembre */}
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((dayNum) => {
+                const formattedDate = `2026-11-${dayNum < 10 ? '0' + dayNum : dayNum}`;
+                const isSelected = newPostDate === formattedDate || newPostDate.includes(formattedDate);
+                const isToday = dayNum === 8;
+
+                return (
+                  <TouchableOpacity
+                    key={'day-' + dayNum}
+                    style={[
+                      styles.dayCell,
+                      isToday && styles.dayCellToday,
+                      isSelected && styles.dayCellSelected
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setNewPostDate(formattedDate);
+                      setShowCalendarModal(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        isToday && styles.dayTextToday,
+                        isSelected && styles.dayTextSelected
+                      ]}
+                    >
+                      {dayNum}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Pie del modal de calendario */}
+            <View style={styles.calendarFooter}>
+              <Text style={styles.calendarSelectedPreview}>
+                📅 Fecha elegida: <Text style={{ fontWeight: '800', color: '#0d9488' }}>{newPostDate || 'Ninguna'}</Text>
+              </Text>
+              <TouchableOpacity
+                style={styles.calendarConfirmBtn}
+                onPress={() => setShowCalendarModal(false)}
+              >
+                <Text style={styles.calendarConfirmBtnText}>Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Espacio inferior */}
+      <View style={{ height: 100 }} />
+    </ScrollView>
 
       {/* Tarjeta de Publicar "¿En qué puedes ayudar?" -> Abre directo publicación en Ayuda Solidaria */}
       <View style={styles.publishCard}>
@@ -432,7 +550,123 @@ export default function SolidarityScreen({
                     Intercambio protegido: Comunidad verificada con validación DNI.
                   </Text>
                 </View>
-              </ScrollView>
+          
+      {/* ========================================================================= */}
+      {/* MODAL DE CALENDARIO INTERACTIVO DESPLEGABLE                               */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={showCalendarModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowCalendarModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.calendarModalBox}>
+            {/* Header del Calendario */}
+            <View style={styles.calendarHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="calendar" size={20} color="#0d9488" />
+                <Text style={styles.calendarMonthText}>{calendarMonth}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCalendarModal(false)}
+                style={styles.closeCalendarBtn}
+              >
+                <Ionicons name="close" size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Accesos rápidos dentro del calendario */}
+            <View style={styles.calendarQuickRow}>
+              {[
+                { label: 'Hoy (8 Nov)', val: '2026-11-08' },
+                { label: 'Mañana (9 Nov)', val: '2026-11-09' },
+                { label: 'Fin de Semana', val: '2026-11-14' }
+              ].map((q) => (
+                <TouchableOpacity
+                  key={q.label}
+                  style={[styles.calendarQuickPill, newPostDate === q.val && styles.calendarQuickPillActive]}
+                  onPress={() => {
+                    setNewPostDate(q.val);
+                    setShowCalendarModal(false);
+                  }}
+                >
+                  <Text style={[styles.calendarQuickPillText, newPostDate === q.val && styles.calendarQuickPillTextActive]}>
+                    {q.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Días de la semana */}
+            <View style={styles.weekDaysRow}>
+              {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((day) => (
+                <Text key={day} style={styles.weekDayText}>{day}</Text>
+              ))}
+            </View>
+
+            {/* Grilla de Días de Noviembre 2026 (Nov 1 es Domingo, posición 7) */}
+            <View style={styles.daysGrid}>
+              {/* Espacios vacíos antes del 1 (Lu..Sá = 6 días del mes anterior) */}
+              {[26, 27, 28, 29, 30, 31].map((prevDay) => (
+                <View key={'prev-' + prevDay} style={styles.dayCellDisabled}>
+                  <Text style={styles.dayTextDisabled}>{prevDay}</Text>
+                </View>
+              ))}
+
+              {/* Días del 1 al 30 de Noviembre */}
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((dayNum) => {
+                const formattedDate = `2026-11-${dayNum < 10 ? '0' + dayNum : dayNum}`;
+                const isSelected = newPostDate === formattedDate || newPostDate.includes(formattedDate);
+                const isToday = dayNum === 8;
+
+                return (
+                  <TouchableOpacity
+                    key={'day-' + dayNum}
+                    style={[
+                      styles.dayCell,
+                      isToday && styles.dayCellToday,
+                      isSelected && styles.dayCellSelected
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setNewPostDate(formattedDate);
+                      setShowCalendarModal(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        isToday && styles.dayTextToday,
+                        isSelected && styles.dayTextSelected
+                      ]}
+                    >
+                      {dayNum}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Pie del modal de calendario */}
+            <View style={styles.calendarFooter}>
+              <Text style={styles.calendarSelectedPreview}>
+                📅 Fecha elegida: <Text style={{ fontWeight: '800', color: '#0d9488' }}>{newPostDate || 'Ninguna'}</Text>
+              </Text>
+              <TouchableOpacity
+                style={styles.calendarConfirmBtn}
+                onPress={() => setShowCalendarModal(false)}
+              >
+                <Text style={styles.calendarConfirmBtnText}>Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Espacio inferior */}
+      <View style={{ height: 100 }} />
+    </ScrollView>
             )}
           </View>
         </View>
@@ -546,18 +780,30 @@ export default function SolidarityScreen({
                 ))}
               </View>
 
-              {/* Entrada de fecha interactiva con icono de calendario */}
+              {/* Entrada de fecha interactiva con icono de calendario desplegable */}
               <View style={styles.dateInputWrapper}>
-                <Ionicons name="calendar" size={18} color="#0d9488" style={{ marginRight: 8 }} />
-                <TextInput
-                  style={[styles.dateInputText, { fontSize: scale(12) }]}
-                  placeholder="Ej. 2026-11-10 o este sábado por la mañana"
-                  placeholderTextColor="#94a3b8"
-                  value={newPostDate}
-                  onChangeText={setNewPostDate}
-                />
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                  activeOpacity={0.7}
+                  onPress={() => setShowCalendarModal(true)}
+                >
+                  <Ionicons name="calendar" size={20} color="#0d9488" style={{ marginRight: 8 }} />
+                  <Text style={[styles.dateInputText, { fontSize: scale(12), color: newPostDate ? COLORS.text : '#94a3b8' }]}>
+                    {newPostDate || 'Toca para abrir el calendario...'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.openCalendarBtn}
+                  activeOpacity={0.8}
+                  onPress={() => setShowCalendarModal(true)}
+                >
+                  <Ionicons name="calendar-sharp" size={14} color="#0d9488" style={{ marginRight: 4 }} />
+                  <Text style={styles.openCalendarBtnText}>Elegir fecha</Text>
+                </TouchableOpacity>
+
                 {newPostDate ? (
-                  <TouchableOpacity onPress={() => setNewPostDate('')}>
+                  <TouchableOpacity onPress={() => setNewPostDate('')} style={{ marginLeft: 6 }}>
                     <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
                   </TouchableOpacity>
                 ) : null}
@@ -581,11 +827,243 @@ export default function SolidarityScreen({
                   🚀 Publicar en el Muro Solidario
                 </Text>
               </TouchableOpacity>
-            </ScrollView>
+        
+      {/* ========================================================================= */}
+      {/* MODAL DE CALENDARIO INTERACTIVO DESPLEGABLE                               */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={showCalendarModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowCalendarModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.calendarModalBox}>
+            {/* Header del Calendario */}
+            <View style={styles.calendarHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="calendar" size={20} color="#0d9488" />
+                <Text style={styles.calendarMonthText}>{calendarMonth}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCalendarModal(false)}
+                style={styles.closeCalendarBtn}
+              >
+                <Ionicons name="close" size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Accesos rápidos dentro del calendario */}
+            <View style={styles.calendarQuickRow}>
+              {[
+                { label: 'Hoy (8 Nov)', val: '2026-11-08' },
+                { label: 'Mañana (9 Nov)', val: '2026-11-09' },
+                { label: 'Fin de Semana', val: '2026-11-14' }
+              ].map((q) => (
+                <TouchableOpacity
+                  key={q.label}
+                  style={[styles.calendarQuickPill, newPostDate === q.val && styles.calendarQuickPillActive]}
+                  onPress={() => {
+                    setNewPostDate(q.val);
+                    setShowCalendarModal(false);
+                  }}
+                >
+                  <Text style={[styles.calendarQuickPillText, newPostDate === q.val && styles.calendarQuickPillTextActive]}>
+                    {q.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Días de la semana */}
+            <View style={styles.weekDaysRow}>
+              {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((day) => (
+                <Text key={day} style={styles.weekDayText}>{day}</Text>
+              ))}
+            </View>
+
+            {/* Grilla de Días de Noviembre 2026 (Nov 1 es Domingo, posición 7) */}
+            <View style={styles.daysGrid}>
+              {/* Espacios vacíos antes del 1 (Lu..Sá = 6 días del mes anterior) */}
+              {[26, 27, 28, 29, 30, 31].map((prevDay) => (
+                <View key={'prev-' + prevDay} style={styles.dayCellDisabled}>
+                  <Text style={styles.dayTextDisabled}>{prevDay}</Text>
+                </View>
+              ))}
+
+              {/* Días del 1 al 30 de Noviembre */}
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((dayNum) => {
+                const formattedDate = `2026-11-${dayNum < 10 ? '0' + dayNum : dayNum}`;
+                const isSelected = newPostDate === formattedDate || newPostDate.includes(formattedDate);
+                const isToday = dayNum === 8;
+
+                return (
+                  <TouchableOpacity
+                    key={'day-' + dayNum}
+                    style={[
+                      styles.dayCell,
+                      isToday && styles.dayCellToday,
+                      isSelected && styles.dayCellSelected
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setNewPostDate(formattedDate);
+                      setShowCalendarModal(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        isToday && styles.dayTextToday,
+                        isSelected && styles.dayTextSelected
+                      ]}
+                    >
+                      {dayNum}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Pie del modal de calendario */}
+            <View style={styles.calendarFooter}>
+              <Text style={styles.calendarSelectedPreview}>
+                📅 Fecha elegida: <Text style={{ fontWeight: '800', color: '#0d9488' }}>{newPostDate || 'Ninguna'}</Text>
+              </Text>
+              <TouchableOpacity
+                style={styles.calendarConfirmBtn}
+                onPress={() => setShowCalendarModal(false)}
+              >
+                <Text style={styles.calendarConfirmBtnText}>Aceptar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
 
+      {/* Espacio inferior */}
+      <View style={{ height: 100 }} />
+    </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* ========================================================================= */}
+      {/* MODAL DE CALENDARIO INTERACTIVO DESPLEGABLE                               */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={showCalendarModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowCalendarModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.calendarModalBox}>
+            {/* Header del Calendario */}
+            <View style={styles.calendarHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="calendar" size={20} color="#0d9488" />
+                <Text style={styles.calendarMonthText}>{calendarMonth}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowCalendarModal(false)}
+                style={styles.closeCalendarBtn}
+              >
+                <Ionicons name="close" size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Accesos rápidos dentro del calendario */}
+            <View style={styles.calendarQuickRow}>
+              {[
+                { label: 'Hoy (8 Nov)', val: '2026-11-08' },
+                { label: 'Mañana (9 Nov)', val: '2026-11-09' },
+                { label: 'Fin de Semana', val: '2026-11-14' }
+              ].map((q) => (
+                <TouchableOpacity
+                  key={q.label}
+                  style={[styles.calendarQuickPill, newPostDate === q.val && styles.calendarQuickPillActive]}
+                  onPress={() => {
+                    setNewPostDate(q.val);
+                    setShowCalendarModal(false);
+                  }}
+                >
+                  <Text style={[styles.calendarQuickPillText, newPostDate === q.val && styles.calendarQuickPillTextActive]}>
+                    {q.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Días de la semana */}
+            <View style={styles.weekDaysRow}>
+              {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map((day) => (
+                <Text key={day} style={styles.weekDayText}>{day}</Text>
+              ))}
+            </View>
+
+            {/* Grilla de Días de Noviembre 2026 (Nov 1 es Domingo, posición 7) */}
+            <View style={styles.daysGrid}>
+              {/* Espacios vacíos antes del 1 (Lu..Sá = 6 días del mes anterior) */}
+              {[26, 27, 28, 29, 30, 31].map((prevDay) => (
+                <View key={'prev-' + prevDay} style={styles.dayCellDisabled}>
+                  <Text style={styles.dayTextDisabled}>{prevDay}</Text>
+                </View>
+              ))}
+
+              {/* Días del 1 al 30 de Noviembre */}
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((dayNum) => {
+                const formattedDate = `2026-11-${dayNum < 10 ? '0' + dayNum : dayNum}`;
+                const isSelected = newPostDate === formattedDate || newPostDate.includes(formattedDate);
+                const isToday = dayNum === 8;
+
+                return (
+                  <TouchableOpacity
+                    key={'day-' + dayNum}
+                    style={[
+                      styles.dayCell,
+                      isToday && styles.dayCellToday,
+                      isSelected && styles.dayCellSelected
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setNewPostDate(formattedDate);
+                      setShowCalendarModal(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        isToday && styles.dayTextToday,
+                        isSelected && styles.dayTextSelected
+                      ]}
+                    >
+                      {dayNum}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Pie del modal de calendario */}
+            <View style={styles.calendarFooter}>
+              <Text style={styles.calendarSelectedPreview}>
+                📅 Fecha elegida: <Text style={{ fontWeight: '800', color: '#0d9488' }}>{newPostDate || 'Ninguna'}</Text>
+              </Text>
+              <TouchableOpacity
+                style={styles.calendarConfirmBtn}
+                onPress={() => setShowCalendarModal(false)}
+              >
+                <Text style={styles.calendarConfirmBtnText}>Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Espacio inferior */}
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
@@ -1195,5 +1673,154 @@ const styles = StyleSheet.create({
   submitSolidarityText: {
     color: COLORS.white,
     fontWeight: '900'
-  }
+  },
+  openCalendarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ccfbf1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8
+  },
+  openCalendarBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0f766e'
+  },
+  calendarModalBox: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    width: '92%',
+    maxWidth: 380,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  calendarMonthText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  closeCalendarBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  calendarQuickRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12
+  },
+  calendarQuickPill: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  calendarQuickPillActive: {
+    backgroundColor: '#0d9488',
+    borderColor: '#0d9488'
+  },
+  calendarQuickPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  calendarQuickPillTextActive: {
+    color: '#ffffff'
+  },
+  weekDaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 6,
+    marginBottom: 6
+  },
+  weekDayText: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748b'
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap'
+  },
+  dayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    marginVertical: 2
+  },
+  dayCellToday: {
+    borderWidth: 1.5,
+    borderColor: '#0d9488'
+  },
+  dayCellSelected: {
+    backgroundColor: '#0d9488'
+  },
+  dayCellDisabled: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  dayText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1e293b'
+  },
+  dayTextToday: {
+    color: '#0d9488',
+    fontWeight: '900'
+  },
+  dayTextSelected: {
+    color: '#ffffff',
+    fontWeight: '900'
+  },
+  dayTextDisabled: {
+    fontSize: 11,
+    color: '#cbd5e1'
+  },
+  calendarFooter: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  calendarSelectedPreview: {
+    fontSize: 11,
+    color: '#64748b'
+  },
+  calendarConfirmBtn: {
+    backgroundColor: '#0d9488',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10
+  },
+  calendarConfirmBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800'
+  },
 });

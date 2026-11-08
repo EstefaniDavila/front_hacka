@@ -396,6 +396,9 @@ export default function ServiceDetailScreen({
           </Text>
         )}
       </View>
+
+      {/* Espaciador inferior para evitar que la barra inferior tape el contenido */}
+      <View style={{ height: 120 }} />
     </ScrollView>
   );
 }

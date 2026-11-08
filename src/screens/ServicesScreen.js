@@ -374,10 +374,23 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                 </Text>
               </View>
               <View style={styles.ratingBadge}>
-                <Text style={styles.ratingStar}>★</Text>
-                <Text style={[styles.ratingNumber, { fontSize: scale(12) }]}>
-                  {service.rating ? Number(service.rating).toFixed(1) : '5.0'}
-                </Text>
+                {(() => {
+                  const avg = service.rating_avg !== undefined && service.rating_avg !== null ? Number(service.rating_avg) : (service.rating !== undefined && service.rating !== null ? Number(service.rating) : null);
+                  if (avg !== null && avg > 0) {
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="star" size={13} color="#f59e0b" style={{ marginRight: 3 }} />
+                        <Text style={[styles.ratingNumber, { fontSize: scale(12) }]}>{avg.toFixed(1)}</Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="sparkles" size={12} color="#0d9488" style={{ marginRight: 3 }} />
+                      <Text style={[styles.ratingNumber, { fontSize: scale(11), color: '#0d9488' }]}>Nuevo</Text>
+                    </View>
+                  );
+                })()}
               </View>
             </View>
 
