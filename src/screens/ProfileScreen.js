@@ -62,9 +62,6 @@ export default function ProfileScreen({
       address: editAddress.trim(),
       avatar: editAvatar
     };
-    try {
-      await customStorage.setItem('vecired_user_profile', JSON.stringify(updated));
-    } catch {}
     if (onSaveProfile) {
       onSaveProfile(updated);
     }

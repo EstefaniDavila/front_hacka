@@ -105,44 +105,27 @@ function MainApp() {
   const [helpedCount, setHelpedCount] = useState(0);
   const [activeEmergency, setActiveEmergency] = useState(null);
 
-  const [userProfile, setUserProfile] = useState({
-    name: 'Andy Manchego',
-    phone: '937263104',
-    skill: 'Apoyo general',
+  const EMPTY_PROFILE = {
+    name: '',
+    phone: '',
+    skill: '',
     address: 'Zona A • Manzana 2',
-    avatar: '👨‍🔧'
-  });
+    avatar: '👤'
+  };
 
-  // Restaurar perfil comunitario persistente de storage
-  useEffect(() => {
-    async function restoreProfile() {
-      try {
-        const raw = await customStorage.getItem('vecired_user_profile');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object' && parsed.name) {
-            setUserProfile((prev) => ({ ...prev, ...parsed }));
-          }
-        }
-      } catch (err) {
-        console.warn('Error al restaurar perfil vecinal:', err);
-      }
-    }
-    restoreProfile();
-  }, []);
+  const [userProfile, setUserProfile] = useState(EMPTY_PROFILE);
 
   const handleSaveUserProfile = async (updated) => {
-    setUserProfile((prev) => {
-      const merged = { ...prev, ...updated };
-      customStorage.setItem('vecired_user_profile', JSON.stringify(merged)).catch(() => {});
-      if (user?.id) {
-        customStorage.setItem('vecired_user_profile_' + user.id, JSON.stringify(merged)).catch(() => {});
-      }
-      if (user?.email) {
-        customStorage.setItem('vecired_user_profile_' + user.email, JSON.stringify(merged)).catch(() => {});
-      }
-      return merged;
-    });
+    setUserProfile((prev) => ({ ...prev, ...updated }));
+
+    if (user?.id) {
+      customStorage.setItem('vecired_user_profile_' + user.id, JSON.stringify(updated)).catch(() => {});
+    }
+    if (user?.email) {
+      customStorage.setItem('vecired_user_profile_' + user.email, JSON.stringify(updated)).catch(() => {});
+    }
+    // Eliminar clave global para evitar contaminación entre diferentes cuentas
+    customStorage.removeItem('vecired_user_profile').catch(() => {});
 
     if (updateUserProfile) {
       try {
@@ -156,27 +139,60 @@ function MainApp() {
   // Sincronizar datos si el backend retorna un perfil real o si el usuario inicia/cierra sesión
   useEffect(() => {
     async function restoreProfileOnAuth() {
+      if (!user) {
+        setUserProfile(EMPTY_PROFILE);
+        return;
+      }
+
       let localData = null;
       try {
-        const key = user?.id
-          ? 'vecired_user_profile_' + user.id
-          : user?.email
-          ? 'vecired_user_profile_' + user.email
-          : 'vecired_user_profile';
-        const raw = (await customStorage.getItem(key)) || (await customStorage.getItem('vecired_user_profile'));
-        if (raw) localData = JSON.parse(raw);
+        if (user?.id) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + user.id);
+          if (raw) localData = JSON.parse(raw);
+        }
+        if (!localData && user?.email) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + user.email);
+          if (raw) localData = JSON.parse(raw);
+        }
       } catch {}
 
-      if (profile || localData) {
-        setUserProfile((prev) => ({
-          ...prev,
-          name: localData?.name || profile?.full_name || prev.name,
-          phone: localData?.phone || profile?.phone || prev.phone,
-          skill: localData?.skill || profile?.skill || prev.skill,
-          address: localData?.address || profile?.address || prev.address,
-          avatar: localData?.avatar || profile?.avatar_url || prev.avatar
-        }));
-      }
+      const emailStr = (user?.email || '').toLowerCase();
+      const isAndy = emailStr.includes('andy');
+      const isImanol = emailStr.includes('imanol');
+
+      const name =
+        localData?.name ||
+        profile?.full_name ||
+        user?.user_metadata?.full_name ||
+        (isAndy ? 'Andy Manchego' : isImanol ? 'Imanol Montes' : user?.email?.split('@')[0] || 'Vecino');
+      const phone =
+        localData?.phone ||
+        profile?.phone ||
+        user?.user_metadata?.phone ||
+        (isAndy ? '937263104' : isImanol ? '912345678' : '');
+      const skill =
+        localData?.skill ||
+        profile?.skill ||
+        user?.user_metadata?.skill ||
+        (isAndy ? 'Apoyo general' : isImanol ? 'Tecnología y Soporte' : 'Vecino Colaborador');
+      const address =
+        localData?.address ||
+        profile?.address ||
+        user?.user_metadata?.address ||
+        'Zona A • Manzana 2';
+      const avatar =
+        localData?.avatar ||
+        profile?.avatar_url ||
+        user?.user_metadata?.avatar ||
+        (isAndy ? '👨‍🔧' : isImanol ? '🧑‍💼' : '👤');
+
+      setUserProfile({
+        name,
+        phone,
+        skill,
+        address,
+        avatar
+      });
 
       if (profile?.font_scale_preference) {
         const val = parseFloat(profile.font_scale_preference);
@@ -227,6 +243,7 @@ function MainApp() {
 
   const handleLogout = async () => {
     await logout();
+    setUserProfile(EMPTY_PROFILE);
     setIsLoggedIn(false);
     setAuthView('login');
   };

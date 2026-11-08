@@ -15,7 +15,6 @@ import { COLORS } from '../theme/colors';
 import { customStorage } from '../services/supabase';
 import { api } from '../services/api';
 
-const CHATS_STORAGE_KEY = 'vecired_conversations_v5';
 
 export default function ChatScreen({
   fontScale = 1.0,
@@ -27,11 +26,17 @@ export default function ChatScreen({
   const scale = (val) => Math.round(val * fontScale);
 
   const currentUserName = (userProfile?.name || 'Andy Manchego').trim();
+  const isImanolUser = currentUserName.toLowerCase().includes('imanol');
+
+  // Clave de almacenamiento aislada por perspectiva del usuario activo
+  const chatStorageKey =
+    'vecired_chats_v6_' +
+    (currentUserName ? currentUserName.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'guest');
 
   const [conversations, setConversations] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [inputText, setInputText] = useState('');
-  const [sendingAs, setSendingAs] = useState('me'); // 'me' = Andy (Tú) | 'them' = Vecino que te escribió
+  const [sendingAs, setSendingAs] = useState('me'); // 'me' = Usuario activo (Tú) | 'them' = Vecino que te escribió
   const [isTyping, setIsTyping] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const scrollViewRef = useRef(null);
@@ -44,108 +49,167 @@ export default function ChatScreen({
     'Muchas gracias vecino 🙏'
   ];
 
-  // Conversaciones iniciales comunitarias (Imanol Montes, Matías Aponte y Rosa Flores)
-  const getDefaultSeedConversations = () => [
-    {
-      id: 'chat-imanol-montes',
-      name: 'Imanol Montes',
-      avatar: '🧑‍💼',
-      badge: 'Vecino Verificado',
-      zone: 'Zona A • Mz 2 (Lote 8)',
-      topic: 'Reparación de computadoras',
-      lastMessage: 'Hola Andy, vi tu publicación en el barrio. ¿Podrías apoyarme con la revisión de una laptop?',
-      time: '11:16 AM',
-      unread: 1,
-      phone: '912345678',
-      messages: [
+  // Conversaciones iniciales comunitarias según la cuenta activa
+  const getDefaultSeedConversations = () => {
+    if (isImanolUser) {
+      return [
         {
-          id: 'msg-imanol-1',
-          sender: 'them',
-          text: '¡Hola Andy! Te escribo desde mi cuenta de vecino.',
-          time: '11:15 AM'
+          id: 'chat-andy-manchego',
+          name: 'Andy Manchego',
+          avatar: '👨‍🔧',
+          badge: 'Proveedor Verificado',
+          zone: 'Zona A • Mz 2',
+          topic: 'Reparación de computadoras',
+          lastMessage: 'Hola Imanol, con gusto te ayudo a revisar la laptop. ¿A qué hora te viene bien?',
+          time: '11:20 AM',
+          unread: 1,
+          phone: '937263104',
+          messages: [
+            {
+              id: 'msg-imanol-1',
+              sender: 'me',
+              text: '¡Hola Andy! Te escribo desde mi cuenta de vecino.',
+              time: '11:15 AM'
+            },
+            {
+              id: 'msg-imanol-2',
+              sender: 'me',
+              text: 'Vi que publicaste sobre reparación de computadoras. Tengo una laptop que no enciende la pantalla, ¿podrías apoyarme con una revisión?',
+              time: '11:16 AM'
+            },
+            {
+              id: 'msg-andy-rep-1',
+              sender: 'them',
+              text: 'Hola Imanol, con gusto te ayudo a revisar la laptop. ¿A qué hora te viene bien?',
+              time: '11:20 AM'
+            }
+          ]
         },
         {
-          id: 'msg-imanol-2',
-          sender: 'them',
-          text: 'Vi que publicaste sobre reparación de computadoras. Tengo una laptop que no enciende la pantalla, ¿podrías apoyarme con una revisión?',
-          time: '11:16 AM'
+          id: 'chat-matias-aponte',
+          name: 'Matías Aponte',
+          avatar: '👷',
+          badge: 'Proveedor Verificado',
+          zone: 'Zona A • Mz 2',
+          topic: 'Albañilería y Pintura',
+          lastMessage: '¡Hola vecino Imanol! Avísame si necesitas apoyo con albañilería.',
+          time: 'Ayer',
+          unread: 0,
+          phone: '987654321',
+          messages: [
+            {
+              id: 'msg-matias-1',
+              sender: 'them',
+              text: '¡Hola vecino Imanol! Avísame si necesitas apoyo con albañilería o pintura.',
+              time: 'Ayer'
+            }
+          ]
         }
-      ]
-    },
-    {
-      id: 'chat-matias-aponte',
-      name: 'Matías Aponte',
-      avatar: '👷',
-      badge: 'Proveedor Verificado',
-      zone: 'Zona A • Mz 2',
-      topic: 'Albañilería y Pintura',
-      lastMessage: '¡Listo vecino! Mañana a las 9:00 AM paso por tu casa a revisar el trabajo 🛠️',
-      time: '10:45 AM',
-      unread: 0,
-      phone: '987654321',
-      messages: [
-        {
-          id: 'msg-seed-1',
-          sender: 'me',
-          text: '¡Hola Matías! Vi tu servicio de albañilería y pintura en VeciRed. ¿Tienes disponibilidad para una reparación en mi sala?',
-          time: '10:30 AM'
-        },
-        {
-          id: 'msg-seed-2',
-          sender: 'them',
-          text: '¡Hola Andy! Sí, claro que sí. ¿En qué parte de la Mz 2 te encuentras y qué reparación necesitas exactamente?',
-          time: '10:35 AM'
-        },
-        {
-          id: 'msg-seed-3',
-          sender: 'me',
-          text: 'Estoy en el Lote 4. Es un resane de humedad pequeño y una mano de pintura blanca.',
-          time: '10:40 AM'
-        },
-        {
-          id: 'msg-seed-4',
-          sender: 'them',
-          text: '¡Listo vecino! Mañana a las 9:00 AM paso por tu casa a revisar el trabajo 🛠️',
-          time: '10:45 AM'
-        }
-      ]
-    },
-    {
-      id: 'chat-rosa-flores',
-      name: 'Rosa Flores',
-      avatar: '👩‍🍳',
-      badge: 'Vecina de Confianza',
-      zone: 'Zona A • Mz 4',
-      topic: 'Consulta de Mantenimiento',
-      lastMessage: 'Hola Andy, ¿puedes revisar mi laptop más tarde por favor?',
-      time: 'Ayer',
-      unread: 0,
-      phone: '984512309',
-      messages: [
-        {
-          id: 'msg-seed-r1',
-          sender: 'them',
-          text: 'Hola vecino Andy, buenas tardes. Vi tu publicación sobre reparación de computadoras en VeciRed.',
-          time: 'Ayer'
-        },
-        {
-          id: 'msg-seed-r2',
-          sender: 'them',
-          text: '¿Haces mantenimiento a laptops lentas? La mía se calienta un poco cuando trabajo.',
-          time: 'Ayer'
-        }
-      ]
+      ];
     }
-  ];
 
-  // 1. Cargar y sanear conversaciones del storage asegurando a Imanol Montes
+    return [
+      {
+        id: 'chat-imanol-montes',
+        name: 'Imanol Montes',
+        avatar: '🧑‍💼',
+        badge: 'Vecino Verificado',
+        zone: 'Zona A • Mz 2 (Lote 8)',
+        topic: 'Reparación de computadoras',
+        lastMessage: 'Hola Andy, vi tu publicación en el barrio. ¿Podrías apoyarme con la revisión de una laptop?',
+        time: '11:16 AM',
+        unread: 1,
+        phone: '912345678',
+        messages: [
+          {
+            id: 'msg-imanol-1',
+            sender: 'them',
+            text: '¡Hola Andy! Te escribo desde mi cuenta de vecino.',
+            time: '11:15 AM'
+          },
+          {
+            id: 'msg-imanol-2',
+            sender: 'them',
+            text: 'Vi que publicaste sobre reparación de computadoras. Tengo una laptop que no enciende la pantalla, ¿podrías apoyarme con una revisión?',
+            time: '11:16 AM'
+          }
+        ]
+      },
+      {
+        id: 'chat-matias-aponte',
+        name: 'Matías Aponte',
+        avatar: '👷',
+        badge: 'Proveedor Verificado',
+        zone: 'Zona A • Mz 2',
+        topic: 'Albañilería y Pintura',
+        lastMessage: '¡Listo vecino! Mañana a las 9:00 AM paso por tu casa a revisar el trabajo 🛠️',
+        time: '10:45 AM',
+        unread: 0,
+        phone: '987654321',
+        messages: [
+          {
+            id: 'msg-seed-1',
+            sender: 'me',
+            text: '¡Hola Matías! Vi tu servicio de albañilería y pintura en VeciRed. ¿Tienes disponibilidad para una reparación en mi sala?',
+            time: '10:30 AM'
+          },
+          {
+            id: 'msg-seed-2',
+            sender: 'them',
+            text: '¡Hola Andy! Sí, claro que sí. ¿En qué parte de la Mz 2 te encuentras y qué reparación necesitas exactamente?',
+            time: '10:35 AM'
+          },
+          {
+            id: 'msg-seed-3',
+            sender: 'me',
+            text: 'Estoy en el Lote 4. Es un resane de humedad pequeño y una mano de pintura blanca.',
+            time: '10:40 AM'
+          },
+          {
+            id: 'msg-seed-4',
+            sender: 'them',
+            text: '¡Listo vecino! Mañana a las 9:00 AM paso por tu casa a revisar el trabajo 🛠️',
+            time: '10:45 AM'
+          }
+        ]
+      },
+      {
+        id: 'chat-rosa-flores',
+        name: 'Rosa Flores',
+        avatar: '👩‍🍳',
+        badge: 'Vecina de Confianza',
+        zone: 'Zona A • Mz 4',
+        topic: 'Consulta de Mantenimiento',
+        lastMessage: 'Hola Andy, ¿puedes revisar mi laptop más tarde por favor?',
+        time: 'Ayer',
+        unread: 0,
+        phone: '984512309',
+        messages: [
+          {
+            id: 'msg-seed-r1',
+            sender: 'them',
+            text: 'Hola vecino Andy, buenas tardes. Vi tu publicación sobre reparación de computadoras en VeciRed.',
+            time: 'Ayer'
+          },
+          {
+            id: 'msg-seed-r2',
+            sender: 'them',
+            text: '¿Haces mantenimiento a laptops lentas? La mía se calienta un poco cuando trabajo.',
+            time: 'Ayer'
+          }
+        ]
+      }
+    ];
+  };
+
+  // 1. Cargar y sanear conversaciones del storage según la cuenta activa
   useEffect(() => {
     let mounted = true;
 
     async function initChats() {
       let list = [];
       try {
-        const raw = await customStorage.getItem(CHATS_STORAGE_KEY);
+        const raw = await customStorage.getItem(chatStorageKey);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -159,20 +223,29 @@ export default function ChatScreen({
         console.warn('[ChatScreen] Error leyendo storage de chats:', e);
       }
 
-      // Si la lista está vacía, sembrar las 3 conversaciones por defecto
+      // Si la lista está vacía, sembrar las conversaciones por defecto de la cuenta
       if (list.length === 0) {
         list = getDefaultSeedConversations();
+      } else {
+        // Asegurar que las conversaciones clave del modelo estén presentes si faltan
+        const seeds = getDefaultSeedConversations();
+        seeds.forEach((seed) => {
+          const exists = list.some(
+            (c) => c && c.name && c.name.trim().toLowerCase() === seed.name.trim().toLowerCase()
+          );
+          if (!exists) {
+            list.push(seed);
+          }
+        });
       }
 
-      // Asegurar que Imanol Montes SIEMPRE esté en la lista
-      const hasImanol = list.some((c) => c && c.name && c.name.toLowerCase().includes('imanol'));
-      if (!hasImanol) {
-        const imanolDefault = getDefaultSeedConversations()[0];
-        list.unshift(imanolDefault);
-      }
+      // Filtrar auto-chat por si acaso
+      list = list.filter(
+        (c) => c && c.name && c.name.trim().toLowerCase() !== currentUserName.toLowerCase()
+      );
 
       try {
-        await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(list));
+        await customStorage.setItem(chatStorageKey, JSON.stringify(list));
       } catch {}
 
       // 2. Si se solicitó abrir chat con un contacto específico (desde Servicios o Muro)
@@ -221,7 +294,7 @@ export default function ChatScreen({
           };
           list = [targetChat, ...list.filter((c) => c.name.trim().toLowerCase() !== contactName.toLowerCase())];
           try {
-            await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(list));
+            await customStorage.setItem(chatStorageKey, JSON.stringify(list));
           } catch {}
         }
 
@@ -253,7 +326,62 @@ export default function ChatScreen({
     const lower = userText.toLowerCase();
     const neighborName = neighbor?.name || 'Vecino';
     const isImanol = neighborName.toLowerCase().includes('imanol');
+    const isAndy = neighborName.toLowerCase().includes('andy');
     const isMatias = neighborName.toLowerCase().includes('mat');
+
+    if (isAndy) {
+      if (
+        lower.includes('hora') ||
+        lower.includes('cuando') ||
+        lower.includes('cuándo') ||
+        lower.includes('hoy') ||
+        lower.includes('mañana') ||
+        lower.includes('tarde') ||
+        lower.includes('puedo') ||
+        lower.includes('acomoda')
+      ) {
+        return `¡Hola vecino! Puedo pasar hoy a partir de las 4:00 PM o mañana temprano a las 9:00 AM para revisar tu equipo. ¿Te acomoda ese horario? 🛠️`;
+      }
+
+      if (
+        lower.includes('pantalla') ||
+        lower.includes('enciende') ||
+        lower.includes('laptop') ||
+        lower.includes('pc') ||
+        lower.includes('lenta') ||
+        lower.includes('reparar') ||
+        lower.includes('lenovo') ||
+        lower.includes('revisión') ||
+        lower.includes('revision')
+      ) {
+        return `Por lo que describes puede ser un problema de flex de video o memoria RAM. Llevo mis herramientas y tester para diagnosticarlo directamente en tu domicilio 💻`;
+      }
+
+      if (
+        lower.includes('precio') ||
+        lower.includes('cuánto') ||
+        lower.includes('cuanto') ||
+        lower.includes('costo') ||
+        lower.includes('cobras') ||
+        lower.includes('soles') ||
+        lower.includes('s/') ||
+        lower.includes('presupuesto')
+      ) {
+        return `La revisión y diagnóstico básico vecinal es de S/ 15 a S/ 25 según el trabajo. Siempre con tarifa justa entre vecinos 🤝`;
+      }
+
+      if (
+        lower.includes('gracias') ||
+        lower.includes('apoyo') ||
+        lower.includes('cuenta conmigo') ||
+        lower.includes('listo') ||
+        lower.includes('perfecto')
+      ) {
+        return `¡Con todo gusto! Para eso estamos los vecinos en VeciRed. Quedamos en contacto por aquí 👍`;
+      }
+
+      return `¡Hola vecino! Claro que sí, cuenta con mi apoyo técnico. Dime en qué manzana y lote te encuentras para coordinar la visita 🛠️`;
+    }
 
     if (isImanol) {
       if (
@@ -338,7 +466,7 @@ export default function ChatScreen({
     return `¡Entendido! Con gusto te apoyo con eso. ¿En qué dirección o manzana exacta te encuentras para acercarme?`;
   };
 
-  // 3. Enviar mensaje (soporta enviar como Andy o responder como el Vecino en vivo)
+  // 3. Enviar mensaje (soporta enviar como el usuario activo o responder como el Vecino en vivo)
   const handleSendMessage = async (textToSend) => {
     const content = textToSend || inputText.trim();
     if (!content || !selectedChat) return;
@@ -373,9 +501,9 @@ export default function ChatScreen({
     setConversations(updatedConversations);
     setInputText('');
 
-    // Persistir de inmediato en customStorage
+    // Persistir de inmediato en customStorage aislado por cuenta
     try {
-      await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(updatedConversations));
+      await customStorage.setItem(chatStorageKey, JSON.stringify(updatedConversations));
     } catch (e) {
       console.warn('[ChatScreen] Error guardando mensaje:', e);
     }
@@ -385,7 +513,7 @@ export default function ChatScreen({
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 60);
 
-    // Si el usuario envió como Andy ('me'), activar respuesta interactiva del vecino en tiempo real
+    // Si el usuario envió como el perfil activo ('me'), activar respuesta interactiva del vecino en tiempo real
     if (!isSendingAsNeighbor) {
       setIsTyping(true);
 
@@ -414,7 +542,7 @@ export default function ChatScreen({
 
           setConversations((prevList) => {
             const listWithReply = prevList.map((c) => (c.id === currentChat.id ? withReply : c));
-            customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(listWithReply)).catch(() => {});
+            customStorage.setItem(chatStorageKey, JSON.stringify(listWithReply)).catch(() => {});
             return listWithReply;
           });
 
@@ -439,7 +567,7 @@ export default function ChatScreen({
   const handleResetChats = () => {
     Alert.alert(
       '¿Restablecer mensajes?',
-      'Se reiniciarán tus conversaciones comunitarias con los vecinos del barrio (Imanol Montes, Matías Aponte y Rosa Flores).',
+      'Se reiniciarán tus conversaciones comunitarias con los vecinos del barrio.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -450,7 +578,7 @@ export default function ChatScreen({
             setConversations(seeds);
             setSelectedChat(null);
             try {
-              await customStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(seeds));
+              await customStorage.setItem(chatStorageKey, JSON.stringify(seeds));
             } catch {}
           }
         }
