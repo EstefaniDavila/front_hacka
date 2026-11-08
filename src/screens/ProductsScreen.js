@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 32
+    paddingBottom: 100
   },
   headerBox: {
     backgroundColor: COLORS.primarySurface,

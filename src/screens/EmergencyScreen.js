@@ -294,7 +294,7 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0 }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: 16, paddingBottom: 100 },
   headerCard: {
     backgroundColor: COLORS.emergency,
     borderRadius: 20,
