@@ -418,7 +418,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
 
                 {(() => {
                   const myId = user?.id || profile?.id;
-                  const myName = (profile?.full_name || userProfile?.name || '').toLowerCase().trim();
+                  const myName = (profile?.full_name || userProfile?.name || 'Andy Manchego').toLowerCase().trim();
                   const pName = (service.provider_name || service.user?.full_name || '').toLowerCase().trim();
                   const isMyService = (myId && (service.provider_id === myId || service.user_id === myId)) ||
                                       (myName && pName && (myName === pName || myName.includes(pName) || pName.includes(myName)));
@@ -444,6 +444,10 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                       style={styles.whatsappButton}
                       activeOpacity={0.8}
                       onPress={() => {
+                        if (isMyService) {
+                          Alert.alert('Tu publicación', 'Esta es tu propia publicación. Para coordinar servicios, contacta a otros vecinos.');
+                          return;
+                        }
                         if (onOpenChat) {
                           onOpenChat({
                             name: service.provider_name || service.user?.full_name || 'Vecino',

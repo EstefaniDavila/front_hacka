@@ -19,7 +19,8 @@ export default function ServiceDetailScreen({
   serviceId,
   onNavigate,
   fontScale = 1.0,
-  onOpenChat
+  onOpenChat,
+  userProfile
 }) {
   const { session } = useAuth();
   const token = session?.access_token || null;
@@ -131,7 +132,10 @@ export default function ServiceDetailScreen({
   }
 
   const provider = service.provider || {};
-  const isOwner = token && session?.user?.id === service.provider_id;
+  const myName = (userProfile?.name || 'Andy Manchego').toLowerCase().trim();
+  const provName = (provider.full_name || service.provider_name || '').toLowerCase().trim();
+  const isOwner = (token && session?.user?.id === service.provider_id) ||
+                  (myName && provName && (myName === provName || myName.includes(provName) || provName.includes(myName)));
   const ratingSteps = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
 
   return (

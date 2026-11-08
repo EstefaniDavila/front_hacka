@@ -13,6 +13,7 @@ import {
 import { COLORS } from './src/theme/colors';
 import { api } from './src/services/api';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { customStorage } from './src/services/supabase';
 
 // Pantallas de Autenticación
 import LoginScreen from './src/screens/LoginScreen';
@@ -105,11 +106,38 @@ function MainApp() {
   const [activeEmergency, setActiveEmergency] = useState(null);
 
   const [userProfile, setUserProfile] = useState({
-    name: 'Vecino',
-    phone: '',
-    skill: '',
-    address: 'Zona A • Manzana 2'
+    name: 'Andy Manchego',
+    phone: '937263104',
+    skill: 'Apoyo general',
+    address: 'Zona A • Manzana 2',
+    avatar: '👨‍🔧'
   });
+
+  // Restaurar perfil comunitario persistente de storage
+  useEffect(() => {
+    async function restoreProfile() {
+      try {
+        const raw = await customStorage.getItem('vecired_user_profile');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object' && parsed.name) {
+            setUserProfile((prev) => ({ ...prev, ...parsed }));
+          }
+        }
+      } catch (err) {
+        console.warn('Error al restaurar perfil vecinal:', err);
+      }
+    }
+    restoreProfile();
+  }, []);
+
+  const handleSaveUserProfile = async (updated) => {
+    setUserProfile((prev) => {
+      const merged = { ...prev, ...updated };
+      customStorage.setItem('vecired_user_profile', JSON.stringify(merged)).catch(() => {});
+      return merged;
+    });
+  };
 
   // Sincronizar datos si el backend retorna un perfil real autenticado
   useEffect(() => {
@@ -212,7 +240,7 @@ function MainApp() {
         onNavigateToLogin={() => setAuthView('login')}
         fontScale={fontScale}
         setFontScale={setFontScale}
-        onSaveUserData={(data) => setUserProfile((prev) => ({ ...prev, ...data }))}
+        onSaveUserData={handleSaveUserProfile}
       />
     );
   }
@@ -358,6 +386,7 @@ function MainApp() {
               onNavigate={handleNavigate}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
+              userProfile={userProfile}
             />
           )}
 
@@ -378,6 +407,7 @@ function MainApp() {
               onBack={() => handleNavigate(previousTab || 'home')}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
+              userProfile={userProfile}
             />
           )}
 
@@ -427,7 +457,7 @@ function MainApp() {
               onLogout={handleLogout}
               helpedCount={helpedCount}
               userProfile={userProfile}
-              onSaveProfile={(updated) => setUserProfile((prev) => ({ ...prev, ...updated }))}
+              onSaveProfile={handleSaveUserProfile}
               onOpenChat={() => {
                 setActiveChatContact(null);
                 handleNavigate('chat');
@@ -438,6 +468,7 @@ function MainApp() {
           {currentTab === 'chat' && (
             <ChatScreen
               fontScale={fontScale}
+              userProfile={userProfile}
               onBack={() => {
                 setActiveChatContact(null);
                 setCurrentTab(previousTab || 'home');
