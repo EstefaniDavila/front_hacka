@@ -12,6 +12,7 @@ import { COLORS } from '../theme/colors';
 import { api } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
+import { getOrDetectUserLocation } from '../services/locationService';
 
 export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenChat, onAlertTriggered }) {
   const { session } = useAuth();
@@ -25,6 +26,15 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
   ]);
   const [isVolunteering, setIsVolunteering] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
+  const [userCoords, setUserCoords] = useState({ lat: -12.0463, lng: -77.0427, zone: 'Zona A • Manzana 2' });
+
+  useEffect(() => {
+    getOrDetectUserLocation().then((loc) => {
+      if (loc) {
+        setUserCoords({ lat: loc.latitude, lng: loc.longitude, zone: loc.zone });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     loadEmergencyData();
@@ -304,8 +314,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
         <View>
           {/* Mapa Satelital Interactivo de Google Maps con Epicentro y Brigada */}
           <InteractiveCommunityMap
-            latitude={activeEmergency?.latitude || -12.0463}
-            longitude={activeEmergency?.longitude || -77.0427}
+            latitude={activeEmergency?.latitude || userCoords.lat}
+            longitude={activeEmergency?.longitude || userCoords.lng}
             title={activeEmergency?.title || 'Epicentro de Emergencia Comunitaria'}
             subtitle="Zona A • Manzana 2 (Cuadrante Barrial)"
             height={260}

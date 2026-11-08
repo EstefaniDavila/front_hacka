@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
+import { getOrDetectUserLocation } from '../services/locationService';
 
 export default function OnboardingScreen({
   onFinishLogin,
@@ -91,20 +92,20 @@ export default function OnboardingScreen({
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   }, [step]);
 
-  // Detectar ubicación real vía Geolocation del navegador si está en Web
+  // Detectar ubicación real y geocodificar dirección física exacta
   useEffect(() => {
-    if (step === 5 && typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setDetectedZone(`GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} • Lima`);
-        },
-        () => {
-          // Si no hay permiso o falla, conservar la zona por defecto
-        },
-        { timeout: 5000 }
-      );
-    }
+    let isMounted = true;
+    getOrDetectUserLocation(step === 5).then((loc) => {
+      if (isMounted && loc) {
+        setDetectedAddress(loc.fullAddress);
+        setDetectedZone(loc.zone);
+        setAddressStreet(loc.street);
+        setAddressDistrict(loc.district);
+        setAddressProvince(loc.city);
+        setAddressDepartment(loc.department);
+      }
+    });
+    return () => { isMounted = false; };
   }, [step]);
 
   const SKILL_OPTIONS = [

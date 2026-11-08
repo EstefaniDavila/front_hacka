@@ -20,6 +20,7 @@ import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
+import { getOrDetectUserLocation } from '../services/locationService';
 
 export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType = null }) {
   const { session } = useAuth();
@@ -570,8 +571,8 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
 
               {/* Mapa Satelital Interactivo de Google Maps con Punto Vecinal */}
               <InteractiveCommunityMap
-                latitude={-12.0463}
-                longitude={-77.0427}
+                latitude={currentCoords.lat}
+                longitude={currentCoords.lng}
                 title={locationMode === 'custom' && customAddress.trim() ? customAddress : 'Ubicación de la Publicación'}
                 subtitle="Zona A • Manzana 2 (Visible a vecinos en 500m)"
                 height={210}

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
+import { getOrDetectUserLocation } from '../services/locationService';
 
 /**
  * InteractiveCommunityMap
@@ -47,35 +48,39 @@ export default function InteractiveCommunityMap({
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
 
   useEffect(() => {
-    if (latitude && longitude) {
+    let isMounted = true;
+    if (!latitude || latitude === -12.0463) {
+      getOrDetectUserLocation().then((loc) => {
+        if (isMounted && loc) {
+          setCurrentLat(loc.latitude);
+          setCurrentLng(loc.longitude);
+        }
+      });
+    } else {
       setCurrentLat(latitude);
       setCurrentLng(longitude);
     }
+    return () => { isMounted = false; };
   }, [latitude, longitude]);
 
   const scale = (val) => Math.round(val * fontScale);
 
   // Obtener ubicación GPS real del usuario
-  const handleGetCurrentLocation = () => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      setIsLocating(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setIsLocating(false);
-          const newLat = pos.coords.latitude;
-          const newLng = pos.coords.longitude;
-          setCurrentLat(newLat);
-          setCurrentLng(newLng);
-          if (onLocationChange) {
-            onLocationChange(newLat, newLng);
-          }
-        },
-        (err) => {
-          setIsLocating(false);
-          console.warn('[InteractiveMap] Error obteniendo GPS:', err);
-        },
-        { enableHighAccuracy: true, timeout: 7000 }
-      );
+  const handleGetCurrentLocation = async () => {
+    setIsLocating(true);
+    try {
+      const loc = await getOrDetectUserLocation(true);
+      if (loc) {
+        setCurrentLat(loc.latitude);
+        setCurrentLng(loc.longitude);
+        if (onLocationChange) {
+          onLocationChange(loc.latitude, loc.longitude, loc.fullAddress);
+        }
+      }
+    } catch (err) {
+      console.warn('[InteractiveMap] Error obteniendo GPS:', err);
+    } finally {
+      setIsLocating(false);
     }
   };
 
