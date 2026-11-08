@@ -351,26 +351,14 @@ export default function BiometricFaceScanner({
             </View>
           </View>
 
-          {/* Modo Emulador Android / Botón de simulación para pruebas en Android Studio */}
-          <TouchableOpacity
-            style={styles.emulatorToggle}
-            onPress={() => setEmulatorSimulationActive(!emulatorSimulationActive)}
-          >
-            <Text style={styles.emulatorToggleText}>
-              {emulatorSimulationActive
-                ? '🤖 Modo Emulador: Simulando Rostro (Activo)'
-                : '📱 Modo Hardware Real: Usando Sensor'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Botón de captura manual de respaldo si el emulador no responde */}
+          {/* Botón de captura fotográfica */}
           <TouchableOpacity
             style={[styles.manualCaptureBtn, isCapturing && { opacity: 0.6 }]}
             onPress={triggerAutoCapture}
             disabled={isCapturing}
           >
             <Text style={styles.manualCaptureBtnText}>
-              {isCapturing ? 'PROCESANDO...' : '📸 CAPTURAR FOTO MANUALMENTE'}
+              {isCapturing ? 'PROCESANDO CAPTURA...' : '📸 CAPTURAR SELFIE'}
             </Text>
           </TouchableOpacity>
 

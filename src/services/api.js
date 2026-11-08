@@ -132,6 +132,37 @@ export const api = {
     );
   },
 
+  async extractDni({ dniFrontFile, dniBackFile }, token = null) {
+    const formData = new FormData();
+
+    const appendFile = (field, file, defaultName) => {
+      if (!file) return;
+      if (file.uri) {
+        formData.append(field, {
+          uri: file.uri,
+          name: file.fileName || file.name || defaultName,
+          type: file.mimeType || file.type || 'image/jpeg'
+        });
+      } else {
+        formData.append(field, file, defaultName);
+      }
+    };
+
+    appendFile('dni_front', dniFrontFile, 'dni_front.jpg');
+    if (dniBackFile) {
+      appendFile('dni_back', dniBackFile, 'dni_back.jpg');
+    }
+
+    return request(
+      '/users/extract-dni',
+      {
+        method: 'POST',
+        body: formData
+      },
+      token
+    );
+  },
+
   async getVerificationStatus(token) {
     return request('/users/verification-status', { method: 'GET' }, token);
   },
