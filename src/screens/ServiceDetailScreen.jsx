@@ -292,30 +292,52 @@ export default function ServiceDetailScreen({
           <View style={styles.reviewFormBox}>
             <Text style={[styles.formLabel, { fontSize: scale(12) }]}>¿Cómo calificarías este servicio?</Text>
             
-            {/* Visualización de la puntuación elegida */}
-            <View style={styles.ratingScoreRow}>
-              <Ionicons name="star" size={20} color="#eab308" />
-              <Text style={styles.ratingScoreNumber}>{rating.toFixed(1)}</Text>
-              <Text style={styles.ratingScoreMax}>/ 5.0 estrellas</Text>
-            </View>
+            {/* Selector de Estrellas Interactivas (1 a 5 con medias estrellas táctiles) */}
+            <View style={styles.starsInteractiveContainer}>
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((starIdx) => {
+                  const isFull = rating >= starIdx;
+                  const isHalf = !isFull && rating >= starIdx - 0.5;
+                  return (
+                    <View key={starIdx} style={styles.starTouchContainer}>
+                      {/* Toque izquierdo: media estrella */}
+                      <TouchableOpacity
+                        style={styles.starHalfLeft}
+                        activeOpacity={0.7}
+                        onPress={() => setRating(starIdx - 0.5)}
+                      />
+                      {/* Toque derecho: estrella completa */}
+                      <TouchableOpacity
+                        style={styles.starHalfRight}
+                        activeOpacity={0.7}
+                        onPress={() => setRating(starIdx)}
+                      />
+                      {/* Icono de Estrella Real */}
+                      <Ionicons
+                        name={isFull ? "star" : isHalf ? "star-half" : "star-outline"}
+                        size={36}
+                        color={isFull || isHalf ? "#f59e0b" : "#cbd5e1"}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
 
-            {/* Selector de Medias Estrellas (0.5 a 5.0) */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.halfStarScroll}>
-              {ratingSteps.map((val) => {
-                const isSelected = rating === val;
-                return (
-                  <TouchableOpacity
-                    key={val}
-                    style={[styles.halfStarChip, isSelected && styles.halfStarChipActive]}
-                    onPress={() => setRating(val)}
-                  >
-                    <Text style={[styles.halfStarChipText, isSelected && styles.halfStarChipTextActive]}>
-                      ★ {val.toFixed(1)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+              {/* Puntaje descriptivo */}
+              <View style={styles.ratingDescriptorRow}>
+                <Text style={styles.ratingDescriptorText}>
+                  {rating === 5.0 && '⭐⭐⭐⭐⭐ ¡Excelente servicio!'}
+                  {rating >= 4.0 && rating < 5.0 && '⭐⭐⭐⭐ Muy buen servicio'}
+                  {rating >= 3.0 && rating < 4.0 && '⭐⭐⭐ Buen trabajo'}
+                  {rating >= 2.0 && rating < 3.0 && '⭐⭐ Regular / Aceptable'}
+                  {rating < 2.0 && '⭐ Necesita mejorar'}
+                  {' '}({rating.toFixed(1)} / 5.0)
+                </Text>
+                <Text style={styles.ratingHintText}>
+                  Toca una estrella para calificar (toca el lado izquierdo para media estrella)
+                </Text>
+              </View>
+            </View>
 
             <TextInput
               style={[styles.commentInput, { fontSize: scale(12) }]}
@@ -743,6 +765,59 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.text,
     marginBottom: 6
+  },
+  starsInteractiveContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+    backgroundColor: '#fffbeb',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#fef3c7'
+  },
+  starsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8
+  },
+  starTouchContainer: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative'
+  },
+  starHalfLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 19,
+    zIndex: 2
+  },
+  starHalfRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 19,
+    zIndex: 2
+  },
+  ratingDescriptorRow: {
+    alignItems: 'center',
+    marginTop: 6
+  },
+  ratingDescriptorText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#b45309'
+  },
+  ratingHintText: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 2
   },
   ratingScoreRow: {
     flexDirection: 'row',

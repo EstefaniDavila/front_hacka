@@ -236,7 +236,7 @@ export default function SolidarityScreen({
         <TouchableOpacity
           style={styles.publishBtn}
           activeOpacity={0.85}
-          onPress={() => onNavigate('publish', { type: 'necesito_ayuda' })}
+          onPress={() => setPublishModalVisible(true)}
         >
           <Ionicons name="add" size={14} color="#ffffff" style={{ marginRight: 2 }} />
           <Text style={[styles.publishBtnText, { fontSize: scale(12) }]}>Publicar</Text>
@@ -518,14 +518,50 @@ export default function SolidarityScreen({
                 numberOfLines={3}
               />
 
-              {/* Horario o Disponibilidad */}
-              <Text style={[styles.formLabel, { fontSize: scale(12), marginTop: 12 }]}>¿Cuándo lo necesitas o cuándo puedes?</Text>
-              <TextInput
-                style={[styles.formInput, { fontSize: scale(12) }]}
-                placeholder="Ej: Hoy hasta las 6pm, o este sábado por la mañana"
-                value={newPostDate}
-                onChangeText={setNewPostDate}
-              />
+              {/* Horario o Disponibilidad con Calendario y Selector de Fecha */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
+                <Ionicons name="calendar-outline" size={16} color={COLORS.primaryDark} />
+                <Text style={[styles.formLabel, { fontSize: scale(12) }]}>
+                  ¿Cuándo lo necesitas o cuándo puedes? *
+                </Text>
+              </View>
+
+              {/* Botones Rápidos de Fecha / Calendario */}
+              <View style={styles.quickDateRow}>
+                {[
+                  { label: 'Hoy', value: 'Hoy' },
+                  { label: 'Mañana', value: 'Mañana' },
+                  { label: 'Fin de semana', value: 'Este fin de semana' },
+                  { label: 'En 3 días', value: 'En 3 días' }
+                ].map((d) => (
+                  <TouchableOpacity
+                    key={d.label}
+                    style={[styles.quickDateChip, newPostDate === d.value && styles.quickDateChipActive]}
+                    onPress={() => setNewPostDate(d.value)}
+                  >
+                    <Text style={[styles.quickDateText, newPostDate === d.value && styles.quickDateTextActive]}>
+                      {d.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Entrada de fecha interactiva con icono de calendario */}
+              <View style={styles.dateInputWrapper}>
+                <Ionicons name="calendar" size={18} color="#0d9488" style={{ marginRight: 8 }} />
+                <TextInput
+                  style={[styles.dateInputText, { fontSize: scale(12) }]}
+                  placeholder="Ej. 2026-11-10 o este sábado por la mañana"
+                  placeholderTextColor="#94a3b8"
+                  value={newPostDate}
+                  onChangeText={setNewPostDate}
+                />
+                {newPostDate ? (
+                  <TouchableOpacity onPress={() => setNewPostDate('')}>
+                    <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
 
               {/* Mensaje de manzana */}
               <View style={styles.formLocationNotice}>
@@ -1094,6 +1130,48 @@ const styles = StyleSheet.create({
   catChipTextSelected: {
     color: COLORS.primaryDeep,
     fontWeight: '800'
+  },
+  quickDateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginVertical: 6
+  },
+  quickDateChip: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
+  },
+  quickDateChipActive: {
+    backgroundColor: COLORS.primaryDark,
+    borderColor: COLORS.primaryDark
+  },
+  quickDateText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  quickDateTextActive: {
+    color: '#ffffff'
+  },
+  dateInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8
+  },
+  dateInputText: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontWeight: '600'
   },
   formLocationNotice: {
     flexDirection: 'row',

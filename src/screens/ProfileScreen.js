@@ -257,7 +257,7 @@ export default function ProfileScreen({
           </View>
           <View style={styles.balanceItem}>
             <Text style={[styles.balanceItemLabel, { fontSize: scale(10) }]}>Te han ayudado</Text>
-            <Text style={[styles.balanceItemNumTeal, { fontSize: scale(18) }]}>4 veces</Text>
+            <Text style={[styles.balanceItemNumTeal, { fontSize: scale(18) }]}>{userProfile?.receivedHelpCount !== undefined ? userProfile.receivedHelpCount : 0} veces</Text>
             <Text style={[styles.balanceSubText, { fontSize: scale(9) }]}>apoyo de vecinos</Text>
           </View>
         </View>

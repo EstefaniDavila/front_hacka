@@ -1,3 +1,4 @@
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState } from 'react';
 import {
   View,
@@ -132,10 +133,11 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={styles.actionBtnNeed}
-          onPress={() => Alert.alert('Solicitud de Emergencia', 'Describe el recurso urgente que le falta a tu familia en Manzana 2.')}
+          activeOpacity={0.85}
+          onPress={() => onNavigate('publish', { type: 'necesito_ayuda' })}
         >
           <View style={styles.btnPlusCircle}>
-            <Text style={styles.btnPlusText}>+</Text>
+            <Ionicons name="add" size={20} color="#ffffff" />
           </View>
           <Text style={[styles.actionBtnTitle, { fontSize: scale(12) }]}>Se necesita</Text>
           <Text style={[styles.actionBtnSub, { fontSize: scale(9) }]}>Solicita recursos urgentes</Text>
@@ -143,10 +145,11 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
 
         <TouchableOpacity
           style={styles.actionBtnOffer}
-          onPress={() => Alert.alert('Ofrecer Recursos', 'Registra los víveres, agua o mantas que puedes donar o prestar para la emergencia.')}
+          activeOpacity={0.85}
+          onPress={() => onNavigate('publish', { type: 'puedo_apoyar' })}
         >
           <View style={styles.btnHandsCircle}>
-            <Text style={styles.btnHandsText}>🤝</Text>
+            <MaterialCommunityIcons name="hand-heart" size={18} color="#ffffff" />
           </View>
           <Text style={[styles.actionBtnTitle, { fontSize: scale(12) }]}>Puedo aportar</Text>
           <Text style={[styles.actionBtnSub, { fontSize: scale(9) }]}>Ofrece ayuda o recursos</Text>

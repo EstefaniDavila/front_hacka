@@ -11,6 +11,7 @@ import {
   Switch,
   ActivityIndicator,
   Alert,
+  Modal,
   Keyboard,
   KeyboardAvoidingView,
   Platform
@@ -62,11 +63,29 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
     };
   }, []);
 
-  // Categorías de servicio desde el backend
+  // Categorías de servicio y productos desde la BD
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [productCategories, setProductCategories] = useState([]);
+  const [selectedProductCategoryId, setSelectedProductCategoryId] = useState(null);
+  const [isProdCategoriesExpanded, setIsProdCategoriesExpanded] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
+
+  // Selector y cambio de imagen
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [showImagePickerModal, setShowImagePickerModal] = useState(false);
+  const [customImageUrlInput, setCustomImageUrlInput] = useState('');
+
+  const sampleCommunityImages = [
+    { id: '1', name: 'Oficios y Reparación', uri: 'https://images.unsplash.com/photo-1581783898377-1c85bf937427?w=600' },
+    { id: '2', name: 'Gasfitería y Plomería', uri: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600' },
+    { id: '3', name: 'Panadería y Masas', uri: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600' },
+    { id: '4', name: 'Comida y Menú Casero', uri: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600' },
+    { id: '5', name: 'Abarrotes y Frutas', uri: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600' },
+    { id: '6', name: 'Apoyo y Educación', uri: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600' },
+    { id: '7', name: 'Solidaridad y Donación', uri: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=600' },
+  ];
   const [locationMode, setLocationMode] = useState('current'); // 'current' | 'custom'
   const [customAddress, setCustomAddress] = useState('');
 
@@ -84,7 +103,17 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
         setSelectedCategoryId(data[0].id);
       }
     } catch (err) {
-      console.warn('[PublishScreen] Error al cargar categorías:', err);
+      console.warn('[PublishScreen] Error al cargar categorías de servicio:', err);
+    }
+
+    try {
+      const prodCats = await api.getProductCategories();
+      if (Array.isArray(prodCats) && prodCats.length > 0) {
+        setProductCategories(prodCats);
+        setSelectedProductCategoryId(prodCats[0].id);
+      }
+    } catch (err) {
+      console.warn('[PublishScreen] Error al cargar categorías de productos:', err);
     }
   };
 
@@ -165,24 +194,29 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
       setPublishing(true);
 
       if (formType === 'servicio') {
+        const defaultSrvImg = 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500';
         const payload = {
           title: title.trim(),
           description: desc.trim() || null,
           category_id: selectedCategoryId || (categories[0] ? categories[0].id : null),
           price_from: price ? parseFloat(price) : null,
           price_unit: unit || 'servicio',
-          availability: availability.trim() || null
+          availability: availability.trim() || null,
+          image_url: selectedImage || defaultSrvImg
         };
 
         await api.createService(payload, token);
         onNavigate('services');
       } else if (formType === 'producto') {
+        const defaultProdImg = 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500';
         const payload = {
           name: title.trim(),
           title: title.trim(),
           description: desc.trim() || '',
           price: price ? parseFloat(price) : 0,
-          unit: unit || 'unidad'
+          category_id: selectedProductCategoryId || (productCategories[0] ? productCategories[0].id : null),
+          unit: unit || 'unidad',
+          image_url: selectedImage || defaultProdImg
         };
         await api.createProduct(payload, token);
         Alert.alert(
@@ -373,21 +407,26 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
               </View>
             )}
 
-            {/* Foto ilustrativa */}
+            {/* Foto ilustrativa con Botón de Cámara Funcional */}
             <View style={styles.photoContainer}>
               <Image
                 source={{
                   uri:
-                    formType === 'servicio'
+                    selectedImage ||
+                    (formType === 'servicio'
                       ? 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500'
                       : formType === 'producto'
                       ? 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500'
-                      : 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=500'
+                      : 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=500')
                 }}
                 style={styles.photoPreview}
               />
-              <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.8}>
-                <Text style={{ fontSize: 16 }}>📷</Text>
+              <TouchableOpacity
+                style={styles.cameraBtn}
+                activeOpacity={0.85}
+                onPress={() => setShowImagePickerModal(true)}
+              >
+                <Ionicons name="camera" size={20} color={COLORS.primaryDark} />
               </TouchableOpacity>
             </View>
 
@@ -565,6 +604,78 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
           </TouchableOpacity>
         </View>
       )}
+    
+        {/* Modal Interactivo para Cambiar Foto de Publicación */}
+        <Modal
+          visible={showImagePickerModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowImagePickerModal(false)}
+        >
+          <View style={styles.imageModalOverlay}>
+            <View style={styles.imageModalBox}>
+              <View style={styles.imageModalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="images" size={20} color={COLORS.primaryDark} />
+                  <Text style={[styles.imageModalTitle, { fontSize: scale(14) }]}>
+                    Selecciona una Imagen para tu Publicación
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowImagePickerModal(false)}>
+                  <Ionicons name="close-circle" size={24} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.imageModalSub, { fontSize: scale(11) }]}>
+                Elige una foto representativa o pega el enlace de tu foto:
+              </Text>
+
+              {/* Galería de Fotos Barriales */}
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 280, marginVertical: 8 }}>
+                <View style={styles.sampleGrid}>
+                  {sampleCommunityImages.map((img) => (
+                    <TouchableOpacity
+                      key={img.id}
+                      style={[styles.sampleCard, selectedImage === img.uri && styles.sampleCardSelected]}
+                      onPress={() => {
+                        setSelectedImage(img.uri);
+                        setShowImagePickerModal(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Image source={{ uri: img.uri }} style={styles.sampleThumb} />
+                      <Text style={styles.sampleName} numberOfLines={1}>{img.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Pegar URL personalizada */}
+              <View style={styles.customUrlRow}>
+                <TextInput
+                  style={[styles.customUrlInput, { fontSize: scale(11) }]}
+                  placeholder="O pega URL de imagen (https://...)"
+                  placeholderTextColor="#94a3b8"
+                  value={customImageUrlInput}
+                  onChangeText={setCustomImageUrlInput}
+                />
+                <TouchableOpacity
+                  style={styles.applyUrlBtn}
+                  onPress={() => {
+                    if (customImageUrlInput.trim()) {
+                      setSelectedImage(customImageUrlInput.trim());
+                      setCustomImageUrlInput('');
+                      setShowImagePickerModal(false);
+                    }
+                  }}
+                >
+                  <Text style={styles.applyUrlBtnText}>Aplicar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -649,6 +760,87 @@ const styles = StyleSheet.create({
     borderColor: '#fde68a'
   },
   freeTipText: { color: '#92400e', fontWeight: '700', textAlign: 'center' },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end'
+  },
+  imageModalBox: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '85%'
+  },
+  imageModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  imageModalTitle: {
+    fontWeight: '800',
+    color: COLORS.primaryDark
+  },
+  imageModalSub: {
+    color: COLORS.textSecondary,
+    marginBottom: 10
+  },
+  sampleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10
+  },
+  sampleCard: {
+    width: '47%',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+    backgroundColor: '#f8fafc'
+  },
+  sampleCardSelected: {
+    borderColor: COLORS.primaryDark,
+    backgroundColor: '#ccfbf1'
+  },
+  sampleThumb: {
+    width: '100%',
+    height: 90
+  },
+  sampleName: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#334155',
+    padding: 6,
+    textAlign: 'center'
+  },
+  customUrlRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10
+  },
+  customUrlInput: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
+  },
+  applyUrlBtn: {
+    backgroundColor: COLORS.primaryDark,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  applyUrlBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 12
+  },
   formCard: {
     backgroundColor: COLORS.white,
     borderRadius: 22,
