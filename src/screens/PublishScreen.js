@@ -24,11 +24,11 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
 
   const [subStep, setSubStep] = useState(2); // 2: Seleccionar qué compartir, 3: Formulario
   const [formType, setFormType] = useState('servicio');
-  const [title, setTitle] = useState('Servicio de Reparación Eléctrica');
-  const [price, setPrice] = useState('25.00');
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('');
   const [unit, setUnit] = useState('servicio');
-  const [desc, setDesc] = useState('Reparación de fugas, cableado e instalaciones en Zona A.');
-  const [availability, setAvailability] = useState('Lunes a Sábado 8am - 6pm');
+  const [desc, setDesc] = useState('');
+  const [availability, setAvailability] = useState('');
   const [visible, setVisible] = useState(true);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -80,10 +80,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       icon: '🔧',
       bg: '#eff6ff',
       border: '#bfdbfe',
-      defaultTitle: 'Servicio de Reparación Eléctrica',
-      defaultPrice: '25.00',
-      defaultUnit: 'servicio',
-      defaultDesc: 'Reparación de fugas y cañerías en Zona A. Rápido y garantizado.'
+      defaultUnit: 'servicio'
     },
     {
       id: 'producto',
@@ -92,10 +89,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       icon: '🏪',
       bg: '#fffbeb',
       border: '#fde68a',
-      defaultTitle: 'Pan casero',
-      defaultPrice: '0.50',
-      defaultUnit: 'unidad',
-      defaultDesc: 'Pan casero y fresco, hecho en casa.'
+      defaultUnit: 'unidad'
     },
     {
       id: 'necesito_ayuda',
@@ -104,10 +98,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       icon: '💚',
       bg: '#f0fdf4',
       border: '#bbf7d0',
-      defaultTitle: 'Necesito escalera para pintar fachada',
-      defaultPrice: '0.00',
-      defaultUnit: 'día',
-      defaultDesc: 'Para trabajo de 1 día en casa. Se devuelve limpia y puntual.'
+      defaultUnit: 'día'
     },
     {
       id: 'puedo_apoyar',
@@ -116,10 +107,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       icon: '🤝',
       bg: '#f0fdfa',
       border: '#99f6e4',
-      defaultTitle: 'Presto taladro percutor',
-      defaultPrice: '0.00',
-      defaultUnit: 'préstamo',
-      defaultDesc: 'Disponible para vecinos de Zona A este fin de semana.'
+      defaultUnit: 'préstamo'
     },
     {
       id: 'donar',
@@ -128,10 +116,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       icon: '🎁',
       bg: '#faf5ff',
       border: '#e9d5ff',
-      defaultTitle: 'Caja de víveres no perecibles',
-      defaultPrice: '0.00',
-      defaultUnit: 'caja',
-      defaultDesc: 'Tengo alimentos no perecibles para una familia que lo necesite.'
+      defaultUnit: 'caja'
     },
     {
       id: 'intercambiar',
@@ -140,19 +125,17 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       icon: '🔄',
       bg: '#eef2ff',
       border: '#c7d2fe',
-      defaultTitle: 'Clases de computación por inglés',
-      defaultPrice: '0.00',
-      defaultUnit: 'clase',
-      defaultDesc: 'Puedo enseñar computación básica a cambio de apoyo con inglés.'
+      defaultUnit: 'clase'
     }
   ];
 
   const handleSelectType = (item) => {
     setFormType(item.id);
-    setTitle(item.defaultTitle);
-    setPrice(item.defaultPrice);
-    setUnit(item.defaultUnit);
-    setDesc(item.defaultDesc);
+    setTitle('');
+    setPrice(item.id === 'servicio' || item.id === 'producto' ? '' : '0.00');
+    setUnit(item.defaultUnit || 'servicio');
+    setDesc('');
+    setAvailability('');
     setSubStep(3);
   };
 
@@ -162,18 +145,10 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
       return;
     }
 
-    if (formType === 'servicio') {
-      if (!token) {
-        Alert.alert('Inicia sesión', 'Debes estar autenticado para publicar un servicio.');
-        return;
-      }
+    try {
+      setPublishing(true);
 
-      if (!selectedCategoryId && categories.length > 0) {
-        setSelectedCategoryId(categories[0].id);
-      }
-
-      try {
-        setPublishing(true);
+      if (formType === 'servicio') {
         const payload = {
           title: title.trim(),
           description: desc.trim() || null,
@@ -186,7 +161,7 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
         const created = await api.createService(payload, token);
         Alert.alert(
           '🎉 ¡Servicio publicado con éxito!',
-          `Tu servicio "${created.title}" ya está visible para los vecinos de tu comunidad.`,
+          `Tu servicio "${created?.title || title}" ya está visible para los vecinos de tu comunidad en la base de datos.`,
           [
             {
               text: 'Ver en mis servicios',
@@ -198,130 +173,122 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
             }
           ]
         );
-      } catch (err) {
-        console.warn('[PublishScreen] Error al publicar servicio:', err);
-        Alert.alert('Error', err.message || 'No fue posible publicar el servicio. Inténtalo nuevamente.');
-      } finally {
-        setPublishing(false);
+      } else if (formType === 'producto') {
+        const payload = {
+          name: title.trim(),
+          title: title.trim(),
+          description: desc.trim() || '',
+          price: price ? parseFloat(price) : 0,
+          unit: unit || 'unidad'
+        };
+        await api.createProduct(payload, token);
+        Alert.alert(
+          '🎉 ¡Producto publicado con éxito!',
+          `Tu producto "${title}" ya está registrado en la tienda comunitaria.`,
+          [
+            {
+              text: 'Ver en Productos',
+              onPress: () => onNavigate('products')
+            }
+          ]
+        );
+      } else {
+        const payload = {
+          title: title.trim(),
+          description: desc.trim() || '',
+          type: formType,
+          category: formType === 'necesito_ayuda' ? 'Solicitud de apoyo' : 'Apoyo voluntario'
+        };
+        await api.createSolidarityPost(payload, token);
+        Alert.alert(
+          '🎉 ¡Publicación creada con éxito!',
+          `Tu publicación "${title}" ya está disponible en la red solidaria vecinal.`,
+          [
+            {
+              text: 'Ver en Solidaridad',
+              onPress: () => onNavigate('solidarity')
+            }
+          ]
+        );
       }
-    } else {
-      // Para productos u otros tipos
-      Alert.alert(
-        '🎉 ¡Publicación creada con éxito!',
-        `Tu publicación "${title}" (S/ ${price}) ya está registrada para tus vecinos.`,
-        [
-          {
-            text: 'Entendido',
-            onPress: () => onNavigate('home')
-          }
-        ]
-      );
+    } catch (err) {
+      console.warn('[PublishScreen] Error al publicar:', err);
+      Alert.alert('Aviso', err.message || 'No se pudo conectar con el servidor. Inténtalo nuevamente.');
+    } finally {
+      setPublishing(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 90 : 90 }
-        ]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        contentContainerStyle={[styles.content, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 120 : 90 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-      {/* PASO 2 DE 3: ¿QUÉ DESEAS COMPARTIR? */}
-      {subStep === 2 && (
-        <View>
-          <View style={styles.headerCard}>
-            <View style={styles.headerLeft}>
-              <TouchableOpacity onPress={() => onNavigate('home')} style={{ paddingRight: 6 }}>
-                <Text style={{ fontSize: 20, color: COLORS.white }}>❮</Text>
-              </TouchableOpacity>
-              <View>
-                <Text style={[styles.headerTitle, { fontSize: scale(16) }]}>Publicar</Text>
-                <Text style={[styles.headerSub, { fontSize: scale(11) }]}>¿Qué deseas compartir?</Text>
-              </View>
-            </View>
-            <View style={styles.stepBadge}>
-              <Text style={styles.stepBadgeText}>Paso 2 de 3</Text>
+        {/* Encabezado */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerLeft}>
+            <Text style={{ fontSize: 24, marginRight: 8 }}>📝</Text>
+            <View>
+              <Text style={[styles.headerTitle, { fontSize: scale(16) }]}>Nueva Publicación</Text>
+              <Text style={[styles.headerSub, { fontSize: scale(11) }]}>
+                {subStep === 2 ? 'Paso 1: ¿Qué deseas compartir hoy?' : 'Paso 2: Completa los detalles'}
+              </Text>
             </View>
           </View>
-
-          {/* Grid de 6 Opciones */}
-          <View style={styles.gridContainer}>
-            {publishTypes.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.typeCard, { backgroundColor: item.bg, borderColor: item.border }]}
-                activeOpacity={0.8}
-                onPress={() => handleSelectType(item)}
-              >
-                <Text style={{ fontSize: 32, marginBottom: 8 }}>{item.icon}</Text>
-                <Text style={[styles.typeTitle, { fontSize: scale(13) }]}>
-                  {item.title}
-                </Text>
-                <Text style={[styles.typeSub, { fontSize: scale(10) }]}>
-                  {item.sub}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.freeTipBox}>
-            <Text style={[styles.freeTipText, { fontSize: scale(11) }]}>
-              💡 Publicar es 100% gratuito para vecinos verificados de Zona A.
-            </Text>
+          <View style={styles.stepBadge}>
+            <Text style={styles.stepBadgeText}>{subStep === 2 ? '1 de 2' : '2 de 2'}</Text>
           </View>
         </View>
-      )}
 
-      {/* PASO 3 DE 3: FORMULARIO DETALLADO */}
-      {subStep === 3 && (
-        <View>
-          <View style={styles.headerCard}>
-            <View style={styles.headerLeft}>
-              <TouchableOpacity onPress={() => setSubStep(2)} style={{ paddingRight: 6 }}>
-                <Text style={{ fontSize: 20, color: COLORS.white }}>❮</Text>
+        {subStep === 2 && (
+          <View>
+            <View style={styles.gridContainer}>
+              {publishTypes.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.typeCard, { backgroundColor: item.bg, borderColor: item.border }]}
+                  activeOpacity={0.8}
+                  onPress={() => handleSelectType(item)}
+                >
+                  <Text style={{ fontSize: 32, marginBottom: 8 }}>{item.icon}</Text>
+                  <Text style={[styles.typeTitle, { fontSize: scale(13) }]}>{item.title}</Text>
+                  <Text style={[styles.typeSub, { fontSize: scale(10) }]}>{item.sub}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.freeTipBox}>
+              <Text style={[styles.freeTipText, { fontSize: scale(11) }]}>
+                💡 En VeciRed no cobramos comisión. Los tratos son directos de vecino a vecino.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {subStep === 3 && (
+          <View style={styles.formCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <TouchableOpacity onPress={() => setSubStep(2)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, color: COLORS.primaryDark, fontWeight: '700' }}>← Cambiar tipo</Text>
               </TouchableOpacity>
-              <View>
-                <Text style={[styles.headerTitle, { fontSize: scale(15) }]}>
-                  Publicar: {formType === 'servicio' ? 'Ofrecer servicio' : 'Vender producto'}
-                </Text>
-                <Text style={[styles.headerSub, { fontSize: scale(10) }]}>
-                  Comparte tu oferta con tus vecinos
+              <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                <Text style={{ fontSize: 11, color: COLORS.primaryDark, fontWeight: '800' }}>
+                  {publishTypes.find((t) => t.id === formType)?.title}
                 </Text>
               </View>
             </View>
-            <View style={styles.stepBadge}>
-              <Text style={styles.stepBadgeText}>Paso 3 de 3</Text>
-            </View>
-          </View>
 
-          <View style={styles.formCard}>
-            {/* Foto Ilustrativa */}
-            <View style={styles.photoContainer}>
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=600' }}
-                style={styles.photoPreview}
-              />
-              <TouchableOpacity
-                style={styles.cameraBtn}
-                onPress={() => Alert.alert('📸 Cámara VeciRed', 'Foto optimizada para el catálogo barrial.')}
-              >
-                <Text style={{ fontSize: 18 }}>📷</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Selector de Categoría (si es servicio) */}
+            {/* Selector de categoría si es un servicio */}
             {formType === 'servicio' && categories.length > 0 && (
               <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Categoría del servicio *</Text>
+                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Categoría del Servicio *</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
                   {categories.map((c) => {
                     const isSelected = selectedCategoryId === c.id;
@@ -331,8 +298,14 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
                         style={[styles.categoryChoice, isSelected && styles.categoryChoiceSelected]}
                         onPress={() => setSelectedCategoryId(c.id)}
                       >
-                        <Text style={{ fontSize: 13, marginRight: 4 }}>{c.icon || '🏷️'}</Text>
-                        <Text style={[styles.categoryChoiceText, isSelected && styles.categoryChoiceTextSelected, { fontSize: scale(11) }]}>
+                        <Text style={{ marginRight: 4 }}>{c.icon || '🛠️'}</Text>
+                        <Text
+                          style={[
+                            styles.categoryChoiceText,
+                            isSelected && styles.categoryChoiceTextSelected,
+                            { fontSize: scale(11) }
+                          ]}
+                        >
                           {c.name}
                         </Text>
                       </TouchableOpacity>
@@ -342,112 +315,132 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0 }) {
               </View>
             )}
 
-            {/* Campo Título * */}
+            {/* Foto ilustrativa */}
+            <View style={styles.photoContainer}>
+              <Image
+                source={{
+                  uri:
+                    formType === 'servicio'
+                      ? 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500'
+                      : formType === 'producto'
+                      ? 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500'
+                      : 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=500'
+                }}
+                style={styles.photoPreview}
+              />
+              <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.8}>
+                <Text style={{ fontSize: 16 }}>📷</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Título */}
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Título de la publicación *</Text>
               <TextInput
                 style={[styles.input, { fontSize: scale(13) }]}
                 value={title}
                 onChangeText={setTitle}
-                placeholder="Ej. Gasfitería Integral para el barrio"
+                placeholder="Ej. Reparación de tuberías, Clases de matemáticas..."
+                placeholderTextColor={COLORS.textMuted}
               />
             </View>
 
-            {/* Campos Precio * y Unidad */}
-            <View style={styles.rowFields}>
-              <View style={[styles.fieldGroup, { flex: 1 }]}>
-                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Precio referencia * (S/)</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={price}
-                  onChangeText={setPrice}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                />
-              </View>
-              <View style={[styles.fieldGroup, { flex: 1 }]}>
-                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Unidad de cobro</Text>
-                <TextInput
-                  style={[styles.input, { fontSize: scale(13) }]}
-                  value={unit}
-                  onChangeText={setUnit}
-                  placeholder="servicio, hora, visita"
-                />
-              </View>
-            </View>
+            {/* Precio y Unidad si aplica */}
+            {(formType === 'servicio' || formType === 'producto') && (
+              <View style={styles.rowFields}>
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Precio (S/) {formType === 'servicio' ? 'desde' : ''}</Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: scale(13) }]}
+                    value={price}
+                    onChangeText={setPrice}
+                    placeholder="0.00"
+                    placeholderTextColor={COLORS.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
 
-            {/* Disponibilidad Horaria */}
+                <View style={[styles.fieldGroup, { flex: 1 }]}>
+                  <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Por unidad / medida</Text>
+                  <TextInput
+                    style={[styles.input, { fontSize: scale(13) }]}
+                    value={unit}
+                    onChangeText={setUnit}
+                    placeholder="servicio, hora, kg, etc."
+                    placeholderTextColor={COLORS.textMuted}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Disponibilidad (específico para servicios) */}
             {formType === 'servicio' && (
               <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Disponibilidad horaria</Text>
+                <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Horario de atención / Disponibilidad</Text>
                 <TextInput
-                  style={[styles.input, { fontSize: scale(12) }]}
+                  style={[styles.input, { fontSize: scale(13) }]}
                   value={availability}
                   onChangeText={setAvailability}
-                  placeholder="Ej: Lunes a Viernes 8am - 6pm, o 24/7 urgencias"
+                  placeholder="Ej. Lunes a Viernes 9am - 6pm"
+                  placeholderTextColor={COLORS.textMuted}
                 />
               </View>
             )}
 
             {/* Descripción */}
             <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Descripción y detalles</Text>
+              <Text style={[styles.fieldLabel, { fontSize: scale(12) }]}>Descripción detallada</Text>
               <TextInput
                 style={[styles.input, styles.textarea, { fontSize: scale(12) }]}
                 value={desc}
                 onChangeText={setDesc}
                 multiline
                 numberOfLines={3}
-                placeholder="Explica qué incluye tu servicio, garantía o herramientas que utilizas..."
+                placeholder="Escribe aquí los detalles para tus vecinos..."
+                placeholderTextColor={COLORS.textMuted}
               />
             </View>
 
             {/* Ubicación */}
             <View style={styles.locationChip}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 18, marginRight: 6 }}>📍</Text>
-                <Text style={[styles.locationText, { fontSize: scale(12) }]}>Comunidad Barrial • Zona A</Text>
+                <Text style={{ fontSize: 16, marginRight: 6 }}>📍</Text>
+                <Text style={[styles.locationText, { fontSize: scale(12) }]}>Visible para: Mi comunidad (Zona A)</Text>
               </View>
-              <Text style={{ fontSize: 16, color: COLORS.textMuted }}>›</Text>
+              <Text style={{ fontSize: 11, color: COLORS.primaryDark, fontWeight: '700' }}>Mz 2</Text>
             </View>
 
-            {/* Switch Visible para mis vecinos */}
+            {/* Switch de visibilidad */}
             <View style={styles.switchRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 18, marginRight: 6 }}>👥</Text>
-                <Text style={[styles.switchLabel, { fontSize: scale(12) }]}>Visible para mis vecinos</Text>
-              </View>
+              <Text style={[styles.switchLabel, { fontSize: scale(12) }]}>Publicar inmediatamente</Text>
               <Switch
                 value={visible}
                 onValueChange={setVisible}
-                trackColor={{ false: '#cbd5e1', true: COLORS.primaryLight }}
+                trackColor={{ false: '#cbd5e1', true: COLORS.primarySurface }}
                 thumbColor={visible ? COLORS.primary : '#f8fafc'}
               />
             </View>
 
-            {/* Botón Publicar */}
+            {/* Botón de Publicar */}
             <TouchableOpacity
-              style={styles.publishSubmitBtn}
-              activeOpacity={0.8}
+              style={[styles.publishSubmitBtn, publishing && { opacity: 0.7 }]}
               onPress={handlePublish}
               disabled={publishing}
+              activeOpacity={0.85}
             >
               {publishing ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator color={COLORS.white} size="small" />
               ) : (
-                <>
-                  <Text style={{ fontSize: 18, color: COLORS.white, marginRight: 6 }}>✈️</Text>
-                  <Text style={[styles.publishSubmitBtnText, { fontSize: scale(15) }]}>Publicar Servicio</Text>
-                  <Text style={{ fontSize: 16, color: '#fde047', marginLeft: 4 }}>✨</Text>
-                </>
+                <Text style={[styles.publishSubmitBtnText, { fontSize: scale(14) }]}>
+                  🚀 Publicar en VeciRed
+                </Text>
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      )}
+        )}
       </ScrollView>
 
-      {/* Barra accesoria para ocultar teclado al publicar */}
+      {/* Barra auxiliar de teclado */}
       {keyboardHeight > 0 && (
         <View style={styles.keyboardToolbar}>
           <Text style={[styles.keyboardToolbarHint, { fontSize: scale(11) }]}>
@@ -603,16 +596,16 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: 4 },
   fieldLabel: { fontWeight: '800', color: COLORS.text },
   input: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
     borderColor: COLORS.border,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    color: COLORS.text,
-    fontWeight: '600'
+    color: '#0f172a',
+    fontWeight: '700'
   },
-  textarea: { height: 75, textAlignVertical: 'top' },
+  textarea: { height: 80, textAlignVertical: 'top', color: '#0f172a', fontWeight: '600' },
   rowFields: { flexDirection: 'row', gap: 10 },
   locationChip: {
     flexDirection: 'row',

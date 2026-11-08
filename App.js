@@ -10,6 +10,7 @@ import {
   Platform
 } from 'react-native';
 import { COLORS } from './src/theme/colors';
+import { api } from './src/services/api';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 // Pantallas de Autenticación
@@ -30,6 +31,8 @@ import EmergencyScreen from './src/screens/EmergencyScreen';
 import PublishScreen from './src/screens/PublishScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ChatScreen from './src/screens/ChatScreen';
+import MyServicesScreen from './src/screens/MyServicesScreen';
+import ServiceDetailScreen from './src/screens/ServiceDetailScreen';
 
 function MainApp() {
   const { profile, isAuthenticated, isLoading, logout } = useAuth();
@@ -45,15 +48,28 @@ function MainApp() {
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedItemType, setSelectedItemType] = useState('product'); // 'product' | 'service'
+  const [selectedServiceId, setSelectedServiceId] = useState(null);
+  const [backendOnline, setBackendOnline] = useState(false);
+
+  useEffect(() => {
+    api.checkHealth()
+      .then(res => setBackendOnline(res?.connected || false))
+      .catch(() => setBackendOnline(false));
+
+    api.getActiveEmergency()
+      .then(setActiveEmergency)
+      .catch(() => setActiveEmergency(null));
+  }, []);
 
   const [fontScale, setFontScale] = useState(1.0);
-  const [helpedCount, setHelpedCount] = useState(12);
+  const [helpedCount, setHelpedCount] = useState(0);
+  const [activeEmergency, setActiveEmergency] = useState(null);
 
   const [userProfile, setUserProfile] = useState({
-    name: 'Doña Martha Quispe',
-    phone: '984 555 123',
-    skill: '🩺 Enfermería / Primeros auxilios',
-    address: 'Calle Los Nogales 214, Mz B Lote 4 • Zona A'
+    name: 'Vecino',
+    phone: '',
+    skill: '',
+    address: 'Zona A • Manzana 2'
   });
 
   // Sincronizar datos si el backend retorna un perfil real autenticado
@@ -75,7 +91,10 @@ function MainApp() {
 
   const scale = (val) => Math.round(val * fontScale);
 
-  const handleNavigate = (tab) => {
+  const handleNavigate = (tab, params = null) => {
+    if (params?.serviceId) {
+      setSelectedServiceId(params.serviceId);
+    }
     setPreviousTab(currentTab);
     setCurrentTab(tab);
   };
@@ -89,8 +108,14 @@ function MainApp() {
   const handleOpenDetail = (item, type = 'product') => {
     setSelectedItem(item);
     setSelectedItemType(type);
-    setPreviousTab(currentTab);
-    setCurrentTab('detail');
+    if (type === 'service' && item?.id) {
+      setSelectedServiceId(item.id);
+      setPreviousTab(currentTab);
+      setCurrentTab('service_detail');
+    } else {
+      setPreviousTab(currentTab);
+      setCurrentTab('detail');
+    }
   };
 
   const handleLogout = async () => {
@@ -152,32 +177,57 @@ function MainApp() {
         {/* Cabecera Principal de la App (VeciRed IA) - Se oculta en Chat y Detalle para evitar doble barra */}
         {currentTab !== 'chat' && currentTab !== 'detail' && (
           <View style={styles.appHeader}>
-            <View style={styles.appHeaderLeft}>
+            <TouchableOpacity
+              style={styles.appHeaderLeft}
+              onPress={() => handleNavigate('home')}
+              activeOpacity={0.8}
+            >
               <View style={styles.appLogoCircle}>
-                <Text style={{ fontSize: 18 }}>🏘️</Text>
+                <Text style={{ fontSize: 20 }}>🏡</Text>
               </View>
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[styles.appBrandText, { fontSize: scale(15) }]}>
-                    VeciRed
-                  </Text>
-                  <Text style={[styles.appBrandIa, { fontSize: scale(15) }]}>
-                    {' '}IA
-                  </Text>
+                  <Text style={[styles.appBrandText, { fontSize: scale(16) }]}>VeciRed </Text>
+                  <Text style={[styles.appBrandIa, { fontSize: scale(16) }]}>IA</Text>
                 </View>
-                <Text style={[styles.appLocationText, { fontSize: scale(10) }]}>
-                  📍 Mi comunidad • Zona A
+                <Text style={[styles.appLocationText, { fontSize: scale(11) }]}>
+                  📍 {userProfile.address || 'Mi comunidad • Zona A'}
                 </Text>
+                {backendOnline ? (
+                  <View style={styles.onlineBadge}>
+                    <View style={styles.greenDot} />
+                    <Text style={styles.badgeStatusText}>FastAPI Conectada</Text>
+                  </View>
+                ) : (
+                  <View style={styles.offlineBadge}>
+                    <View style={styles.grayDot} />
+                    <Text style={styles.badgeStatusText}>Modo Local</Text>
+                  </View>
+                )}
               </View>
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.appHeaderRight}>
-              {/* Botón de Chat Comunitario con Indicador de mensajes */}
+              {/* Botón de Emergencia SOS Rápido */}
+              <TouchableOpacity
+                style={[
+                  styles.headerIconButton,
+                  currentTab === 'emergency' && styles.headerIconActive,
+                  { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }
+                ]}
+                activeOpacity={0.8}
+                onPress={() => handleNavigate('emergency')}
+              >
+                <Text style={{ fontSize: 16 }}>🚨</Text>
+              </TouchableOpacity>
+
+              {/* Botón de Mensajes / Chat Comunitario */}
               <TouchableOpacity
                 style={[styles.headerIconButton, currentTab === 'chat' && styles.headerIconActive]}
+                activeOpacity={0.8}
                 onPress={() => {
                   setActiveChatContact(null);
-                  handleNavigate(currentTab === 'chat' ? previousTab : 'chat');
+                  handleNavigate('chat');
                 }}
               >
                 <Text style={{ fontSize: 18 }}>💬</Text>
@@ -186,41 +236,47 @@ function MainApp() {
                 </View>
               </TouchableOpacity>
 
-              {/* Campana de Notificaciones con Punto Rojo (Emergencias) */}
+              {/* Botón de Notificaciones */}
               <TouchableOpacity
                 style={styles.headerIconButton}
-                onPress={() => handleNavigate('emergency')}
+                activeOpacity={0.8}
+                onPress={() => handleNavigate('solidarity')}
               >
                 <Text style={{ fontSize: 18 }}>🔔</Text>
                 <View style={styles.bellRedDot} />
               </TouchableOpacity>
 
-              {/* Avatar del Usuario -> Perfil */}
+              {/* Avatar de Perfil */}
               <TouchableOpacity
                 style={[styles.avatarButton, currentTab === 'profile' && styles.avatarButtonActive]}
+                activeOpacity={0.8}
                 onPress={() => handleNavigate('profile')}
               >
-                <Text style={{ fontSize: 18 }}>👵</Text>
+                <Text style={{ fontSize: 20 }}>👵</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* Barra de Alerta Permanente en Rojo (salvo en chat o detalle) */}
-        {currentTab !== 'chat' && currentTab !== 'detail' && (
+        {/* Banner de Emergencia Comunitaria Activa */}
+        {activeEmergency && currentTab !== 'emergency' && (
           <EmergencyBanner
-            onOpenEmergency={() => handleNavigate('emergency')}
+            emergency={activeEmergency}
+            onPressView={() => handleNavigate('emergency')}
             fontScale={fontScale}
           />
         )}
 
-        {/* Contenedor de Pantallas Activas */}
+        {/* Contenedor Principal de Pantallas Dinámicas */}
         <View style={styles.screenContainer}>
           {currentTab === 'home' && (
             <HomeScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
+              helpedCount={helpedCount}
+              userProfile={userProfile}
               onOpenDetail={handleOpenDetail}
+              onOpenChat={handleOpenChatWith}
             />
           )}
 
@@ -233,20 +289,36 @@ function MainApp() {
             />
           )}
 
-          {currentTab === 'products' && (
-            <ProductsScreen
+          {currentTab === 'my_services' && (
+            <MyServicesScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
-              onOpenDetail={handleOpenDetail}
+            />
+          )}
+
+          {currentTab === 'service_detail' && (
+            <ServiceDetailScreen
+              serviceId={selectedServiceId || selectedItem?.id}
+              onNavigate={handleNavigate}
+              fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
             />
           )}
 
-          {currentTab === 'detail' && (
+          {currentTab === 'products' && (
+            <ProductsScreen
+              onNavigate={handleNavigate}
+              fontScale={fontScale}
+              onOpenChat={handleOpenChatWith}
+              onOpenDetail={handleOpenDetail}
+            />
+          )}
+
+          {currentTab === 'detail' && selectedItem && (
             <ItemDetailScreen
               item={selectedItem}
-              type={selectedItemType}
-              onBack={() => setCurrentTab(previousTab || 'home')}
+              itemType={selectedItemType}
+              onBack={() => handleNavigate(previousTab || 'home')}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
             />
@@ -431,6 +503,45 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 9,
     fontWeight: '900'
+  },
+  onlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 2,
+    alignSelf: 'flex-start'
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 2,
+    alignSelf: 'flex-start'
+  },
+  greenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10b981'
+  },
+  grayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#64748b'
+  },
+  badgeStatusText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#334155'
   },
   avatarButton: {
     width: 36,

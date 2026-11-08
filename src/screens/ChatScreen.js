@@ -681,13 +681,14 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.white,
     borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    color: COLORS.textPrimary
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    color: '#0f172a',
+    fontWeight: '600'
   },
   sendButton: {
     backgroundColor: COLORS.primary,

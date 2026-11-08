@@ -10,15 +10,12 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { mockServices } from '../data/mockData';
 import { api } from '../services/api';
 
 export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
   const scale = (val) => Math.round(val * fontScale);
   const [recommendedServices, setRecommendedServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(true);
-
-  const fallbackGasfitero = mockServices.find(s => s.id === 'srv-004') || mockServices[0];
 
   useEffect(() => {
     loadRecommended();
@@ -30,15 +27,18 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
       const res = await api.getServices({ sort_by: 'rating', limit: 3 });
       if (res && Array.isArray(res.items) && res.items.length > 0) {
         setRecommendedServices(res.items);
+      } else {
+        setRecommendedServices([]);
       }
     } catch (err) {
       console.warn('[HomeScreen] Error al cargar recomendados:', err);
+      setRecommendedServices([]);
     } finally {
       setLoadingServices(false);
     }
   };
 
-  const activeService = recommendedServices.length > 0 ? recommendedServices[0] : fallbackGasfitero;
+  const activeService = recommendedServices.length > 0 ? recommendedServices[0] : null;
 
   const handleServicePress = (service) => {
     if (onOpenDetail) {
@@ -137,24 +137,24 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
             Productos locales
           </Text>
           <Text style={[styles.gridCardSub, { fontSize: scale(10) }]}>
-            Compra a emprendedores barriales
+            Panadería, comida y abarrotes
           </Text>
         </TouchableOpacity>
 
-        {/* 4. Emergencias (Color Rojo) */}
+        {/* 4. Emergencias Comunitarias */}
         <TouchableOpacity
-          style={[styles.gridCard, { backgroundColor: COLORS.emergencySurface, borderColor: COLORS.emergencyPale }]}
+          style={[styles.gridCard, { backgroundColor: '#fef2f2', borderColor: '#fee2e2' }]}
           activeOpacity={0.8}
           onPress={() => onNavigate('emergency')}
         >
           <View style={styles.cardHeaderRow}>
             <Text style={{ fontSize: 24 }}>🚨</Text>
-            <Text style={[styles.chevron, { color: COLORS.emergency }]}>›</Text>
+            <Text style={styles.chevron}>›</Text>
           </View>
-          <Text style={[styles.gridCardTitle, { fontSize: scale(13), color: COLORS.emergencyDark }]}>
+          <Text style={[styles.gridCardTitle, { fontSize: scale(13) }]}>
             Emergencias
           </Text>
-          <Text style={[styles.gridCardSub, { fontSize: scale(10), color: '#991b1b' }]}>
+          <Text style={[styles.gridCardSub, { fontSize: scale(10) }]}>
             Reporta y coordina apoyo vecinal
           </Text>
         </TouchableOpacity>
@@ -173,8 +173,8 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         </TouchableOpacity>
       </View>
 
-      {/* Tarjeta de Servicio Destacado */}
-      {activeService && (
+      {/* Tarjeta de Servicio Destacado si existe, o Empty State limpio */}
+      {activeService ? (
         <TouchableOpacity
           style={styles.providerCard}
           activeOpacity={0.85}
@@ -191,12 +191,12 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
               {activeService.title}
             </Text>
             <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
-              📍 A {activeService.distance_m || 350} m • {activeService.community_name || activeService.block_code || 'Zona A'}
+              📍 A {activeService.distance_m || 300} m • {activeService.community_name || activeService.block_code || 'Zona A'}
             </Text>
             
             <View style={styles.ratingRow}>
               <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
-                ⭐ {activeService.rating_avg ? Number(activeService.rating_avg).toFixed(1) : '4.8'} ({activeService.reviews_count || activeService.endorsements_count || 12} recomendaciones)
+                ⭐ {activeService.rating_avg ? Number(activeService.rating_avg).toFixed(1) : '5.0'} ({activeService.reviews_count || activeService.endorsements_count || 0} recomendaciones)
               </Text>
             </View>
 
@@ -208,6 +208,22 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
           </View>
           <Text style={styles.cardArrow}>›</Text>
         </TouchableOpacity>
+      ) : (
+        <View style={styles.emptyFeaturedCard}>
+          <Text style={{ fontSize: 32, marginBottom: 8 }}>🏘️</Text>
+          <Text style={[styles.emptyFeaturedTitle, { fontSize: scale(13) }]}>
+            Aún no hay publicaciones en tu manzana
+          </Text>
+          <Text style={[styles.emptyFeaturedSub, { fontSize: scale(11) }]}>
+            Tu red comunitaria está lista para empezar desde cero con datos reales de la BD.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyFeaturedBtn}
+            onPress={() => onNavigate('publish')}
+          >
+            <Text style={styles.emptyFeaturedBtnText}>+ Publicar Producto o Servicio</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Banner Invitación a Publicar */}
@@ -241,92 +257,90 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 90
+    paddingBottom: 24
   },
   heroCard: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 22,
-    padding: 16,
+    backgroundColor: COLORS.primaryDeep,
+    borderRadius: 24,
+    padding: 18,
     marginBottom: 16,
-    shadowColor: COLORS.primaryDark,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3
+    shadowColor: COLORS.primaryDeep,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4
+    marginBottom: 6
   },
   heroTitle: {
+    color: COLORS.white,
     fontWeight: '900',
-    color: COLORS.white
+    marginLeft: 6
   },
   heroSubtitle: {
+    color: '#ccfbf1',
     fontWeight: '500',
-    color: COLORS.primaryPale,
-    lineHeight: 18,
-    marginBottom: 14
+    marginBottom: 14,
+    lineHeight: 18
   },
   searchBar: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 7
+    paddingVertical: 8
   },
   searchInput: {
     flex: 1,
-    color: COLORS.textPrimary,
-    fontWeight: '600'
+    fontWeight: '600',
+    color: '#0f172a'
   },
   micButton: {
-    padding: 4
+    backgroundColor: '#f1f5f9',
+    padding: 6,
+    borderRadius: 8
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 18
+    marginBottom: 20
   },
   gridCard: {
     width: '48%',
-    borderRadius: 18,
+    flexGrow: 1,
+    borderRadius: 20,
     padding: 14,
-    borderWidth: 1.5,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1
+    borderWidth: 1.5
   },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 10
   },
   chevron: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: COLORS.textSecondary
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.textMuted
   },
   gridCardTitle: {
-    fontWeight: '900',
+    fontWeight: '800',
     color: COLORS.textPrimary,
     marginBottom: 2
   },
   gridCardSub: {
-    fontWeight: '600',
+    fontWeight: '500',
     color: COLORS.textSecondary
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10
+    marginBottom: 12
   },
   sectionTitle: {
     fontWeight: '900',
@@ -394,6 +408,39 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontWeight: '900',
     marginLeft: 6
+  },
+  emptyFeaturedCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    marginBottom: 14
+  },
+  emptyFeaturedTitle: {
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 4
+  },
+  emptyFeaturedSub: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 14,
+    lineHeight: 16
+  },
+  emptyFeaturedBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12
+  },
+  emptyFeaturedBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 12
   },
   publishBanner: {
     backgroundColor: COLORS.primarySurface,
