@@ -1,5 +1,5 @@
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,9 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { COLORS } from '../theme/colors';
-import { api } from '../api/apiClient';
+import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { getOrDetectUserLocation } from '../services/locationService';
 
 export default function ProductsScreen({
   onNavigate,
@@ -25,6 +26,8 @@ export default function ProductsScreen({
   const currentUserId = session?.user?.id || profile?.id;
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [userLocation, setUserLocation] = useState(null);
+  const debounceRef = useRef(null);
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -36,12 +39,18 @@ export default function ProductsScreen({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    getOrDetectUserLocation().then((loc) => {
+      if (loc) setUserLocation(loc);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     loadCategories();
   }, []);
 
   useEffect(() => {
     loadProducts();
-  }, [searchQuery, activeCategory]);
+  }, [activeCategory, userLocation]);
 
   const loadCategories = async () => {
     try {
@@ -84,20 +93,47 @@ export default function ProductsScreen({
     );
   };
 
-  const loadProducts = async () => {
+  const loadProducts = async (searchTerm = searchQuery) => {
     setLoading(true);
     try {
-      const data = await api.getProducts({ q: searchQuery });
-      const filtered = (data || []).filter((prod) => {
-        const cat = prod.category || prod.category_name;
-        return activeCategory === 'all' || cat === activeCategory;
+      // Consumir el endpoint especializado de búsqueda geolocalizada de productos
+      const res = await api.searchProducts({
+        q: searchTerm?.trim() || null,
+        latitude: userLocation?.latitude || null,
+        longitude: userLocation?.longitude || null,
+        sort: 'recommended',
+        page: 1,
+        page_size: 40
       });
-      setProductsList(filtered);
-    } catch {
+
+      if (res && Array.isArray(res.items)) {
+        const filtered = res.items.filter((prod) => {
+          const cat = prod.category || prod.category_name;
+          return activeCategory === 'all' || cat === activeCategory;
+        });
+        setProductsList(filtered);
+      } else {
+        const data = await api.getProducts({ q: searchTerm }).catch(() => []);
+        const filtered = (data || []).filter((prod) => {
+          const cat = prod.category || prod.category_name;
+          return activeCategory === 'all' || cat === activeCategory;
+        });
+        setProductsList(filtered);
+      }
+    } catch (err) {
+      console.warn('[ProductsScreen] Error al buscar productos:', err);
       setProductsList([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearchChange = (text) => {
+    setSearchQuery(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      loadProducts(text);
+    }, 350);
   };
 
   const filteredProducts = productsList;
@@ -167,7 +203,7 @@ export default function ProductsScreen({
             placeholderTextColor="#94a3b8"
             returnKeyType="search"
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>

@@ -763,6 +763,137 @@ export const api = {
     } catch {
       return null;
     }
+  },
+
+  // ==========================================================
+  // MOTOR DE BÚSQUEDA INTELIGENTE GEOLOCALIZADA V1
+  // ==========================================================
+  async searchGlobal({
+    q = null,
+    latitude = null,
+    longitude = null,
+    radius_km = null,
+    community_id = null,
+    sort = 'recommended',
+    page = 1,
+    page_size = 20
+  } = {}) {
+    const params = new URLSearchParams();
+    if (q && q.trim()) params.append('q', q.trim());
+    if (latitude != null) params.append('latitude', String(latitude));
+    if (longitude != null) params.append('longitude', String(longitude));
+    if (radius_km != null) params.append('radius_km', String(radius_km));
+    if (community_id) params.append('community_id', String(community_id));
+    if (sort) params.append('sort', sort);
+    if (page) params.append('page', String(page));
+    if (page_size) params.append('page_size', String(page_size));
+
+    const qs = params.toString();
+    return request(`/search${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  async searchServices({
+    q = null,
+    latitude = null,
+    longitude = null,
+    radius_km = null,
+    category_id = null,
+    community_id = null,
+    sort = 'recommended',
+    page = 1,
+    page_size = 20
+  } = {}) {
+    const params = new URLSearchParams();
+    if (q && q.trim()) params.append('q', q.trim());
+    if (latitude != null) params.append('latitude', String(latitude));
+    if (longitude != null) params.append('longitude', String(longitude));
+    if (radius_km != null) params.append('radius_km', String(radius_km));
+    if (category_id && category_id !== 'all') params.append('category_id', String(category_id));
+    if (community_id) params.append('community_id', String(community_id));
+    if (sort) params.append('sort', sort);
+    if (page) params.append('page', String(page));
+    if (page_size) params.append('page_size', String(page_size));
+
+    const qs = params.toString();
+    return request(`/search/services${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  async searchProducts({
+    q = null,
+    latitude = null,
+    longitude = null,
+    radius_km = null,
+    category_id = null,
+    community_id = null,
+    sort = 'recommended',
+    page = 1,
+    page_size = 20
+  } = {}) {
+    const params = new URLSearchParams();
+    if (q && q.trim()) params.append('q', q.trim());
+    if (latitude != null) params.append('latitude', String(latitude));
+    if (longitude != null) params.append('longitude', String(longitude));
+    if (radius_km != null) params.append('radius_km', String(radius_km));
+    if (category_id && category_id !== 'all') params.append('category_id', String(category_id));
+    if (community_id) params.append('community_id', String(community_id));
+    if (sort) params.append('sort', sort);
+    if (page) params.append('page', String(page));
+    if (page_size) params.append('page_size', String(page_size));
+
+    const qs = params.toString();
+    return request(`/search/products${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  async searchSolidarity({
+    q = null,
+    latitude = null,
+    longitude = null,
+    radius_km = null,
+    post_type = null,
+    community_id = null,
+    sort = 'recommended',
+    page = 1,
+    page_size = 20
+  } = {}) {
+    const params = new URLSearchParams();
+    if (q && q.trim()) params.append('q', q.trim());
+    if (latitude != null) params.append('latitude', String(latitude));
+    if (longitude != null) params.append('longitude', String(longitude));
+    if (radius_km != null) params.append('radius_km', String(radius_km));
+    if (post_type && post_type !== 'all') params.append('post_type', post_type);
+    if (community_id) params.append('community_id', String(community_id));
+    if (sort) params.append('sort', sort);
+    if (page) params.append('page', String(page));
+    if (page_size) params.append('page_size', String(page_size));
+
+    const qs = params.toString();
+    return request(`/search/solidarity${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  async searchEmergencies({
+    q = null,
+    latitude = null,
+    longitude = null,
+    radius_km = null,
+    severity = null,
+    community_id = null,
+    sort = 'recommended',
+    page = 1,
+    page_size = 20
+  } = {}) {
+    const params = new URLSearchParams();
+    if (q && q.trim()) params.append('q', q.trim());
+    if (latitude != null) params.append('latitude', String(latitude));
+    if (longitude != null) params.append('longitude', String(longitude));
+    if (radius_km != null) params.append('radius_km', String(radius_km));
+    if (severity && severity !== 'all') params.append('severity', severity);
+    if (community_id) params.append('community_id', String(community_id));
+    if (sort) params.append('sort', sort);
+    if (page) params.append('page', String(page));
+    if (page_size) params.append('page_size', String(page_size));
+
+    const qs = params.toString();
+    return request(`/search/emergencies${qs ? `?${qs}` : ''}`, { method: 'GET' });
   }
 };
 

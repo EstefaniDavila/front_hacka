@@ -12,6 +12,8 @@ import {
   Image
 } from 'react-native';
 import { COLORS } from '../theme/colors';
+import { api } from '../services/api';
+import { getOrDetectUserLocation } from '../services/locationService';
 import { mockSolidarityPosts } from '../data/mockData';
 
 export default function SolidarityScreen({
@@ -25,18 +27,41 @@ export default function SolidarityScreen({
   const [selectedPost, setSelectedPost] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [publishModalVisible, setPublishModalVisible] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   // Lista local de posts con persistencia durante la sesión
   const [postsList, setPostsList] = useState([]);
 
   useEffect(() => {
+    getOrDetectUserLocation().then((loc) => {
+      if (loc) setUserLocation(loc);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     loadPosts();
-  }, [activeCategory]);
+  }, [activeCategory, userLocation]);
 
   const loadPosts = async () => {
     try {
-      const data = await api.getSolidarityPosts({ category: activeCategory });
-      setPostsList(data || []);
+      const res = await api.searchSolidarity({
+        latitude: userLocation?.latitude || null,
+        longitude: userLocation?.longitude || null,
+        sort: 'recommended',
+        page: 1,
+        page_size: 40
+      });
+
+      if (res && Array.isArray(res.items)) {
+        const filtered = res.items.filter((p) => {
+          if (activeCategory === 'all') return true;
+          return p.category === activeCategory || p.post_type === activeCategory;
+        });
+        setPostsList(filtered);
+      } else {
+        const data = await api.getSolidarityPosts({ category: activeCategory });
+        setPostsList(data || []);
+      }
     } catch {
       setPostsList([]);
     }

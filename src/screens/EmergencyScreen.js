@@ -96,7 +96,31 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
 
   const loadEmergencyData = async () => {
     try {
-      const list = await api.getActiveEmergencies();
+      const loc = await getOrDetectUserLocation().catch(() => null);
+      const res = await api.searchEmergencies({
+        latitude: loc?.latitude || null,
+        longitude: loc?.longitude || null,
+        sort: 'recommended',
+        page: 1,
+        page_size: 20
+      }).catch(() => null);
+
+      if (res && Array.isArray(res.items) && res.items.length > 0) {
+        setActiveEmergenciesList(res.items);
+        setActiveEmergency((prev) => {
+          if (!prev) {
+            loadVolunteersForEmergency(res.items[0].id);
+            return res.items[0];
+          }
+          const matched = res.items.find((e) => String(e.id) === String(prev.id));
+          const chosen = matched || res.items[0];
+          loadVolunteersForEmergency(chosen.id);
+          return chosen;
+        });
+        return;
+      }
+
+      const list = await api.getActiveEmergencies().catch(() => []);
       if (Array.isArray(list) && list.length > 0) {
         setActiveEmergenciesList(list);
         setActiveEmergency((prev) => {
@@ -110,7 +134,7 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
           return chosen;
         });
       } else {
-        const emg = await api.getActiveEmergency();
+        const emg = await api.getActiveEmergency().catch(() => null);
         if (emg) {
           setActiveEmergency(emg);
           setActiveEmergenciesList([emg]);

@@ -1,5 +1,5 @@
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { getOrDetectUserLocation } from '../services/locationService';
 
 export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail, userProfile, initialSearch = "" }) {
   const { user, profile } = useAuth();
@@ -26,8 +27,16 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
   const [services, setServices] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
+  const debounceRef = useRef(null);
 
   const scale = (val) => Math.round(val * fontScale);
+
+  useEffect(() => {
+    getOrDetectUserLocation().then((loc) => {
+      if (loc) setUserLocation(loc);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (initialSearch) {
@@ -42,7 +51,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
 
   useEffect(() => {
     loadServices();
-  }, [activeCategory, filterType]);
+  }, [activeCategory, filterType, userLocation]);
 
   const loadCategories = async () => {
     try {
@@ -66,28 +75,50 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
     try {
       setLoading(true);
 
-      let sortBy = 'newest';
-      if (filterType === 'recommended') sortBy = 'rating';
-      else if (filterType === 'promos') sortBy = 'price_asc';
+      let sort = 'recommended';
+      if (filterType === 'near') sort = 'distance';
+      else if (filterType === 'recommended') sort = 'recommended';
+      else if (filterType === 'promos') sort = 'relevance';
 
-      const res = await api.getServices({
-        q: searchTerm,
+      const res = await api.searchServices({
+        q: searchTerm?.trim() || null,
         category_id: activeCategory !== 'all' ? activeCategory : null,
-        sort_by: sortBy,
+        latitude: userLocation?.latitude || null,
+        longitude: userLocation?.longitude || null,
+        sort,
         page: 1,
-        limit: 30
+        page_size: 30
       });
 
       if (res && Array.isArray(res.items)) {
         setServices(res.items);
         setTotalCount(res.meta?.total ?? res.items.length);
       } else {
-        setServices([]);
-        setTotalCount(0);
+        const fallback = await api.getServices({
+          q: searchTerm,
+          category_id: activeCategory !== 'all' ? activeCategory : null,
+          page: 1,
+          limit: 30
+        }).catch(() => ({ items: [] }));
+        setServices(fallback?.items || []);
+        setTotalCount(fallback?.meta?.total ?? fallback?.items?.length ?? 0);
       }
     } catch (err) {
       console.warn('[ServicesScreen] Error al cargar servicios:', err);
       setServices([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (text) => {
+    setSearchQuery(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      loadServices(text);
+    }, 350);
+  };
       setTotalCount(0);
     } finally {
       setLoading(false);
@@ -185,7 +216,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
             placeholder="Buscar por oficio, nombre o habilidad..."
             placeholderTextColor={COLORS.textMuted}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
             onSubmitEditing={handleSearchSubmit}
             returnKeyType="search"
             style={[styles.searchInput, { fontSize: scale(12) }]}

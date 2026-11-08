@@ -1,12 +1,52 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 
 const LOCATION_STORAGE_KEY = '@vecired_detected_location';
 
 /**
- * Obtiene la posición GPS real del navegador o dispositivo.
+ * Obtiene la posición GPS real del navegador o dispositivo móvil.
  * Retorna { latitude, longitude, accuracy }
  */
 export async function getRawGpsPosition(timeoutMs = 8000) {
+  // 1. Probar primero con expo-location en dispositivos móviles nativos
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync().catch(() => ({ status: 'undetermined' }));
+    let hasPermission = status === 'granted';
+    if (!hasPermission) {
+      const req = await Location.requestForegroundPermissionsAsync().catch(() => ({ status: 'denied' }));
+      hasPermission = req.status === 'granted';
+    }
+
+    if (hasPermission) {
+      // Intentar primero última posición conocida (0ms)
+      const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (lastKnown && lastKnown.coords) {
+        return {
+          latitude: lastKnown.coords.latitude,
+          longitude: lastKnown.coords.longitude,
+          accuracy: lastKnown.coords.accuracy || 10
+        };
+      }
+
+      // Si no hay última posición, pedir lectura balanceada con timeout
+      const cur = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout expo-location')), timeoutMs))
+      ]).catch(() => null);
+
+      if (cur && cur.coords) {
+        return {
+          latitude: cur.coords.latitude,
+          longitude: cur.coords.longitude,
+          accuracy: cur.coords.accuracy || 10
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[LocationService] expo-location fallback to navigator:', err?.message);
+  }
+
+  // 2. Fallback a navigator.geolocation (Web o emulador)
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     return null;
   }

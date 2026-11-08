@@ -13,6 +13,9 @@ import {
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
+import { getOrDetectUserLocation } from '../services/locationService';
+import GlobalSearchModal from '../components/GlobalSearchModal';
+import SearchResultCard from '../components/SearchResultCard';
 
 export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
   const scale = (val) => Math.round(val * fontScale);
@@ -20,6 +23,8 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
   const [loadingServices, setLoadingServices] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
     loadRecommended();
@@ -28,11 +33,23 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
   const loadRecommended = async () => {
     try {
       setLoadingServices(true);
-      const res = await api.getServices({ sort_by: 'rating', limit: 6 });
+      const loc = await getOrDetectUserLocation().catch(() => null);
+      if (loc) setUserLocation(loc);
+
+      // Consumir el motor de búsqueda inteligente con ranking multidimensional y proximidad
+      const res = await api.searchGlobal({
+        sort: 'recommended',
+        page_size: 6,
+        latitude: loc?.latitude || null,
+        longitude: loc?.longitude || null,
+      });
+
       if (res && Array.isArray(res.items) && res.items.length > 0) {
-        setRecommendedServices(res.items.slice(0, 3));
+        setRecommendedServices(res.items.slice(0, 4));
       } else {
-        setRecommendedServices([]);
+        // Fallback secundario si la base de datos está vacía en búsqueda
+        const fallback = await api.getServices({ sort_by: 'rating', limit: 4 }).catch(() => ({ items: [] }));
+        setRecommendedServices(fallback?.items || []);
       }
     } catch (err) {
       console.warn('[HomeScreen] Error al cargar recomendados:', err);
@@ -43,8 +60,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
   };
 
   const handleSearchSubmit = () => {
-    const query = searchText.trim();
-    onNavigate('services', { search: query });
+    setShowSearchModal(true);
   };
 
   const startVoiceSearch = () => {
@@ -97,14 +113,25 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
     );
   };
 
-  const handleServicePress = (service) => {
+  const handleItemPress = (item, mod) => {
+    const targetMod = mod || item?.module || 'services';
     if (onOpenDetail) {
-      onOpenDetail(service, 'service');
-    } else if (service?.id) {
-      onNavigate('service_detail', { serviceId: service.id });
+      onOpenDetail(item, targetMod === 'products' ? 'product' : 'service');
+    } else if (targetMod === 'services' && item.id) {
+      onNavigate('service_detail', { serviceId: item.id });
+    } else if (targetMod === 'products') {
+      onNavigate('products');
+    } else if (targetMod === 'solidarity') {
+      onNavigate('solidarity');
+    } else if (targetMod === 'emergencies') {
+      onNavigate('emergency');
     } else {
       onNavigate('services');
     }
+  };
+
+  const handleServicePress = (service) => {
+    handleItemPress(service, 'services');
   };
 
   return (
@@ -267,55 +294,20 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         </TouchableOpacity>
       </View>
 
-      {/* Lista de 2 o 3 Recomendaciones */}
+      {/* Lista de Recomendaciones de VeciRed con Ranking Inteligente */}
       {loadingServices ? (
         <View style={{ paddingVertical: 20, alignItems: 'center' }}>
           <ActivityIndicator color={COLORS.primary} size="small" />
         </View>
       ) : recommendedServices.length > 0 ? (
         <View style={styles.recommendedList}>
-          {recommendedServices.map((service, index) => (
-            <TouchableOpacity
-              key={service.id || index}
-              style={styles.providerCard}
-              activeOpacity={0.85}
-              onPress={() => handleServicePress(service)}
-            >
-              <Image
-                source={{
-                  uri: service.provider_avatar || service.image_url || 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=300'
-                }}
-                style={styles.providerImage}
-              />
-              <View style={styles.providerDetails}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={[styles.providerTitle, { fontSize: scale(13) }]} numberOfLines={1}>
-                    {service.title}
-                  </Text>
-                  <Text style={[styles.providerPrice, { fontSize: scale(12) }]}>
-                    S/ {service.price_from ? Number(service.price_from).toFixed(2) : 'A convenir'}
-                  </Text>
-                </View>
-
-                <Text style={[styles.providerLocation, { fontSize: scale(11) }]}>
-                  📍 {service.community_name || 'Zona A'} • {service.provider_name || 'Vecino'}
-                </Text>
-
-                <View style={styles.ratingRow}>
-                  <Ionicons name="star" size={13} color="#eab308" />
-                  <Text style={[styles.ratingText, { fontSize: scale(11) }]}>
-                    {' '}{service.rating_avg ? Number(service.rating_avg).toFixed(1) : '5.0'} ({service.reviews_count || 1} recomendaciones)
-                  </Text>
-                </View>
-
-                <View style={styles.verifiedBadge}>
-                  <Text style={[styles.verifiedBadgeText, { fontSize: scale(10) }]}>
-                    ✓ Vecino Verificado
-                  </Text>
-                </View>
-              </View>
-              <Feather name="chevron-right" size={18} color="#94a3b8" />
-            </TouchableOpacity>
+          {recommendedServices.map((item, index) => (
+            <SearchResultCard
+              key={item.id || index}
+              item={item}
+              fontScale={fontScale}
+              onPress={(selected, mod) => handleItemPress(selected, mod)}
+            />
           ))}
         </View>
       ) : (
@@ -357,6 +349,15 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         </View>
         <Text style={styles.publishBannerBtn}>+ Publicar</Text>
       </TouchableOpacity>
+
+      {/* Modal del Buscador Inteligente Global */}
+      <GlobalSearchModal
+        visible={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        initialQuery={searchText}
+        fontScale={fontScale}
+        onSelectResult={handleItemPress}
+      />
     </ScrollView>
   );
 }
