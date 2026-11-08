@@ -35,6 +35,44 @@ import ChatScreen from './src/screens/ChatScreen';
 import MyServicesScreen from './src/screens/MyServicesScreen';
 import ServiceDetailScreen from './src/screens/ServiceDetailScreen';
 
+class ScreenErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ScreenErrorBoundary atrapó un error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: COLORS.white, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Ionicons name="alert-circle-outline" size={48} color={COLORS.primaryDark} style={{ marginBottom: 12 }} />
+          <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8, textAlign: 'center' }}>
+            Hubo un detalle al cargar esta sección
+          </Text>
+          <Text style={{ fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 20 }}>
+            {this.state.error?.message || 'Ocurrió un error inesperado al procesar la pantalla.'}
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: COLORS.primaryDark, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function MainApp() {
   const { profile, isAuthenticated, isLoading, logout } = useAuth();
 
@@ -278,8 +316,9 @@ function MainApp() {
           />
         )}
 
-        {/* Contenedor Principal de Pantallas Dinámicas */}
+        {/* Contenedor Principal de Pantallas Dinámicas con ErrorBoundary Anticaídas */}
         <View style={styles.screenContainer}>
+          <ScreenErrorBoundary key={currentTab}>
           {currentTab === 'home' && (
             <HomeScreen
               onNavigate={handleNavigate}
@@ -399,6 +438,7 @@ function MainApp() {
               initialContact={activeChatContact}
             />
           )}
+          </ScreenErrorBoundary>
         </View>
 
         {/* Barra de Navegación Inferior (Oculta en chat y detalle para mayor comodidad) */}
