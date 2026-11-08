@@ -122,6 +122,58 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     }
   };
 
+
+  const isEmergencyOwner = (emg) => {
+    if (!emg) return false;
+    const currentUserId = user?.id || session?.user?.id || profile?.id;
+    if (emg.reported_by && currentUserId && String(emg.reported_by) === String(currentUserId)) {
+      return true;
+    }
+    const myClean = (myName || '').toLowerCase().trim();
+    const repClean = (emg.reporter_name || '').toLowerCase().trim();
+    if (myClean && repClean && (myClean === repClean || repClean.includes(myClean))) {
+      return true;
+    }
+    return emg.is_mine === true;
+  };
+
+  const handleDeleteEmergency = (emg) => {
+    if (!emg || !emg.id) return;
+    Alert.alert(
+      '🗑️ Eliminar Alerta Comunitaria',
+      `¿Estás seguro de que deseas eliminar la alerta "${emg.title}"? Esta acción la removerá para toda la comunidad.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (token) {
+                await api.deleteEmergency(emg.id, token);
+              }
+              const updatedList = activeEmergenciesList.filter((e) => String(e.id) !== String(emg.id));
+              setActiveEmergenciesList(updatedList);
+              if (activeEmergency && String(activeEmergency.id) === String(emg.id)) {
+                const nextEmg = updatedList[0] || null;
+                setActiveEmergency(nextEmg);
+                if (nextEmg) {
+                  loadVolunteersForEmergency(nextEmg.id);
+                } else {
+                  setVolunteers([]);
+                }
+              }
+              Alert.alert('✅ Alerta Eliminada', 'Tu alerta fue retirada de la comunidad exitosamente.');
+            } catch (err) {
+              console.warn('[EmergencyScreen] Error eliminando alerta:', err);
+              Alert.alert('Aviso', 'No se pudo eliminar la alerta o no tienes permisos suficientes.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const scale = (val) => Math.round(val * fontScale);
 
   const emergencyTypes = [
@@ -397,6 +449,16 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                         size={18}
                         color={isSelected ? "#dc2626" : "#cbd5e1"}
                       />
+
+                      {isEmergencyOwner(emg) && (
+                        <TouchableOpacity
+                          style={styles.deleteAlertBtnSmall}
+                          onPress={() => handleDeleteEmergency(emg)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="trash-outline" size={15} color="#dc2626" />
+                        </TouchableOpacity>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -440,6 +502,19 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                 <Ionicons name="map-outline" size={16} color="#0f766e" />
                 <Text style={styles.viewMapShortcutText}>Ver ubicación en el Mapa de Emergencia ➔</Text>
               </TouchableOpacity>
+
+              {isEmergencyOwner(activeEmergency) && (
+                <TouchableOpacity
+                  style={styles.deleteEmergencyBtn}
+                  onPress={() => handleDeleteEmergency(activeEmergency)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={[styles.deleteEmergencyBtnText, { fontSize: scale(12) }]}>
+                    Eliminar mi Alerta Comunitaria (Creador)
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={styles.calmBox}>
@@ -786,6 +861,26 @@ const styles = StyleSheet.create({
   },
   mapAlertPillTextActive: {
     color: '#ffffff'
+  },
+  deleteEmergencyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626',
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    marginTop: 10
+  },
+  deleteEmergencyBtnText: {
+    color: '#ffffff',
+    fontWeight: '800'
+  },
+  deleteAlertBtnSmall: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#fee2e2',
+    marginLeft: 6
   },
   activeEmergencyBox: {
     backgroundColor: '#fff1f2',

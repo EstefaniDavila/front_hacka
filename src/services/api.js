@@ -632,6 +632,14 @@ export const api = {
     }
   },
 
+  async deleteEmergency(emergencyId, token) {
+    return request(
+      `/emergencies/${emergencyId}`,
+      { method: 'DELETE' },
+      token
+    );
+  },
+
   async reportEmergency(emergencyData, token) {
     return request(
       '/emergencies',
