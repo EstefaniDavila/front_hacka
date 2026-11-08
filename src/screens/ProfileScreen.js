@@ -16,10 +16,10 @@ export default function ProfileScreen({
   onLogout,
   helpedCount = 12,
   userProfile = {
-    name: 'Doña Martha Quispe',
-    phone: '984 555 123',
-    skill: '🩺 Enfermería / Primeros auxilios',
-    address: 'Calle Los Nogales 214, Mz B Lote 4 • Zona A'
+    name: 'Vecino',
+    phone: '',
+    skill: 'Vecino Colaborador',
+    address: 'Zona A • Manzana 2'
   },
   onOpenChat
 }) {

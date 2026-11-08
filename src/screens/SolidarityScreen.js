@@ -92,7 +92,7 @@ export default function SolidarityScreen({
     const createdPost = {
       id: 'sol-user-' + Date.now(),
       author_id: 'u-user-01',
-      author_name: 'Doña Martha Q. (Tú)',
+      author_name: 'Tú (Vecino)',
       author_avatar: '👵',
       type: newPostType,
       category: newPostCategory,

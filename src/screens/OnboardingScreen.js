@@ -26,11 +26,11 @@ export default function OnboardingScreen({
   const { register, submitVerification } = useAuth();
 
   const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState('984 555 123');
-  const [name, setName] = useState('Doña Martha Quispe');
-  const [email, setEmail] = useState('martha.quispe@vecired.pe');
-  const [password, setPassword] = useState('VecinaMartha2026!');
-  const [selectedSkill, setSelectedSkill] = useState('🩺 Enfermería / Primeros auxilios');
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [selectedSkill, setSelectedSkill] = useState('');
   const [customSkill, setCustomSkill] = useState('');
 
   // DNI: Frente y Reverso
@@ -271,7 +271,7 @@ export default function OnboardingScreen({
             style={{ flex: 1 }}
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 140 : 60 }
+              { paddingBottom: keyboardHeight > 0 ? (Platform.OS === 'android' ? 120 : keyboardHeight + 40) : 60 }
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -347,7 +347,7 @@ export default function OnboardingScreen({
                     style={[styles.input, { fontSize: scale(13) }]}
                     value={name}
                     onChangeText={setName}
-                    placeholder="Ej: Doña Martha Quispe"
+                    placeholder="Ej: Juan Pérez / María García"
                     returnKeyType="next"
                   />
                 </View>
@@ -436,8 +436,8 @@ export default function OnboardingScreen({
                     }}
                     onFocus={() => {
                       setTimeout(() => {
-                        scrollViewRef.current?.scrollToEnd({ animated: true });
-                      }, 200);
+                        scrollViewRef.current?.scrollTo({ y: 560, animated: true });
+                      }, 120);
                     }}
                     onSubmitEditing={() => Keyboard.dismiss()}
                   />
