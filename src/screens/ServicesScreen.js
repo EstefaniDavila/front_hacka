@@ -341,34 +341,48 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           </TouchableOpacity>
         </View>
       ) : (
-        services.map((service) => (
-          <TouchableOpacity
-            key={service.id}
-            style={styles.serviceItemCard}
-            activeOpacity={0.9}
-            onPress={() => handleServiceSelect(service)}
-          >
-            <View style={styles.serviceItemTop}>
-              {service.provider_avatar && service.provider_avatar.startsWith('http') && !service.provider_avatar.includes('unsplash.com') ? (
-                <Image
-                  source={{ uri: service.provider_avatar }}
-                  style={styles.providerAvatar}
-                />
-              ) : (
-                <View style={styles.avatarCircleWrap}>
-                  <Text style={{ fontSize: 24 }}>
-                    {service.provider_avatar && !service.provider_avatar.startsWith('http') ? service.provider_avatar : '👤'}
+        services.map((service) => {
+          const myId = user?.id || profile?.id;
+          const myNameStr = (userProfile?.name || profile?.full_name || '').toLowerCase().trim();
+          const pNameStr = (service.provider_name || service.user?.full_name || '').toLowerCase().trim();
+          const isMyService = (myId && (service.provider_id === myId || service.user_id === myId)) ||
+                              (myNameStr && pNameStr && (myNameStr === pNameStr || myNameStr.includes(pNameStr) || pNameStr.includes(myNameStr)));
+          const rawPName = (service.provider_name && service.provider_name !== 'EMPTY') ? service.provider_name : null;
+          const displayedProviderName = (isMyService && (userProfile?.name || profile?.full_name))
+            ? (userProfile?.name || profile?.full_name)
+            : (rawPName || service.user?.full_name || 'Vecino');
+          const displayedAvatar = (isMyService && (userProfile?.avatar || profile?.avatar_url))
+            ? (userProfile?.avatar || profile?.avatar_url)
+            : (service.provider_avatar || '👤');
+
+          return (
+            <TouchableOpacity
+              key={service.id}
+              style={styles.serviceItemCard}
+              activeOpacity={0.9}
+              onPress={() => handleServiceSelect(service)}
+            >
+              <View style={styles.serviceItemTop}>
+                {displayedAvatar && displayedAvatar.startsWith('http') && !displayedAvatar.includes('unsplash.com') ? (
+                  <Image
+                    source={{ uri: displayedAvatar }}
+                    style={styles.providerAvatar}
+                  />
+                ) : (
+                  <View style={styles.avatarCircleWrap}>
+                    <Text style={{ fontSize: 24 }}>
+                      {displayedAvatar && !displayedAvatar.startsWith('http') ? displayedAvatar : '👤'}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.providerInfo}>
+                  <View style={styles.vistoBuenoBadge}>
+                    <Ionicons name="shield-checkmark" size={11} color="#0d9488" style={{ marginRight: 3 }} />
+                    <Text style={styles.vistoBuenoText}>Visto Bueno Vecinal</Text>
+                  </View>
+                  <Text style={[styles.providerName, { fontSize: scale(13) }]}>
+                    {displayedProviderName}
                   </Text>
-                </View>
-              )}
-              <View style={styles.providerInfo}>
-                <View style={styles.vistoBuenoBadge}>
-                  <Ionicons name="shield-checkmark" size={11} color="#0d9488" style={{ marginRight: 3 }} />
-                  <Text style={styles.vistoBuenoText}>Visto Bueno Vecinal</Text>
-                </View>
-                <Text style={[styles.providerName, { fontSize: scale(13) }]}>
-                  {service.provider_name || service.user?.full_name || 'Vecino'}
-                </Text>
                 <Text style={[styles.providerSkill, { fontSize: scale(11) }]}>
                   {service.category_name || service.category || 'Oficio local'}
                 </Text>
@@ -467,7 +481,8 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               </View>
             </View>
           </TouchableOpacity>
-        ))
+          );
+        })
       )}
     </ScrollView>
   );

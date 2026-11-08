@@ -50,14 +50,12 @@ export default function ProfileScreen({
   }, [userProfile]);
 
   useEffect(() => {
-    // Si la dirección es la genérica por defecto, jalar la ubicación del mapa en vivo
+    // Pre-cargar la dirección detectada en el formulario de edición sin disparar guardado ciego
     if (!userProfile.address || userProfile.address === 'Zona A • Manzana 2') {
       getOrDetectUserLocation().then((loc) => {
-        if (loc && loc.fullAddress && onSaveProfile) {
-          onSaveProfile({
-            ...userProfile,
-            address: loc.fullAddress
-          });
+        if (loc && (loc.fullAddress || loc.street)) {
+          const detected = loc.fullAddress || `${loc.street}, ${loc.district || loc.city}`;
+          setEditAddress(detected);
         }
       });
     }
