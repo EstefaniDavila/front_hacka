@@ -1,4 +1,4 @@
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -133,9 +133,32 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Cabecera de Servicios */}
       <View style={styles.headerBox}>
+        {/* Selector de Pestaña: Servicios vs Productos Locales */}
+        <View style={styles.tabToggleRow}>
+          <TouchableOpacity
+            style={[styles.tabToggleBtn, styles.tabToggleBtnActive]}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="construct" size={14} color="#ffffff" style={{ marginRight: 6 }} />
+            <Text style={[styles.tabToggleBtnText, styles.tabToggleBtnTextActive, { fontSize: scale(11) }]}>
+              Servicios y Oficios
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tabToggleBtn}
+            activeOpacity={0.8}
+            onPress={() => onNavigate('products')}
+          >
+            <MaterialCommunityIcons name="storefront-outline" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
+            <Text style={[styles.tabToggleBtnText, { fontSize: scale(11) }]}>
+              Productos Locales
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.headerTitleRow}>
           <View style={styles.headerLeft}>
-            <Text style={{ fontSize: 24, marginRight: 8 }}>🏪</Text>
+            <MaterialCommunityIcons name="toolbox" size={24} color={COLORS.primaryDark} style={{ marginRight: 8 }} />
             <View>
               <Text style={[styles.headerTitle, { fontSize: scale(16) }]}>Servicios y Oficios</Text>
               <Text style={[styles.headerSub, { fontSize: scale(11) }]}>
@@ -150,13 +173,14 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
             activeOpacity={0.8}
             onPress={() => onNavigate('my_services')}
           >
-            <Text style={[styles.myServicesBtnText, { fontSize: scale(11) }]}>📋 Mis Servicios</Text>
+            <Feather name="clipboard" size={13} color={COLORS.primaryDark} style={{ marginRight: 4 }} />
+            <Text style={[styles.myServicesBtnText, { fontSize: scale(11) }]}>Mis Servicios</Text>
           </TouchableOpacity>
         </View>
 
         {/* Barra de Búsqueda */}
         <View style={styles.searchBar}>
-          <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+          <Ionicons name="search" size={17} color={COLORS.textMuted} style={{ marginRight: 8 }} />
           <TextInput
             placeholder="Buscar por oficio, nombre o habilidad..."
             placeholderTextColor={COLORS.textMuted}
@@ -216,6 +240,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           style={[styles.filterChip, filterType === 'near' && styles.filterChipActive]}
           onPress={() => setFilterType('near')}
         >
+          <Ionicons name="location" size={12} color={filterType === 'near' ? '#ffffff' : '#0d9488'} style={{ marginRight: 4 }} />
           <Text
             style={[
               styles.filterChipText,
@@ -223,7 +248,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               { fontSize: scale(11) }
             ]}
           >
-            📍 Más cercanos (Mz 1-4)
+            Más cercanos (Mz 1-4)
           </Text>
         </TouchableOpacity>
 
@@ -231,6 +256,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           style={[styles.filterChip, filterType === 'recommended' && styles.filterChipActive]}
           onPress={() => setFilterType('recommended')}
         >
+          <Ionicons name="star" size={12} color={filterType === 'recommended' ? '#ffffff' : '#f59e0b'} style={{ marginRight: 4 }} />
           <Text
             style={[
               styles.filterChipText,
@@ -238,7 +264,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               { fontSize: scale(11) }
             ]}
           >
-            ⭐ Mejor valorados
+            Mejor valorados
           </Text>
         </TouchableOpacity>
 
@@ -246,6 +272,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           style={[styles.filterChip, filterType === 'promos' && styles.filterChipActive]}
           onPress={() => setFilterType('promos')}
         >
+          <Ionicons name="pricetag" size={12} color={filterType === 'promos' ? '#ffffff' : '#0284c7'} style={{ marginRight: 4 }} />
           <Text
             style={[
               styles.filterChipText,
@@ -253,7 +280,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               { fontSize: scale(11) }
             ]}
           >
-            🏷️ Económicos
+            Económicos
           </Text>
         </TouchableOpacity>
       </View>
@@ -261,7 +288,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
       {/* Radar de servicios */}
       <View style={styles.radarCard}>
         <View style={styles.radarIconWrap}>
-          <Text style={{ fontSize: 24 }}>📡</Text>
+          <MaterialCommunityIcons name="radar" size={24} color="#0d9488" />
         </View>
         <View style={styles.radarDetails}>
           <Text style={[styles.radarTitle, { fontSize: scale(12) }]}>Radar Barrial VeciRed</Text>
@@ -270,8 +297,13 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           </Text>
           <Text style={[styles.radarNumber, { fontSize: scale(10) }]}>Red Vecinal Activa • Zona A</Text>
         </View>
-        <TouchableOpacity onPress={() => onNavigate('publish')}>
-          <Text style={styles.radarArrow}>+ Publicar</Text>
+        <TouchableOpacity
+          style={styles.radarPublishBtn}
+          activeOpacity={0.85}
+          onPress={() => onNavigate('publish', { type: 'servicio' })}
+        >
+          <Ionicons name="add" size={14} color="#ffffff" style={{ marginRight: 2 }} />
+          <Text style={styles.radarArrow}>Publicar</Text>
         </TouchableOpacity>
       </View>
 
@@ -302,9 +334,10 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           <TouchableOpacity
             style={styles.emptyPublishBtn}
             activeOpacity={0.85}
-            onPress={() => onNavigate('publish')}
+            onPress={() => onNavigate('publish', { type: 'servicio' })}
           >
-            <Text style={styles.emptyPublishBtnText}>➕ Publicar Mi Primer Servicio</Text>
+            <Ionicons name="add" size={15} color="#ffffff" style={{ marginRight: 4 }} />
+            <Text style={styles.emptyPublishBtnText}>Publicar Mi Primer Servicio</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -330,7 +363,8 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               )}
               <View style={styles.providerInfo}>
                 <View style={styles.vistoBuenoBadge}>
-                  <Text style={styles.vistoBuenoText}>★ Visto Bueno Vecinal</Text>
+                  <Ionicons name="shield-checkmark" size={11} color="#0d9488" style={{ marginRight: 3 }} />
+                  <Text style={styles.vistoBuenoText}>Visto Bueno Vecinal</Text>
                 </View>
                 <Text style={[styles.providerName, { fontSize: scale(13) }]}>
                   {service.provider_name || service.user?.full_name || 'Vecino'}
@@ -340,10 +374,23 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                 </Text>
               </View>
               <View style={styles.ratingBadge}>
-                <Text style={styles.ratingStar}>★</Text>
-                <Text style={[styles.ratingNumber, { fontSize: scale(12) }]}>
-                  {service.rating ? Number(service.rating).toFixed(1) : '5.0'}
-                </Text>
+                {(() => {
+                  const avg = service.rating_avg !== undefined && service.rating_avg !== null ? Number(service.rating_avg) : (service.rating !== undefined && service.rating !== null ? Number(service.rating) : null);
+                  if (avg !== null && avg > 0) {
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="star" size={13} color="#f59e0b" style={{ marginRight: 3 }} />
+                        <Text style={[styles.ratingNumber, { fontSize: scale(12) }]}>{avg.toFixed(1)}</Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="sparkles" size={12} color="#0d9488" style={{ marginRight: 3 }} />
+                      <Text style={[styles.ratingNumber, { fontSize: scale(11), color: '#0d9488' }]}>Nuevo</Text>
+                    </View>
+                  );
+                })()}
               </View>
             </View>
 
@@ -371,7 +418,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
 
                 {(() => {
                   const myId = user?.id || profile?.id;
-                  const myName = (profile?.full_name || userProfile?.name || '').toLowerCase().trim();
+                  const myName = (profile?.full_name || userProfile?.name || 'Andy Manchego').toLowerCase().trim();
                   const pName = (service.provider_name || service.user?.full_name || '').toLowerCase().trim();
                   const isMyService = (myId && (service.provider_id === myId || service.user_id === myId)) ||
                                       (myName && pName && (myName === pName || myName.includes(pName) || pName.includes(myName)));
@@ -379,7 +426,8 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                     return (
                       <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                         <View style={styles.myServiceBadge}>
-                          <Text style={[styles.myServiceBadgeText, { fontSize: scale(11) }]}>👤 Tu publicación</Text>
+                          <Ionicons name="person-circle" size={13} color={COLORS.primaryDark} style={{ marginRight: 3 }} />
+                          <Text style={[styles.myServiceBadgeText, { fontSize: scale(11) }]}>Tu publicación</Text>
                         </View>
                         <TouchableOpacity
                           style={styles.cardDeleteBtn}
@@ -396,8 +444,13 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
                       style={styles.whatsappButton}
                       activeOpacity={0.8}
                       onPress={() => {
+                        if (isMyService) {
+                          Alert.alert('Tu publicación', 'Esta es tu propia publicación. Para coordinar servicios, contacta a otros vecinos.');
+                          return;
+                        }
                         if (onOpenChat) {
                           onOpenChat({
+                            userId: service.user_id,
                             name: service.provider_name || service.user?.full_name || 'Vecino',
                             topic: service.title,
                             avatar: service.provider_avatar && !service.provider_avatar.startsWith('http') ? service.provider_avatar : '👤',
@@ -454,6 +507,44 @@ const styles = StyleSheet.create({
 
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 16, paddingBottom: 90 },
+  tabToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 14,
+    padding: 3,
+    marginBottom: 12
+  },
+  tabToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 11
+  },
+  tabToggleBtnActive: {
+    backgroundColor: COLORS.primaryDark,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2
+  },
+  tabToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary
+  },
+  tabToggleBtnTextActive: {
+    color: '#ffffff'
+  },
+  radarPublishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryDark,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12
+  },
   headerBox: {
     backgroundColor: COLORS.white,
     borderRadius: 22,

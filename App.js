@@ -1,4 +1,5 @@
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import './src/utils/domSafePatch';
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { COLORS } from './src/theme/colors';
 import { api } from './src/services/api';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { customStorage } from './src/services/supabase';
 
 // Pantallas de Autenticación
 import LoginScreen from './src/screens/LoginScreen';
@@ -34,9 +36,48 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import MyServicesScreen from './src/screens/MyServicesScreen';
 import ServiceDetailScreen from './src/screens/ServiceDetailScreen';
+import NotificationsModal from './src/components/NotificationsModal';
+
+class ScreenErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ScreenErrorBoundary atrapó un error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: COLORS.white, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Ionicons name="alert-circle-outline" size={48} color={COLORS.primaryDark} style={{ marginBottom: 12 }} />
+          <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8, textAlign: 'center' }}>
+            Hubo un detalle al cargar esta sección
+          </Text>
+          <Text style={{ fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 20 }}>
+            {this.state.error?.message || 'Ocurrió un error inesperado al procesar la pantalla.'}
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: COLORS.primaryDark, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 13 }}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function MainApp() {
-  const { profile, isAuthenticated, isLoading, logout } = useAuth();
+  const { session, user, profile, isAuthenticated, isLoading, logout, updateUserProfile } = useAuth();
 
   // Control de sesión adicional para permitir alternar entre pantallas
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -52,47 +93,153 @@ function MainApp() {
   const [selectedServiceId, setSelectedServiceId] = useState(null);
   const [backendOnline, setBackendOnline] = useState(false);
 
-  useEffect(() => {
-    api.checkHealth()
-      .then(res => setBackendOnline(res?.connected || false))
-      .catch(() => setBackendOnline(false));
-
-    api.getActiveEmergency()
-      .then(setActiveEmergency)
-      .catch(() => setActiveEmergency(null));
-  }, []);
-
   const [fontScale, setFontScale] = useState(1.0);
   const [helpedCount, setHelpedCount] = useState(0);
   const [activeEmergency, setActiveEmergency] = useState(null);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
-  const [userProfile, setUserProfile] = useState({
-    name: 'Vecino',
+  // Verificación de estado de backend y sondeo en tiempo real de alertas comunitarias
+  useEffect(() => {
+    let mounted = true;
+
+    api.checkHealth()
+      .then((res) => {
+        if (mounted) setBackendOnline(res?.connected || false);
+      })
+      .catch(() => {
+        if (mounted) setBackendOnline(false);
+      });
+
+    async function pollEmergenciesAndNotifications() {
+      try {
+        const emg = await api.getActiveEmergency();
+        if (mounted) {
+          setActiveEmergency(emg || null);
+        }
+      } catch {}
+
+      if (session?.access_token) {
+        try {
+          const countData = await api.getUnreadNotificationsCount(session.access_token);
+          if (mounted && countData && typeof countData.unread_count === 'number') {
+            setUnreadNotificationsCount(countData.unread_count);
+          }
+        } catch {}
+      }
+    }
+
+    pollEmergenciesAndNotifications();
+    const interval = setInterval(pollEmergenciesAndNotifications, 4500);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [session?.access_token]);
+
+  const EMPTY_PROFILE = {
+    name: '',
     phone: '',
     skill: '',
-    address: 'Zona A • Manzana 2'
-  });
+    address: 'Zona A • Manzana 2',
+    avatar: '👤'
+  };
 
-  // Sincronizar datos si el backend retorna un perfil real autenticado
+  const [userProfile, setUserProfile] = useState(EMPTY_PROFILE);
+
+  const handleSaveUserProfile = async (updated) => {
+    setUserProfile((prev) => ({ ...prev, ...updated }));
+
+    if (user?.id) {
+      customStorage.setItem('vecired_user_profile_' + user.id, JSON.stringify(updated)).catch(() => {});
+    }
+    if (user?.email) {
+      customStorage.setItem('vecired_user_profile_' + user.email, JSON.stringify(updated)).catch(() => {});
+    }
+    // Eliminar clave global para evitar contaminación entre diferentes cuentas
+    customStorage.removeItem('vecired_user_profile').catch(() => {});
+
+    if (updateUserProfile) {
+      try {
+        await updateUserProfile(updated);
+      } catch (err) {
+        console.warn('Error en updateUserProfile:', err);
+      }
+    }
+  };
+
+  // Sincronizar datos si el backend retorna un perfil real o si el usuario inicia/cierra sesión
   useEffect(() => {
-    if (profile) {
-      setUserProfile((prev) => ({
-        ...prev,
-        name: profile.full_name || prev.name,
-        phone: profile.phone || prev.phone,
-        skill: profile.skill || prev.skill,
-        address: profile.address || prev.address
-      }));
-      if (profile.font_scale_preference) {
+    async function restoreProfileOnAuth() {
+      if (!user) {
+        setUserProfile(EMPTY_PROFILE);
+        return;
+      }
+
+      let localData = null;
+      try {
+        if (user?.id) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + user.id);
+          if (raw) localData = JSON.parse(raw);
+        }
+        if (!localData && user?.email) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + user.email);
+          if (raw) localData = JSON.parse(raw);
+        }
+      } catch {}
+
+      const emailStr = (user?.email || '').toLowerCase();
+      const isAndy = emailStr.includes('andy');
+      const isImanol = emailStr.includes('imanol');
+
+      const name =
+        localData?.name ||
+        profile?.full_name ||
+        user?.user_metadata?.full_name ||
+        (isAndy ? 'Andy Manchego' : isImanol ? 'Imanol Montes' : user?.email?.split('@')[0] || 'Vecino');
+      const phone =
+        localData?.phone ||
+        profile?.phone ||
+        user?.user_metadata?.phone ||
+        (isAndy ? '937263104' : isImanol ? '912345678' : '');
+      const skill =
+        localData?.skill ||
+        profile?.skill ||
+        user?.user_metadata?.skill ||
+        (isAndy ? 'Apoyo general' : isImanol ? 'Tecnología y Soporte' : 'Vecino Colaborador');
+      const address =
+        localData?.address ||
+        profile?.address ||
+        user?.user_metadata?.address ||
+        'Zona A • Manzana 2';
+      const avatar =
+        localData?.avatar ||
+        profile?.avatar_url ||
+        user?.user_metadata?.avatar ||
+        (isAndy ? '👨‍🔧' : isImanol ? '🧑‍💼' : '👤');
+
+      setUserProfile({
+        name,
+        phone,
+        skill,
+        address,
+        avatar
+      });
+
+      if (profile?.font_scale_preference) {
         const val = parseFloat(profile.font_scale_preference);
         if (!isNaN(val)) setFontScale(val);
       }
     }
-  }, [profile]);
+    restoreProfileOnAuth();
+  }, [user, profile]);
 
   const scale = (val) => Math.round(val * fontScale);
 
   const [servicesSearchQuery, setServicesSearchQuery] = useState('');
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [publishInitialType, setPublishInitialType] = useState(null);
 
   const handleNavigate = (tab, params = null) => {
     if (params?.serviceId) {
@@ -100,6 +247,9 @@ function MainApp() {
     }
     if (params?.search !== undefined) {
       setServicesSearchQuery(params.search);
+    }
+    if (tab === 'publish') {
+      setPublishInitialType(params?.type || null);
     }
     setPreviousTab(currentTab);
     setCurrentTab(tab);
@@ -126,6 +276,7 @@ function MainApp() {
 
   const handleLogout = async () => {
     await logout();
+    setUserProfile(EMPTY_PROFILE);
     setIsLoggedIn(false);
     setAuthView('login');
   };
@@ -141,36 +292,36 @@ function MainApp() {
   const userIsActive = isAuthenticated || isLoggedIn;
 
   if (!userIsActive) {
-    if (authView === 'login') {
-      return (
-        <LoginScreen
-          onNavigateToRegister={() => setAuthView('register')}
-          onNavigateToForgotPassword={() => setAuthView('forgot_password')}
-          fontScale={fontScale}
-        />
-      );
-    }
-
-    if (authView === 'forgot_password') {
-      return (
-        <ForgotPasswordScreen
-          onBackToLogin={() => setAuthView('login')}
-          fontScale={fontScale}
-        />
-      );
-    }
-
     return (
-      <OnboardingScreen
-        onFinishLogin={() => {
-          setIsLoggedIn(true);
-          setAuthView('login');
-        }}
-        onNavigateToLogin={() => setAuthView('login')}
-        fontScale={fontScale}
-        setFontScale={setFontScale}
-        onSaveUserData={(data) => setUserProfile((prev) => ({ ...prev, ...data }))}
-      />
+      <ScreenErrorBoundary>
+        {authView === 'login' && (
+          <LoginScreen
+            onNavigateToRegister={() => setAuthView('register')}
+            onNavigateToForgotPassword={() => setAuthView('forgot_password')}
+            fontScale={fontScale}
+          />
+        )}
+
+        {authView === 'forgot_password' && (
+          <ForgotPasswordScreen
+            onBackToLogin={() => setAuthView('login')}
+            fontScale={fontScale}
+          />
+        )}
+
+        {authView !== 'login' && authView !== 'forgot_password' && (
+          <OnboardingScreen
+            onFinishLogin={() => {
+              setIsLoggedIn(true);
+              setAuthView('login');
+            }}
+            onNavigateToLogin={() => setAuthView('login')}
+            fontScale={fontScale}
+            setFontScale={setFontScale}
+            onSaveUserData={handleSaveUserProfile}
+          />
+        )}
+      </ScreenErrorBoundary>
     );
   }
 
@@ -189,7 +340,7 @@ function MainApp() {
               activeOpacity={0.8}
             >
               <View style={styles.appLogoCircle}>
-                <Text style={{ fontSize: 20 }}>🏡</Text>
+                <MaterialCommunityIcons name="home-group" size={22} color={COLORS.primaryDark} />
               </View>
               <View style={styles.headerTextContainer}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -229,24 +380,29 @@ function MainApp() {
                 style={[styles.headerIconButton, currentTab === 'chat' && styles.headerIconActive]}
                 activeOpacity={0.8}
                 onPress={() => {
+                  setUnreadMessagesCount(0);
                   setActiveChatContact(null);
                   handleNavigate('chat');
                 }}
               >
-                <Text style={{ fontSize: 18 }}>💬</Text>
-                <View style={styles.chatBadge}>
-                  <Text style={styles.chatBadgeText}>2</Text>
-                </View>
+                <Ionicons name="chatbubbles" size={19} color={COLORS.primaryDark} />
+                {unreadMessagesCount > 0 && (
+                  <View style={styles.chatBadge}>
+                    <Text style={styles.chatBadgeText}>{unreadMessagesCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
-              {/* Botón de Notificaciones */}
+              {/* Botón de Notificaciones y Alertas Barriales */}
               <TouchableOpacity
                 style={styles.headerIconButton}
                 activeOpacity={0.8}
-                onPress={() => handleNavigate('solidarity')}
+                onPress={() => setShowNotificationsModal(true)}
               >
-                <Text style={{ fontSize: 18 }}>🔔</Text>
-                <View style={styles.bellRedDot} />
+                <Ionicons name="notifications" size={19} color={COLORS.primaryDark} />
+                {(unreadNotificationsCount > 0 || activeEmergency) && (
+                  <View style={styles.bellRedDot} />
+                )}
               </TouchableOpacity>
 
               {/* Avatar de Perfil */}
@@ -255,7 +411,11 @@ function MainApp() {
                 activeOpacity={0.8}
                 onPress={() => handleNavigate('profile')}
               >
-                <Text style={{ fontSize: 20 }}>{userProfile.avatar || '👤'}</Text>
+                {userProfile.avatar && userProfile.avatar !== '👤' ? (
+                  <Text style={{ fontSize: 20 }}>{userProfile.avatar}</Text>
+                ) : (
+                  <Ionicons name="person-circle" size={26} color={COLORS.primaryDark} />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -264,14 +424,17 @@ function MainApp() {
         {/* Banner de Emergencia Comunitaria Activa */}
         {activeEmergency && currentTab !== 'emergency' && (
           <EmergencyBanner
+            emergencyTitle={activeEmergency.title || activeEmergency.name}
             emergency={activeEmergency}
+            onOpenEmergency={() => handleNavigate('emergency')}
             onPressView={() => handleNavigate('emergency')}
             fontScale={fontScale}
           />
         )}
 
-        {/* Contenedor Principal de Pantallas Dinámicas */}
+        {/* Contenedor Principal de Pantallas Dinámicas con ErrorBoundary Anticaídas */}
         <View style={styles.screenContainer}>
+          <ScreenErrorBoundary key={currentTab}>
           {currentTab === 'home' && (
             <HomeScreen
               onNavigate={handleNavigate}
@@ -307,6 +470,7 @@ function MainApp() {
               onNavigate={handleNavigate}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
+              userProfile={userProfile}
             />
           )}
 
@@ -327,6 +491,7 @@ function MainApp() {
               onBack={() => handleNavigate(previousTab || 'home')}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
+              userProfile={userProfile}
             />
           )}
 
@@ -354,6 +519,7 @@ function MainApp() {
               onNavigate={handleNavigate}
               fontScale={fontScale}
               onOpenChat={handleOpenChatWith}
+              onAlertTriggered={(alert) => setActiveEmergency(alert)}
             />
           )}
 
@@ -361,6 +527,7 @@ function MainApp() {
             <PublishScreen
               onNavigate={handleNavigate}
               fontScale={fontScale}
+              initialType={publishInitialType}
             />
           )}
 
@@ -375,6 +542,7 @@ function MainApp() {
               onLogout={handleLogout}
               helpedCount={helpedCount}
               userProfile={userProfile}
+              onSaveProfile={handleSaveUserProfile}
               onOpenChat={() => {
                 setActiveChatContact(null);
                 handleNavigate('chat');
@@ -385,10 +553,16 @@ function MainApp() {
           {currentTab === 'chat' && (
             <ChatScreen
               fontScale={fontScale}
-              onBack={() => setCurrentTab(previousTab || 'home')}
+              userProfile={userProfile}
+              onBack={() => {
+                setActiveChatContact(null);
+                setCurrentTab(previousTab || 'home');
+              }}
               initialContact={activeChatContact}
+              onClearInitialContact={() => setActiveChatContact(null)}
             />
           )}
+          </ScreenErrorBoundary>
         </View>
 
         {/* Barra de Navegación Inferior (Oculta en chat y detalle para mayor comodidad) */}
@@ -399,6 +573,19 @@ function MainApp() {
             fontScale={fontScale}
           />
         )}
+
+        {/* Modal de Alertas y Notificaciones Comunitarias */}
+        <NotificationsModal
+          visible={showNotificationsModal}
+          onClose={() => setShowNotificationsModal(false)}
+          token={session?.access_token}
+          fontScale={fontScale}
+          activeEmergency={activeEmergency}
+          onViewEmergency={(notif) => {
+            setShowNotificationsModal(false);
+            handleNavigate('emergency');
+          }}
+        />
 
       </View>
     </SafeAreaView>

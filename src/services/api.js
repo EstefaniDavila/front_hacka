@@ -3,7 +3,7 @@
 // ==========================================================
 import { Platform } from 'react-native';
 
-export const LOCAL_PC_IP = '192.168.0.175';
+export const LOCAL_PC_IP = '192.168.1.33';
 
 export const API_BASE_URL = Platform.OS === 'web'
   ? ((typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
@@ -108,8 +108,8 @@ export const api = {
         // Objeto nativo de React Native (expo-camera / ImagePicker)
         formData.append(field, {
           uri: file.uri,
-          name: file.name || defaultName,
-          type: file.type || 'image/jpeg'
+          name: file.fileName || file.name || defaultName,
+          type: file.mimeType || file.type || 'image/jpeg'
         });
       } else {
         // Blob o File para navegador web
@@ -350,9 +350,10 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify({
+          emergency_type: emergencyData.type || emergencyData.emergency_type || 'seguridad',
           title: emergencyData.title,
           description: emergencyData.desc || emergencyData.description || '',
-          severity: emergencyData.severity || 'high'
+          severity: emergencyData.severity || 'critical'
         })
       },
       token
@@ -368,6 +369,90 @@ export const api = {
       },
       token
     );
+  },
+
+  // ==========================================================
+  // MÓDULO DE NOTIFICACIONES Y ALERTAS
+  // ==========================================================
+  async getNotifications(token) {
+    try {
+      return await request('/notifications', { method: 'GET' }, token);
+    } catch {
+      return [];
+    }
+  },
+
+  async getUnreadNotificationsCount(token) {
+    try {
+      return await request('/notifications/unread-count', { method: 'GET' }, token);
+    } catch {
+      return { unread_count: 0 };
+    }
+  },
+
+  async markNotificationAsRead(notificationId, token) {
+    try {
+      return await request(`/notifications/${notificationId}/read`, { method: 'PATCH' }, token);
+    } catch {
+      return null;
+    }
+  },
+
+  // ==========================================================
+  // MÓDULO DE CHAT COMUNITARIO
+  // ==========================================================
+  async getChats(token) {
+    try {
+      return await request('/chats', { method: 'GET' }, token);
+    } catch {
+      return [];
+    }
+  },
+
+  async getChatDetail(conversationId, token) {
+    try {
+      return await request(`/chats/${conversationId}`, { method: 'GET' }, token);
+    } catch {
+      return null;
+    }
+  },
+
+  async getChatMessages(conversationId, token) {
+    try {
+      return await request(`/chats/${conversationId}/messages`, { method: 'GET' }, token);
+    } catch {
+      return [];
+    }
+  },
+
+  async sendChatMessage(conversationId, text, token) {
+    try {
+      return await request(
+        `/chats/${conversationId}/messages`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ text })
+        },
+        token
+      );
+    } catch {
+      return null;
+    }
+  },
+
+  async createChat(chatData, token) {
+    try {
+      return await request(
+        '/chats',
+        {
+          method: 'POST',
+          body: JSON.stringify(chatData)
+        },
+        token
+      );
+    } catch {
+      return null;
+    }
   }
 };
 

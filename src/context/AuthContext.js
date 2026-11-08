@@ -2,7 +2,7 @@
 // VECIRED IA — CONTEXTO GLOBAL DE AUTENTICACIÓN Y SESIÓN REAL
 // ==========================================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase, customStorage } from '../services/supabase';
 import { api } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -65,24 +65,129 @@ export function AuthProvider({ children }) {
   }, []);
 
   // -------------------------------------------------------------
-  // Carga del perfil desde el Backend FastAPI usando el JWT
+  // Carga del perfil desde el Backend FastAPI usando el JWT y Storage persistente por usuario
   // -------------------------------------------------------------
-  const loadUserProfile = async (token) => {
+  const loadUserProfile = async (token, activeUser = null) => {
     if (!token) return null;
+    const currentUser = activeUser || user;
     try {
-      const profileData = await api.getMyProfile(token);
-      setProfile(profileData);
+      const profileData = await api.getMyProfile(token).catch(() => null);
+
+      // Restaurar datos guardados localmente EXCLUSIVAMENTE para este usuario
+      let localSaved = null;
+      try {
+        if (currentUser?.id) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + currentUser.id);
+          if (raw) localSaved = JSON.parse(raw);
+        }
+        if (!localSaved && currentUser?.email) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + currentUser.email);
+          if (raw) localSaved = JSON.parse(raw);
+        }
+      } catch {}
+
+      const emailStr = (currentUser?.email || '').toLowerCase();
+      const isAndy = emailStr.includes('andy');
+      const isImanol = emailStr.includes('imanol');
+
+      const defaultName = isAndy
+        ? 'Andy Manchego'
+        : isImanol
+        ? 'Imanol Montes'
+        : currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || 'Vecino';
+      const defaultPhone = isAndy ? '937263104' : isImanol ? '912345678' : '';
+      const defaultSkill = isAndy ? 'Apoyo general' : isImanol ? 'Tecnología y Soporte' : 'Vecino Colaborador';
+      const defaultAvatar = isAndy ? '👨‍🔧' : isImanol ? '🧑‍💼' : '👤';
+
+      const merged = {
+        ...(profileData || {}),
+        full_name: localSaved?.name || profileData?.full_name || currentUser?.user_metadata?.full_name || defaultName,
+        phone: localSaved?.phone || profileData?.phone || currentUser?.user_metadata?.phone || defaultPhone,
+        skill: localSaved?.skill || profileData?.skill || currentUser?.user_metadata?.skill || defaultSkill,
+        address: localSaved?.address || profileData?.address || currentUser?.user_metadata?.address || 'Zona A • Manzana 2',
+        avatar_url: localSaved?.avatar || profileData?.avatar_url || currentUser?.user_metadata?.avatar || defaultAvatar
+      };
+
+      setProfile(merged);
 
       // Consulta del estado de verificación de identidad si aplica
       const statusData = await api.getVerificationStatus(token).catch(() => null);
       if (statusData) {
         setVerificationStatus(statusData);
       }
-      return profileData;
+      return merged;
     } catch (err) {
       console.warn('[VeciRed Auth] No se pudo obtener perfil del backend:', err.message);
       return null;
     }
+  };
+
+  // -------------------------------------------------------------
+  // Actualización persistente del perfil del usuario (DB + Storage + Supabase)
+  // -------------------------------------------------------------
+  const updateUserProfile = async (updateData) => {
+    const token = session?.access_token;
+    const userId = user?.id;
+    const userEmail = user?.email;
+
+    // 1. Guardar de inmediato en almacenamiento local persistente AISLADO por cuenta
+    try {
+      if (userId) {
+        await customStorage.setItem('vecired_user_profile_' + userId, JSON.stringify(updateData));
+      }
+      if (userEmail) {
+        await customStorage.setItem('vecired_user_profile_' + userEmail, JSON.stringify(updateData));
+      }
+      // Limpiar cualquier clave global residual para evitar contaminación entre cuentas
+      await customStorage.removeItem('vecired_user_profile');
+    } catch (e) {
+      console.warn('Error guardando perfil en storage local:', e);
+    }
+
+    // 2. Actualizar metadata de Supabase Auth
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: updateData.name,
+          phone: updateData.phone,
+          skill: updateData.skill,
+          address: updateData.address,
+          avatar: updateData.avatar
+        }
+      });
+    } catch (e) {
+      console.warn('Error actualizando Supabase Auth metadata:', e);
+    }
+
+    // 3. Actualizar perfil en Backend FastAPI / PostgreSQL
+    if (token) {
+      try {
+        const backendPayload = {
+          full_name: updateData.name,
+          phone: updateData.phone,
+          skill: updateData.skill,
+          avatar_url: updateData.avatar
+        };
+        const updatedApi = await api.updateMyProfile(backendPayload, token);
+        if (updatedApi) {
+          setProfile(updatedApi);
+        }
+      } catch (err) {
+        console.warn('Error actualizando perfil en backend:', err?.message);
+      }
+    }
+
+    // Actualizar estado reactivo de profile local
+    setProfile((prev) => ({
+      ...(prev || {}),
+      full_name: updateData.name,
+      phone: updateData.phone,
+      skill: updateData.skill,
+      address: updateData.address,
+      avatar_url: updateData.avatar
+    }));
+
+    return true;
   };
 
   // -------------------------------------------------------------
@@ -113,8 +218,33 @@ export function AuthProvider({ children }) {
       setSession(data.session);
       setUser(data.user);
 
+      // Cargar perfil restaurando cualquier edición previa guardada EXCLUSIVAMENTE de este usuario
+      try {
+        let userSpecificSaved = null;
+        if (data.user?.id) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + data.user.id);
+          if (raw) userSpecificSaved = JSON.parse(raw);
+        }
+        if (!userSpecificSaved && data.user?.email) {
+          const raw = await customStorage.getItem('vecired_user_profile_' + data.user.email);
+          if (raw) userSpecificSaved = JSON.parse(raw);
+        }
+
+        if (userSpecificSaved) {
+          setProfile({
+            full_name: userSpecificSaved.name,
+            phone: userSpecificSaved.phone,
+            skill: userSpecificSaved.skill,
+            address: userSpecificSaved.address,
+            avatar_url: userSpecificSaved.avatar
+          });
+        } else {
+          setProfile(null);
+        }
+      } catch {}
+
       // Cargar perfil desde el backend con el JWT real
-      await loadUserProfile(data.session.access_token);
+      await loadUserProfile(data.session.access_token, data.user);
 
       return {
         success: true,
@@ -202,6 +332,9 @@ export function AuthProvider({ children }) {
       setSession(null);
       setProfile(null);
       setVerificationStatus(null);
+      try {
+        await customStorage.removeItem('vecired_user_profile');
+      } catch {}
     }
   };
 
@@ -275,6 +408,7 @@ export function AuthProvider({ children }) {
     logout,
     resetPassword,
     submitVerification,
+    updateUserProfile,
     refreshProfile: () => session?.access_token && loadUserProfile(session.access_token)
   };
 

@@ -13,6 +13,7 @@ import {
   Keyboard,
   KeyboardAvoidingView
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import BiometricFaceScanner from '../components/BiometricFaceScanner';
@@ -48,10 +49,17 @@ export default function OnboardingScreen({
   const [selfieFile, setSelfieFile] = useState(null);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
 
-  // Dirección GPS y Corrección
+  // Dirección GPS y Corrección Detallada (Calle, Manzana, Distrito, Provincia, Ciudad)
   const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [addressStreet, setAddressStreet] = useState('Calle Los Nogales 214');
+  const [addressBlock, setAddressBlock] = useState('Mz B Lote 4');
+  const [addressZone, setAddressZone] = useState('Zona A - Manzana 2');
+  const [addressDistrict, setAddressDistrict] = useState('Los Olivos');
+  const [addressProvince, setAddressProvince] = useState('Lima');
+  const [addressDepartment, setAddressDepartment] = useState('Lima');
+  const [addressReference, setAddressReference] = useState('');
   const [detectedAddress, setDetectedAddress] = useState('Calle Los Nogales 214, Mz B Lote 4');
-  const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2');
+  const [detectedZone, setDetectedZone] = useState('Zona A - Manzana 2 • Los Olivos, Lima');
   const [addressConfirmed, setAddressConfirmed] = useState(true);
   const scrollViewRef = useRef(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -78,6 +86,11 @@ export default function OnboardingScreen({
   const [submitError, setSubmitError] = useState('');
 
   const scale = (val) => Math.round(val * fontScale);
+
+  // Asegurar que al cambiar de paso el scroll vuelva al inicio de la tarjeta
+  useEffect(() => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
 
   // Detectar ubicación real vía Geolocation del navegador si está en Web
   useEffect(() => {
@@ -271,11 +284,57 @@ export default function OnboardingScreen({
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
 
-        {/* Barra Superior con Progreso */}
+        {/* Barra Superior con Navegación y Progreso */}
         <View style={styles.headerProgress}>
-          <Text style={[styles.stepIndicatorText, { fontSize: scale(12) }]}>
-            PASO {step} DE 6
-          </Text>
+          <View style={styles.headerNavRow}>
+            {step > 1 ? (
+              <TouchableOpacity
+                style={styles.headerBackBtn}
+                activeOpacity={0.7}
+                onPress={() => setStep((prev) => Math.max(1, prev - 1))}
+              >
+                <Ionicons name="arrow-back" size={17} color={COLORS.primaryDark} style={{ marginRight: 4 }} />
+                <Text style={styles.headerBackBtnText}>Atrás (Paso {step - 1})</Text>
+              </TouchableOpacity>
+            ) : onNavigateToLogin ? (
+              <TouchableOpacity
+                style={styles.headerBackBtn}
+                activeOpacity={0.7}
+                onPress={onNavigateToLogin}
+              >
+                <Ionicons name="arrow-back" size={17} color={COLORS.primaryDark} style={{ marginRight: 4 }} />
+                <Text style={styles.headerBackBtnText}>Volver al Login</Text>
+              </TouchableOpacity>
+            ) : (
+              <View />
+            )}
+
+            {onNavigateToLogin ? (
+              <TouchableOpacity
+                style={styles.headerLoginBtn}
+                activeOpacity={0.7}
+                onPress={onNavigateToLogin}
+              >
+                <Ionicons name="log-in-outline" size={16} color={COLORS.primaryDark} style={{ marginRight: 4 }} />
+                <Text style={styles.headerLoginBtnText}>Iniciar Sesión</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <View style={styles.progressInfoRow}>
+            <Text style={[styles.stepIndicatorText, { fontSize: scale(12) }]}>
+              PASO {step} DE 6
+            </Text>
+            {step > 1 && (
+              <Text style={[styles.stepIndicatorSub, { fontSize: scale(11) }]}>
+                {step === 2 && '• Datos de Contacto'}
+                {step === 3 && '• Foto del DNI'}
+                {step === 4 && '• Biometría'}
+                {step === 5 && '• Ubicación'}
+                {step === 6 && '• Confirmación'}
+              </Text>
+            )}
+          </View>
           <View style={styles.progressBarTrack}>
             <View style={[styles.progressBarFill, { width: `${(step / 6) * 100}%` }]} />
           </View>
@@ -502,6 +561,29 @@ export default function OnboardingScreen({
                     CONTINUAR AL ESCANEO DNI
                   </Text>
                 </TouchableOpacity>
+
+                {/* Botones de navegación inferior para volver atrás o ir al login */}
+                <View style={styles.stepFooterNavRow}>
+                  <TouchableOpacity
+                    style={styles.backStepSecondaryBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setStep(1)}
+                  >
+                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                    <Text style={styles.backStepSecondaryBtnText}>Volver al paso anterior</Text>
+                  </TouchableOpacity>
+
+                  {onNavigateToLogin ? (
+                    <TouchableOpacity
+                      style={styles.stepLoginLinkBtn}
+                      activeOpacity={0.7}
+                      onPress={onNavigateToLogin}
+                    >
+                      <Ionicons name="log-in-outline" size={15} color={COLORS.primaryDark} style={{ marginRight: 4 }} />
+                      <Text style={styles.stepLoginLinkBtnText}>¿Ya tienes cuenta? Iniciar Sesión</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
             )}
 
@@ -641,6 +723,27 @@ export default function OnboardingScreen({
                     CONTINUAR A BIOMETRÍA
                   </Text>
                 </TouchableOpacity>
+
+                <View style={styles.stepFooterNavRow}>
+                  <TouchableOpacity
+                    style={styles.backStepSecondaryBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setStep(2)}
+                  >
+                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                    <Text style={styles.backStepSecondaryBtnText}>Volver a Datos de Contacto (Paso 2)</Text>
+                  </TouchableOpacity>
+
+                  {onNavigateToLogin ? (
+                    <TouchableOpacity
+                      style={styles.stepLoginLinkBtn}
+                      activeOpacity={0.7}
+                      onPress={onNavigateToLogin}
+                    >
+                      <Text style={styles.stepLoginLinkBtnText}>Ir al Login</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
             )}
 
@@ -735,6 +838,27 @@ export default function OnboardingScreen({
                     </TouchableOpacity>
                   </>
                 )}
+
+                <View style={styles.stepFooterNavRow}>
+                  <TouchableOpacity
+                    style={styles.backStepSecondaryBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setStep(3)}
+                  >
+                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                    <Text style={styles.backStepSecondaryBtnText}>Volver a Fotos de DNI (Paso 3)</Text>
+                  </TouchableOpacity>
+
+                  {onNavigateToLogin ? (
+                    <TouchableOpacity
+                      style={styles.stepLoginLinkBtn}
+                      activeOpacity={0.7}
+                      onPress={onNavigateToLogin}
+                    >
+                      <Text style={styles.stepLoginLinkBtnText}>Ir al Login</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
               </View>
             )}
 
@@ -774,23 +898,110 @@ export default function OnboardingScreen({
                     </View>
                   ) : (
                     <View style={styles.editAddressForm}>
-                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Dirección de tu casa:</Text>
+                      <Text style={[styles.editAddressHelpNotice, { fontSize: scale(11) }]}>
+                        📍 Ingresa tu dirección exacta para una ubicación precisa en la comunidad:
+                      </Text>
+
+                      {/* Calle y Número */}
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Calle, Jirón o Avenida y Número *</Text>
                       <TextInput
                         style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
-                        value={detectedAddress}
-                        onChangeText={setDetectedAddress}
-                        placeholder="Calle / Jirón y Número"
+                        value={addressStreet}
+                        onChangeText={setAddressStreet}
+                        placeholder="Ej. Calle Los Nogales 214"
+                        placeholderTextColor="#94a3b8"
                       />
 
-                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Zona y Manzana:</Text>
+                      {/* Manzana y Lote */}
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Manzana y Lote / Sector *</Text>
                       <TextInput
-                        style={[styles.input, { fontSize: scale(12) }]}
-                        value={detectedZone}
-                        onChangeText={setDetectedZone}
-                        placeholder="Ej: Zona A - Manzana 2"
+                        style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
+                        value={addressBlock}
+                        onChangeText={setAddressBlock}
+                        placeholder="Ej. Mz B Lote 4, Sector 2"
+                        placeholderTextColor="#94a3b8"
                       />
+
+                      {/* Zona y Barrio */}
+                      <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Zona Barrial VeciRed *</Text>
+                      <TextInput
+                        style={[styles.input, { fontSize: scale(12), marginBottom: 8 }]}
+                        value={addressZone}
+                        onChangeText={setAddressZone}
+                        placeholder="Ej. Zona A - Manzana 2"
+                        placeholderTextColor="#94a3b8"
+                      />
+
+                      {/* Fila Distrito y Provincia */}
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Distrito *</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressDistrict}
+                            onChangeText={setAddressDistrict}
+                            placeholder="Ej. Los Olivos"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Provincia *</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressProvince}
+                            onChangeText={setAddressProvince}
+                            placeholder="Ej. Lima"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                      </View>
+
+                      {/* Fila Ciudad / Departamento y Referencia */}
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Ciudad / Región *</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressDepartment}
+                            onChangeText={setAddressDepartment}
+                            placeholder="Ej. Lima"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.inputLabel, { fontSize: scale(11) }]}>Referencia (Opcional)</Text>
+                          <TextInput
+                            style={[styles.input, { fontSize: scale(12) }]}
+                            value={addressReference}
+                            onChangeText={setAddressReference}
+                            placeholder="Ej. Frente al parque"
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                      </View>
                     </View>
                   )}
+                </View>
+
+                <View style={styles.stepFooterNavRow}>
+                  <TouchableOpacity
+                    style={styles.backStepSecondaryBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setStep(4)}
+                  >
+                    <Ionicons name="arrow-back-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                    <Text style={styles.backStepSecondaryBtnText}>Volver a Biometría (Paso 4)</Text>
+                  </TouchableOpacity>
+
+                  {onNavigateToLogin ? (
+                    <TouchableOpacity
+                      style={styles.stepLoginLinkBtn}
+                      activeOpacity={0.7}
+                      onPress={onNavigateToLogin}
+                    >
+                      <Text style={styles.stepLoginLinkBtnText}>Ir al Login</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
 
                 {/* Botón si es o no es su dirección */}
@@ -825,13 +1036,22 @@ export default function OnboardingScreen({
                       style={styles.primaryButton}
                       activeOpacity={0.8}
                       onPress={() => {
+                        const st = addressStreet.trim() || 'Calle Los Nogales 214';
+                        const bl = addressBlock.trim() || 'Mz B Lote 4';
+                        const zn = addressZone.trim() || 'Zona A - Manzana 2';
+                        const dt = addressDistrict.trim() || 'Los Olivos';
+                        const pr = addressProvince.trim() || 'Lima';
+                        const dp = addressDepartment.trim() || 'Lima';
+
+                        setDetectedAddress(`${st}, ${bl}`);
+                        setDetectedZone(`${zn} • ${dt}, ${pr} (${dp})`);
                         setIsEditingAddress(false);
                         setAddressConfirmed(true);
                         setStep(6);
                       }}
                     >
                       <Text style={[styles.primaryButtonText, { fontSize: scale(14) }]}>
-                        💾 GUARDAR Y CONFIRMAR DIRECCIÓN
+                        💾 GUARDAR Y CONFIRMAR DIRECCIÓN COMPLETA
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -887,7 +1107,19 @@ export default function OnboardingScreen({
                   <View style={styles.summaryRow}>
                     <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>📍 Domicilio:</Text>
                     <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
-                      {detectedAddress} ({detectedZone})
+                      {detectedAddress}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>🗺️ Ubicación:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {addressDistrict}, {addressProvince} - {addressDepartment}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { fontSize: scale(11) }]}>🏘️ Cuadrante Barrial:</Text>
+                    <Text style={[styles.summaryVal, { fontSize: scale(12) }]}>
+                      {addressZone}
                     </Text>
                   </View>
                 </View>
@@ -939,6 +1171,17 @@ export default function OnboardingScreen({
                     </Text>
                   )}
                 </TouchableOpacity>
+
+                <View style={styles.stepFooterNavRow}>
+                  <TouchableOpacity
+                    style={styles.backStepSecondaryBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setStep(2)}
+                  >
+                    <Ionicons name="create-outline" size={16} color="#475569" style={{ marginRight: 6 }} />
+                    <Text style={styles.backStepSecondaryBtnText}>✏️ Corregir mis datos de contacto (Paso 2)</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
@@ -1274,6 +1517,17 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 6
   },
+  editAddressHelpNotice: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 10,
+    padding: 8,
+    color: '#166534',
+    fontWeight: '700',
+    marginBottom: 10
+  },
+
   addressActionButtons: {
     width: '100%',
     gap: 8
@@ -1423,5 +1677,89 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '800',
     fontSize: 12
-  }
+  },
+  headerNavRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  headerBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
+  },
+  headerBackBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primaryDark
+  },
+  headerLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#a7f3d0'
+  },
+  headerLoginBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primaryDark
+  },
+  progressInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6
+  },
+  stepIndicatorSub: {
+    color: COLORS.textSecondary,
+    fontWeight: '600'
+  },
+  stepFooterNavRow: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10
+  },
+  backStepSecondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    width: '100%'
+  },
+  backStepSecondaryBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155'
+  },
+  stepLoginLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12
+  },
+  stepLoginLinkBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.primaryDark
+  },
 });

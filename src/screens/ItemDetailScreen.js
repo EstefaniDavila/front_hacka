@@ -19,7 +19,8 @@ export default function ItemDetailScreen({
   itemType,
   onBack,
   fontScale = 1.0,
-  onOpenChat
+  onOpenChat,
+  userProfile
 }) {
   const { session, profile } = useAuth();
   const token = session?.access_token || null;
@@ -63,11 +64,13 @@ export default function ItemDetailScreen({
   const phone = item.phone || item.provider_phone || '987-111-222';
   const category = item.category || item.category_name || (isProduct ? 'Tienda comunitaria' : 'Servicio vecinal');
 
-  const isOwner = currentUserId && (
+  const myName = (profile?.full_name || userProfile?.name || 'Andy Manchego').toLowerCase().trim();
+  const pName = personName.toLowerCase().trim();
+  const isOwner = (currentUserId && (
     item.seller_id === currentUserId ||
     item.provider_id === currentUserId ||
     item.user_id === currentUserId
-  );
+  )) || (myName && pName && (myName === pName || myName.includes(pName) || pName.includes(myName)));
 
   const handleOrder = () => {
     setRequested(true);

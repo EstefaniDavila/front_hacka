@@ -8,6 +8,6 @@ echo.
 echo  * Para abrir en el NAVEGADOR: Presiona la tecla 'w'
 echo  * Para abrir en tu CELULAR: Escanea el codigo QR con la app Expo Go
 echo.
-cd /d "C:\Users\RS\Desktop\front_hacka"
-npx expo start -c
+cd /d "%~dp0"
+call npx.cmd expo start -c
 pause
