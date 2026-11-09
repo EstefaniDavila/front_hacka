@@ -8,8 +8,11 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Alert
+  Alert,
+  Modal,
+  Platform
 } from 'react-native';
+import { Camera } from 'expo-camera';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
@@ -24,6 +27,9 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
   const [searchText, setSearchText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceQuery, setVoiceQuery] = useState('');
+  const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
@@ -63,27 +69,73 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
     setShowSearchModal(true);
   };
 
-  const startVoiceSearch = () => {
+  const startVoiceSearch = async () => {
+    setIsCheckingMic(true);
+    let hasMicPermission = false;
+
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            hasMicPermission = true;
+          } catch (e) {
+            console.warn('[Voice] Permiso de micrófono web denegado:', e);
+          }
+        } else {
+          hasMicPermission = true;
+        }
+      } else {
+        // En dispositivo móvil nativo (Android / iOS) solicitar permiso mediante expo-camera
+        if (Camera?.requestMicrophonePermissionsAsync) {
+          const perm = await Camera.requestMicrophonePermissionsAsync().catch(() => null);
+          hasMicPermission = perm?.status === 'granted';
+        } else {
+          hasMicPermission = true;
+        }
+      }
+    } catch (err) {
+      console.warn('[Voice] Error al solicitar permiso:', err);
+    } finally {
+      setIsCheckingMic(false);
+    }
+
+    if (!hasMicPermission) {
+      Alert.alert(
+        '🎤 Permiso de Micrófono Requerido',
+        'VeciRed IA necesita acceso al micrófono de tu dispositivo para escuchar tus consultas por voz. Por favor autoriza el permiso en los ajustes de tu teléfono o navegador.',
+        [{ text: 'Entendido', style: 'cancel' }]
+      );
+      return;
+    }
+
+    // Permiso otorgado -> abrir interfaz de voz activa
+    setVoiceQuery('');
+    setIsListening(true);
+    setShowVoiceModal(true);
+
+    // Intentar Web Speech recognition si está disponible
     if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
       try {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recognition = new SpeechRecognition();
         recognition.lang = 'es-PE';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-
-        setIsListening(true);
+        recognition.interimResults = true;
+        recognition.continuous = false;
 
         recognition.onresult = (event) => {
-          const spoken = event.results[0][0].transcript;
-          setIsListening(false);
-          setSearchText(spoken);
-          onNavigate('services', { search: spoken });
+          let currentSpoken = '';
+          for (let k = 0; k < event.results.length; k++) {
+            currentSpoken += event.results[k][0].transcript;
+          }
+          if (currentSpoken) {
+            setVoiceQuery(currentSpoken);
+          }
         };
 
-        recognition.onerror = () => {
-          setIsListening(false);
-          showVoicePrompt();
+        recognition.onerror = (e) => {
+          console.warn('[Voice] Error de reconocimiento:', e);
         };
 
         recognition.onend = () => {
@@ -91,28 +143,27 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         };
 
         recognition.start();
-      } catch {
-        setIsListening(false);
-        showVoicePrompt();
+      } catch (err) {
+        console.warn('[Voice] Web Speech no iniciado:', err);
       }
-    } else {
-      showVoicePrompt();
     }
   };
 
-  const showVoicePrompt = () => {
-    Alert.alert(
-      '🎙️ Búsqueda por Voz VeciRed',
-      'Selecciona una búsqueda rápida o escribe en el buscador:',
-      [
-        { text: '⚡ Electricista', onPress: () => { setSearchText('Electricista'); onNavigate('services', { search: 'Electricista' }); } },
-        { text: '🔧 Gasfitería', onPress: () => { setSearchText('Gasfitería'); onNavigate('services', { search: 'Gasfitería' }); } },
-        { text: '🍞 Panadería / Tienda', onPress: () => onNavigate('products') },
-        { text: 'Cancelar', style: 'cancel' }
-      ]
-    );
-  };
+  const handleExecuteVoiceSearch = (queryToSearch) => {
+    const finalQ = (queryToSearch || voiceQuery || '').trim();
+    setShowVoiceModal(false);
+    setIsListening(false);
+    if (!finalQ) return;
 
+    setSearchText(finalQ);
+    if (finalQ.toLowerCase().includes('emergenc') || finalQ.toLowerCase().includes('sos') || finalQ.toLowerCase().includes('alerta')) {
+      onNavigate('emergency');
+    } else if (finalQ.toLowerCase().includes('panader') || finalQ.toLowerCase().includes('tienda') || finalQ.toLowerCase().includes('comprar')) {
+      onNavigate('products');
+    } else {
+      onNavigate('services', { search: finalQ });
+    }
+  };
   const handleItemPress = (item, mod) => {
     const targetMod = mod || item?.module || 'services';
     if (onOpenDetail) {
@@ -358,6 +409,115 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         fontScale={fontScale}
         onSelectResult={handleItemPress}
       />
+
+      {/* Modal Interactivo de Búsqueda por Voz VeciRed con Permisos Validados */}
+      <Modal
+        visible={showVoiceModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowVoiceModal(false);
+          setIsListening(false);
+        }}
+      >
+        <View style={styles.voiceModalBackdrop}>
+          <View style={styles.voiceModalCard}>
+            {/* Header del Modal de Voz */}
+            <View style={styles.voiceHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="mic" size={20} color="#0d9488" />
+                <Text style={[styles.voiceModalTitle, { fontSize: scale(15) }]}>
+                  Búsqueda por Voz VeciRed IA
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowVoiceModal(false);
+                  setIsListening(false);
+                }}
+                style={{ padding: 4 }}
+              >
+                <Ionicons name="close" size={22} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Badge de Permiso Verificado */}
+            <View style={styles.micVerifiedBadge}>
+              <Ionicons name="shield-checkmark" size={14} color="#16a34a" />
+              <Text style={styles.micVerifiedText}>
+                Micrófono del dispositivo activado y verificado
+              </Text>
+            </View>
+
+            {/* Icono Pulsante de Escucha */}
+            <View style={styles.voicePulseWrapper}>
+              <View style={styles.voicePulseRing}>
+                <View style={styles.voicePulseCore}>
+                  <Ionicons name={isListening ? "mic" : "mic-circle"} size={36} color="#ffffff" />
+                </View>
+              </View>
+              <Text style={styles.voiceListeningStatus}>
+                {isListening ? "🎙️ Escuchando tu voz en tiempo real..." : "Voz capturada. Confirma o busca abajo:"}
+              </Text>
+            </View>
+
+            {/* Campo con lo transcrito o para afinar la consulta */}
+            <View style={styles.voiceInputBox}>
+              <TextInput
+                style={[styles.voiceTextInput, { fontSize: scale(13) }]}
+                value={voiceQuery}
+                onChangeText={setVoiceQuery}
+                placeholder="Di lo que necesitas... Ej. Gasfitero urgente"
+                placeholderTextColor="#94a3b8"
+                autoFocus={true}
+              />
+              {voiceQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setVoiceQuery('')} style={{ padding: 4 }}>
+                  <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Sugerencias Rápidas de Voz para la Comunidad */}
+            <Text style={styles.voiceSuggestionsLabel}>O toca una necesidad frecuente:</Text>
+            <View style={styles.voiceChipsContainer}>
+              {[
+                { label: '🔧 Gasfitero urgente', q: 'Gasfitero urgente' },
+                { label: '⚡ Electricista a domicilio', q: 'Electricista' },
+                { label: '🥖 Panadería o víveres', q: 'Panadería' },
+                { label: '🚨 Reportar emergencia', q: 'Emergencia SOS' },
+                { label: '👵 Apoyo adulto mayor', q: 'Cuidado de adulto mayor' },
+                { label: '📦 Flete o mudanza', q: 'Flete mudanza' }
+              ].map((chip) => (
+                <TouchableOpacity
+                  key={chip.label}
+                  style={styles.voiceChipBtn}
+                  onPress={() => {
+                    setVoiceQuery(chip.q);
+                    handleExecuteVoiceSearch(chip.q);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.voiceChipText}>{chip.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Botón de Acción Principal */}
+            <TouchableOpacity
+              style={[styles.voiceSearchActionBtn, !voiceQuery.trim() && styles.voiceSearchActionBtnDisabled]}
+              onPress={() => handleExecuteVoiceSearch(voiceQuery)}
+              disabled={!voiceQuery.trim()}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="search" size={17} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={styles.voiceSearchActionBtnText}>
+                Buscar en la Comunidad
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -418,6 +578,142 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     padding: 8,
     borderRadius: 10
+  },
+  voiceModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end'
+  },
+  voiceModalCard: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8
+  },
+  voiceHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8
+  },
+  voiceModalTitle: {
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  micVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f0fdf4',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    marginBottom: 14
+  },
+  micVerifiedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#16a34a'
+  },
+  voicePulseWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10
+  },
+  voicePulseRing: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: 'rgba(13, 148, 136, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8
+  },
+  voicePulseCore: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0d9488',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0d9488',
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4
+  },
+  voiceListeningStatus: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f766e'
+  },
+  voiceInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginVertical: 10
+  },
+  voiceTextInput: {
+    flex: 1,
+    color: '#0f172a',
+    fontWeight: '600',
+    paddingVertical: 6
+  },
+  voiceSuggestionsLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+    marginTop: 6,
+    marginBottom: 6
+  },
+  voiceChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 16
+  },
+  voiceChipBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  voiceChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155'
+  },
+  voiceSearchActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0d9488',
+    paddingVertical: 13,
+    borderRadius: 12,
+    shadowColor: '#0d9488',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  voiceSearchActionBtnDisabled: {
+    backgroundColor: '#94a3b8'
+  },
+  voiceSearchActionBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800'
   },
   micButtonActive: {
     backgroundColor: '#dc2626'

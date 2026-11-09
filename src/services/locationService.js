@@ -21,13 +21,19 @@ export async function getRawGpsPosition(timeoutMs = 9000, forceFresh = false) {
     }
 
     if (hasPermission) {
-      // 1.1 Intentar lectura GPS en tiempo real de alta precisión
+      // 1.1 Habilitar proveedor de red de alta precisión en Android si es necesario
+      try {
+        await Location.enableNetworkProviderAsync().catch(() => {});
+      } catch (_) {}
+
+      // 1.2 Intentar lectura GPS en tiempo real con máxima precisión disponible (BestForNavigation)
       try {
         const cur = await Promise.race([
           Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High
+            accuracy: Location.Accuracy.BestForNavigation,
+            mayShowUserSettingsDialog: true
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout expo-location High Accuracy')), timeoutMs))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout expo-location BestForNavigation')), timeoutMs))
         ]);
 
         if (cur && cur.coords && cur.coords.latitude && cur.coords.longitude) {
@@ -175,7 +181,7 @@ export async function reverseGeocodeCoords(latitude, longitude) {
       const city = bdcData.city || bdcData.locality || 'Perú';
       const district = bdcData.locality || bdcData.principalSubdivision || city;
       const department = bdcData.principalSubdivision || 'Perú';
-      const fullStreet = `Ubicación GPS (${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)})`;
+      const fullStreet = `Ubicación GPS (${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)})`;
 
       return {
         latitude,
@@ -196,11 +202,11 @@ export async function reverseGeocodeCoords(latitude, longitude) {
   return {
     latitude,
     longitude,
-    street: `Coordenadas: ${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}`,
+    street: `Coordenadas: ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`,
     district: 'Mi comunidad',
     city: 'Perú',
     department: 'Perú',
-    fullAddress: `GPS: ${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}`,
+    fullAddress: `GPS: ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`,
     zone: `Comunidad vecinal • GPS Detectado`
   };
 }

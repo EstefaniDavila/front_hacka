@@ -44,7 +44,7 @@ export default function InteractiveCommunityMap({
   const [currentLat, setCurrentLat] = useState(latitude);
   const [currentLng, setCurrentLng] = useState(longitude);
   const [mapType, setMapType] = useState('k'); // 'k': Satélite, 'm': Calles, 'h': Híbrido
-  const [zoom, setZoom] = useState(17);
+  const [zoom, setZoom] = useState(18);
   const [isLocating, setIsLocating] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
   const [mapRevision, setMapRevision] = useState(0);
@@ -64,6 +64,27 @@ export default function InteractiveCommunityMap({
     }
     return () => { isMounted = false; };
   }, [latitude, longitude]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const handleWebMsg = (e) => {
+        try {
+          const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+          if (data && data.type === 'PIN_MOVED') {
+            const newLat = Number(data.latitude);
+            const newLng = Number(data.longitude);
+            setCurrentLat(newLat);
+            setCurrentLng(newLng);
+            if (onLocationChange) {
+              onLocationChange(newLat, newLng);
+            }
+          }
+        } catch (_) {}
+      };
+      window.addEventListener('message', handleWebMsg);
+      return () => window.removeEventListener('message', handleWebMsg);
+    }
+  }, [onLocationChange]);
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -140,7 +161,30 @@ export default function InteractiveCommunityMap({
           const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${currentLat}, ${currentLng}], ${zoom});
           L.tileLayer('${tileLayerUrl}', { maxZoom: 19 }).addTo(map);
           const icon = L.divIcon({ className: 'pulse-marker', iconSize: [24, 24], iconAnchor: [12, 12] });
-          L.marker([${currentLat}, ${currentLng}], { icon: icon }).addTo(map);
+          const marker = L.marker([${currentLat}, ${currentLng}], {
+            icon: icon,
+            draggable: true
+          }).addTo(map);
+
+          function notifyPinMoved(lat, lng) {
+            const payload = JSON.stringify({ type: 'PIN_MOVED', latitude: lat, longitude: lng });
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(payload);
+            }
+            if (window.parent && window.parent.postMessage) {
+              window.parent.postMessage(payload, '*');
+            }
+          }
+
+          marker.on('dragend', function(e) {
+            const p = e.target.getLatLng();
+            notifyPinMoved(p.lat, p.lng);
+          });
+
+          map.on('click', function(e) {
+            marker.setLatLng(e.latlng);
+            notifyPinMoved(e.latlng.lat, e.latlng.lng);
+          });
           ${mode === 'emergency' ? `
           L.circle([${currentLat}, ${currentLng}], {
             color: '#dc2626',
@@ -228,6 +272,20 @@ export default function InteractiveCommunityMap({
             domStorageEnabled={true}
             scalesPageToFit={true}
             startInLoadingState={true}
+            onMessage={(event) => {
+              try {
+                const data = JSON.parse(event.nativeEvent.data);
+                if (data.type === 'PIN_MOVED') {
+                  const newLat = Number(data.latitude);
+                  const newLng = Number(data.longitude);
+                  setCurrentLat(newLat);
+                  setCurrentLng(newLng);
+                  if (onLocationChange) {
+                    onLocationChange(newLat, newLng);
+                  }
+                }
+              } catch (_) {}
+            }}
             renderLoading={() => (
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' }]}>
                 <ActivityIndicator size="small" color={COLORS.primaryDark} />
@@ -294,6 +352,14 @@ export default function InteractiveCommunityMap({
             </View>
           </View>
         )}
+
+        {/* Franja de micro-calibración táctil para el usuario */}
+        <View style={styles.fineTunePill} pointerEvents="none">
+          <Ionicons name="hand-right" size={11} color="#0f766e" style={{ marginRight: 4 }} />
+          <Text style={styles.fineTunePillText}>
+            Toca el mapa o arrastra el punto para calibrar exactamente a tu puerta
+          </Text>
+        </View>
 
         {/* Overlay Especial para Modo Emergencia (Epicentro y Cobertura 500m) */}
         {mode === 'emergency' && (
@@ -520,6 +586,30 @@ const styles = StyleSheet.create({
   },
   circleControlBtnLoading: {
     backgroundColor: '#ccfbf1'
+  },
+  fineTunePill: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    right: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2
+  },
+  fineTunePillText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#0f766e',
+    flex: 1
   },
   emergencyOverlayBadge: {
     position: 'absolute',
