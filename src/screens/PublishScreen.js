@@ -23,6 +23,63 @@ import { useAuth } from '../context/AuthContext';
 import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 import { getOrDetectUserLocation } from '../services/locationService';
 
+const publishTypes = [
+    {
+      id: 'servicio',
+      title: 'Ofrecer servicio',
+      sub: '(Ej. gasfitería, eléctrico, clases)',
+      icon: '🔧',
+      bg: '#eff6ff',
+      border: '#bfdbfe',
+      defaultUnit: 'servicio'
+    },
+    {
+      id: 'producto',
+      title: 'Vender producto',
+      sub: '(Ej. pan, verduras)',
+      icon: '🏪',
+      bg: '#fffbeb',
+      border: '#fde68a',
+      defaultUnit: 'unidad'
+    },
+    {
+      id: 'necesito_ayuda',
+      title: 'Necesito ayuda',
+      sub: '(Solicitar apoyo)',
+      icon: '💚',
+      bg: '#f0fdf4',
+      border: '#bbf7d0',
+      defaultUnit: 'día'
+    },
+    {
+      id: 'puedo_apoyar',
+      title: 'Puedo apoyar',
+      sub: '(Ofrecer ayuda)',
+      icon: '🤝',
+      bg: '#f0fdfa',
+      border: '#99f6e4',
+      defaultUnit: 'préstamo'
+    },
+    {
+      id: 'donar',
+      title: 'Donar',
+      sub: '(Alimentos, ropa, etc.)',
+      icon: '🎁',
+      bg: '#faf5ff',
+      border: '#e9d5ff',
+      defaultUnit: 'caja'
+    },
+    {
+      id: 'intercambiar',
+      title: 'Intercambiar',
+      sub: '(Servicios o habilidades)',
+      icon: '🔄',
+      bg: '#eef2ff',
+      border: '#c7d2fe',
+      defaultUnit: 'clase'
+    }
+  ];
+
 export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType = null }) {
   const { session } = useAuth();
   const token = session?.access_token || null;
@@ -219,63 +276,6 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
       console.warn('[PublishScreen] Error al cargar categorías de productos:', err);
     }
   };
-
-  const publishTypes = [
-    {
-      id: 'servicio',
-      title: 'Ofrecer servicio',
-      sub: '(Ej. gasfitería, eléctrico, clases)',
-      icon: '🔧',
-      bg: '#eff6ff',
-      border: '#bfdbfe',
-      defaultUnit: 'servicio'
-    },
-    {
-      id: 'producto',
-      title: 'Vender producto',
-      sub: '(Ej. pan, verduras)',
-      icon: '🏪',
-      bg: '#fffbeb',
-      border: '#fde68a',
-      defaultUnit: 'unidad'
-    },
-    {
-      id: 'necesito_ayuda',
-      title: 'Necesito ayuda',
-      sub: '(Solicitar apoyo)',
-      icon: '💚',
-      bg: '#f0fdf4',
-      border: '#bbf7d0',
-      defaultUnit: 'día'
-    },
-    {
-      id: 'puedo_apoyar',
-      title: 'Puedo apoyar',
-      sub: '(Ofrecer ayuda)',
-      icon: '🤝',
-      bg: '#f0fdfa',
-      border: '#99f6e4',
-      defaultUnit: 'préstamo'
-    },
-    {
-      id: 'donar',
-      title: 'Donar',
-      sub: '(Alimentos, ropa, etc.)',
-      icon: '🎁',
-      bg: '#faf5ff',
-      border: '#e9d5ff',
-      defaultUnit: 'caja'
-    },
-    {
-      id: 'intercambiar',
-      title: 'Intercambiar',
-      sub: '(Servicios o habilidades)',
-      icon: '🔄',
-      bg: '#eef2ff',
-      border: '#c7d2fe',
-      defaultUnit: 'clase'
-    }
-  ];
 
   const handleSelectType = (item) => {
     setFormType(item.id);
