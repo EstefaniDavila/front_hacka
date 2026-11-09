@@ -681,6 +681,28 @@ export const api = {
     }
   },
 
+  async getEmergencyCommunityReports(emergencyId) {
+    if (!emergencyId) return [];
+    try {
+      const data = await request(`/emergencies/${emergencyId}/community-reports`);
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async postEmergencyCommunityReport(emergencyId, reportData, token = null) {
+    if (!emergencyId) throw new Error('ID de emergencia requerido');
+    return request(
+      `/emergencies/${emergencyId}/community-reports`,
+      {
+        method: 'POST',
+        body: JSON.stringify(reportData)
+      },
+      token
+    );
+  },
+
   async joinEmergencyBrigade(volunteerData, token = null) {
     return request(
       '/emergencies/volunteers',

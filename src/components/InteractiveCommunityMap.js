@@ -44,7 +44,7 @@ export default function InteractiveCommunityMap({
   const [currentLat, setCurrentLat] = useState(latitude);
   const [currentLng, setCurrentLng] = useState(longitude);
   const [mapType, setMapType] = useState('k'); // 'k': Satélite, 'm': Calles, 'h': Híbrido
-  const [zoom, setZoom] = useState(18);
+  const [zoom, setZoom] = useState(mode === 'emergency' ? 15 : 18);
   const [isLocating, setIsLocating] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
   const [mapRevision, setMapRevision] = useState(0);
@@ -186,11 +186,43 @@ export default function InteractiveCommunityMap({
             notifyPinMoved(e.latlng.lat, e.latlng.lng);
           });
           ${mode === 'emergency' ? `
+          // ONDA 1: Inmediata (0 a 500m) - Pulso Rojo Crítico
           L.circle([${currentLat}, ${currentLng}], {
             color: '#dc2626',
             fillColor: '#ef4444',
-            fillOpacity: 0.24,
-            radius: ${radiusMeters || 500}
+            fillOpacity: 0.28,
+            weight: 2.5,
+            radius: 500
+          }).addTo(map);
+
+          // ONDA 2: Sectorial (500m a 1.5km) - Naranja Fuego
+          L.circle([${currentLat}, ${currentLng}], {
+            color: '#ea580c',
+            fillColor: '#f97316',
+            fillOpacity: 0.12,
+            weight: 2,
+            dashArray: '6, 6',
+            radius: 1500
+          }).addTo(map);
+
+          // ONDA 3: Comunal (1.5km a 3km) - Amarillo Alerta
+          L.circle([${currentLat}, ${currentLng}], {
+            color: '#ca8a04',
+            fillColor: '#facc15',
+            fillOpacity: 0.07,
+            weight: 1.5,
+            dashArray: '4, 8',
+            radius: 3000
+          }).addTo(map);
+
+          // ONDA 4: Perímetro Límite (3km a 5km) - Azul Perímetro (Límite Máximo)
+          L.circle([${currentLat}, ${currentLng}], {
+            color: '#0284c7',
+            fillColor: '#38bdf8',
+            fillOpacity: 0.04,
+            weight: 1.5,
+            dashArray: '3, 10',
+            radius: 5000
           }).addTo(map);
           ` : ''}
         </script>
@@ -366,7 +398,7 @@ export default function InteractiveCommunityMap({
           <View style={styles.emergencyOverlayBadge} pointerEvents="none">
             <View style={styles.radarPulseDot} />
             <Text style={styles.emergencyOverlayText}>
-              🔴 Radio de Cobertura Activo: {radiusMeters} metros
+              🔴 Radar Vecinal: 🔴 500m | 🟠 1.5km | 🟡 3km | 🔵 5km
             </Text>
           </View>
         )}
