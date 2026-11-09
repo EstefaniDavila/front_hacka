@@ -1,3 +1,4 @@
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,7 +7,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert
+  Alert,
+  Image,
+  TextInput,
+  Platform
 } from 'react-native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
@@ -263,7 +267,87 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     );
   };
 
-    const handleEmergencyCall = (phoneNumber, serviceName = 'Emergencia') => {
+    const handlePickAlertPhoto = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof document !== 'undefined') {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = (e) => {
+            const file = e.target && e.target.files && e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                setAlertPhoto(event.target.result);
+              };
+              reader.readAsDataURL(file);
+            }
+          };
+          input.click();
+        }
+        return;
+      }
+
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso necesario', 'VeciRed necesita acceso a la galería para adjuntar la foto del suceso.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset.base64
+          ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
+          : asset.uri;
+        setAlertPhoto(uri);
+      }
+    } catch (err) {
+      console.warn('[EmergencyScreen] Error al seleccionar foto:', err);
+    }
+  };
+
+  const handleTakeAlertPhoto = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        handlePickAlertPhoto();
+        return;
+      }
+
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso necesario', 'VeciRed necesita permiso de cámara para fotografiar el suceso.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset.base64
+          ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
+          : asset.uri;
+        setAlertPhoto(uri);
+      }
+    } catch (err) {
+      console.warn('[EmergencyScreen] Error al tomar foto:', err);
+    }
+  };
+
+  const handleEmergencyCall = (phoneNumber, serviceName = 'Emergencia') => {
     const cleanNumber = String(phoneNumber).replace(/[^0-9+]/g, '');
     const url = `tel:${cleanNumber}`;
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -294,13 +378,18 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     };
     const mappedType = typeMap[selectedType] || 'seguridad';
 
+    const finalDescription = alertNotes.trim()
+      ? `${chosen.sub}. Detalle: ${alertNotes.trim()}`
+      : `${chosen.sub}. Alerta comunitaria activada por vecino para auxilio inmediato en Zona A.`;
+
     const newAlert = {
       id: 'emg-' + Date.now(),
       title: `${chosen.name} en Manzana 2`,
-      description: `${chosen.sub}. Alerta comunitaria activada por vecino para auxilio inmediato en Zona A.`,
+      description: finalDescription,
       location: 'Zona A – Manzana 2 (Alerta Activa)',
       type: mappedType,
-      severity: 'critical'
+      severity: 'critical',
+      image_url: alertPhoto || null
     };
 
     // Persistir de inmediato en el Backend PostgreSQL y notificar a la comunidad
@@ -311,7 +400,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
             type: mappedType,
             title: newAlert.title,
             desc: newAlert.description,
-            severity: 'critical'
+            severity: 'critical',
+            image_url: alertPhoto || null
           },
           token
         );
@@ -326,6 +416,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
     setActiveEmergency(newAlert);
     setActiveEmergenciesList((prev) => [newAlert, ...prev.filter((e) => String(e.id) !== String(newAlert.id))]);
     setVolunteers([]); // La nueva alerta empieza con su propia brigada independiente
+    setAlertPhoto(null);
+    setAlertNotes('');
 
     if (onAlertTriggered) {
       onAlertTriggered(newAlert);
@@ -509,6 +601,20 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                 "{activeEmergency.description || 'Alerta vecinal prioritaria en atención por vecinos.'}"
               </Text>
 
+              {activeEmergency.image_url ? (
+                <View style={styles.emergencyPhotoContainer}>
+                  <Image
+                    source={{ uri: activeEmergency.image_url }}
+                    style={styles.emergencyPhotoDisplay}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.emergencyPhotoTag}>
+                    <Ionicons name="camera" size={12} color="#ffffff" style={{ marginRight: 4 }} />
+                    <Text style={styles.emergencyPhotoTagText}>FOTO DEL SUCESO</Text>
+                  </View>
+                </View>
+              ) : null}
+
               {/* Radar */}
               <View style={styles.radarSimulation}>
                 <Ionicons name="radio" size={22} color="#dc2626" style={{ marginBottom: 4 }} />
@@ -591,6 +697,68 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
                 </TouchableOpacity>
               );
             })}
+          </View>
+
+          {/* Adjuntar Foto del Accidente / Suceso */}
+          <View style={styles.photoUploadCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="camera" size={18} color="#dc2626" />
+                <Text style={[styles.photoUploadTitle, { fontSize: scale(12.5) }]}>
+                  Foto del Accidente o Suceso (Opcional)
+                </Text>
+              </View>
+              {alertPhoto && (
+                <TouchableOpacity onPress={() => setAlertPhoto(null)} style={styles.removeAlertPhotoBtn}>
+                  <Ionicons name="close" size={14} color="#dc2626" />
+                  <Text style={styles.removeAlertPhotoText}>Quitar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {alertPhoto ? (
+              <View style={styles.alertPhotoPreviewWrapper}>
+                <Image source={{ uri: alertPhoto }} style={styles.alertPhotoPreview} resizeMode="cover" />
+                <View style={styles.alertPhotoBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
+                  <Text style={styles.alertPhotoBadgeText}>Foto lista para enviar con la alerta</Text>
+                </View>
+              </View>
+            ) : (
+              <View>
+                <Text style={[styles.photoUploadSub, { fontSize: scale(10.5) }]}>
+                  Adjunta una fotografía de la situación para que la brigada vecinal actúe de inmediato:
+                </Text>
+                <View style={styles.photoActionButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.photoActionBtn}
+                    onPress={handleTakeAlertPhoto}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="camera-outline" size={18} color="#dc2626" />
+                    <Text style={[styles.photoActionBtnText, { fontSize: scale(11) }]}>Tomar Foto</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.photoActionBtn}
+                    onPress={handlePickAlertPhoto}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="images-outline" size={18} color="#dc2626" />
+                    <Text style={[styles.photoActionBtnText, { fontSize: scale(11) }]}>Galería</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Referencia o detalle escrito opcional */}
+            <TextInput
+              style={[styles.alertNotesInput, { fontSize: scale(11) }]}
+              placeholder="Referencia exacta o detalle (ej: Frente a la tienda Don Pepe)..."
+              placeholderTextColor="#94a3b8"
+              value={alertNotes}
+              onChangeText={setAlertNotes}
+            />
           </View>
 
           {/* Botón para Disparar Alerta (RESALTADO Y BOLD) */}
@@ -1125,6 +1293,123 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 9,
     fontWeight: '900'
+  },
+  photoUploadCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#fecaca',
+    padding: 12,
+    marginBottom: 14,
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  photoUploadTitle: {
+    fontWeight: '800',
+    color: '#991b1b'
+  },
+  photoUploadSub: {
+    color: '#64748b',
+    marginBottom: 10
+  },
+  photoActionButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10
+  },
+  photoActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fca5a5'
+  },
+  photoActionBtnText: {
+    fontWeight: '700',
+    color: '#dc2626'
+  },
+  alertPhotoPreviewWrapper: {
+    marginBottom: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#cbd5e1'
+  },
+  alertPhotoPreview: {
+    width: '100%',
+    height: 150
+  },
+  alertPhotoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f0fdf4',
+    paddingVertical: 6,
+    paddingHorizontal: 10
+  },
+  alertPhotoBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#16a34a'
+  },
+  removeAlertPhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: '#fee2e2'
+  },
+  removeAlertPhotoText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#dc2626'
+  },
+  alertNotesInput: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: '#0f172a'
+  },
+  emergencyPhotoContainer: {
+    marginTop: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    position: 'relative'
+  },
+  emergencyPhotoDisplay: {
+    width: '100%',
+    height: 160
+  },
+  emergencyPhotoTag: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.88)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  emergencyPhotoTagText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800'
   },
   triggerAlertBtn: {
     backgroundColor: '#dc2626',

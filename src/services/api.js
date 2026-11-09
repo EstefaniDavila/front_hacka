@@ -649,7 +649,8 @@ export const api = {
           emergency_type: emergencyData.type || emergencyData.emergency_type || 'seguridad',
           title: emergencyData.title,
           description: emergencyData.desc || emergencyData.description || '',
-          severity: emergencyData.severity || 'critical'
+          severity: emergencyData.severity || 'critical',
+          image_url: emergencyData.image_url || emergencyData.image || null
         })
       },
       token
