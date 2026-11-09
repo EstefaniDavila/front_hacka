@@ -119,11 +119,6 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
       loadServices(text);
     }, 350);
   };
-      setTotalCount(0);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSearchSubmit = () => {
     loadServices(searchQuery);
