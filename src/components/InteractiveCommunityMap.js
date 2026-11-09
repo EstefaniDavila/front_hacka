@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
-import { getOrDetectUserLocation } from '../services/locationService';
+import { getOrDetectUserLocation, saveCalibratedUserLocation, getCalibratedUserLocation, clearCalibratedLocation, requestLocationPermissions } from '../services/locationService';
+import { Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 /**
@@ -46,6 +47,53 @@ export default function InteractiveCommunityMap({
   const [mapType, setMapType] = useState('k'); // 'k': Satélite, 'm': Calles, 'h': Híbrido
   const [zoom, setZoom] = useState(mode === 'emergency' ? 15 : 18);
   const [isLocating, setIsLocating] = useState(false);
+  const [justCalibrated, setJustCalibrated] = useState(false);
+
+  const handlePinMoved = async (newLat, newLng) => {
+    setCurrentLat(newLat);
+    setCurrentLng(newLng);
+    setJustCalibrated(true);
+    setTimeout(() => setJustCalibrated(false), 3500);
+    try {
+      await saveCalibratedUserLocation(newLat, newLng);
+      if (onLocationChange) {
+        onLocationChange(newLat, newLng);
+      }
+    } catch (_) {}
+  };
+
+  const handleCalibrateLocation = async () => {
+    setIsLocating(true);
+    try {
+      await clearCalibratedLocation();
+      const loc = await getOrDetectUserLocation(true);
+      if (loc && loc.latitude && loc.longitude) {
+        setCurrentLat(loc.latitude);
+        setCurrentLng(loc.longitude);
+        setZoom(18);
+        setMapRevision((r) => r + 1);
+        setJustCalibrated(true);
+        setTimeout(() => setJustCalibrated(false), 4000);
+        await saveCalibratedUserLocation(loc.latitude, loc.longitude, loc.fullAddress);
+        if (onLocationChange) {
+          onLocationChange(loc.latitude, loc.longitude, loc.fullAddress);
+        }
+        Alert.alert(
+          '📍 GPS Actualizado y Calibrado',
+          `Se ha obtenido tu señal satelital en vivo:\nGPS: ${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}\n\n💡 Si la señal quedó unos metros desfasada, toca el mapa o arrastra el punto rojo para fijar tu ubicación milimétrica.`
+        );
+      } else {
+        Alert.alert(
+          'Permiso de Ubicación',
+          'No se pudo obtener la señal GPS en vivo. Asegúrate de otorgar permisos de ubicación en tu celular.'
+        );
+      }
+    } catch (err) {
+      console.warn('[InteractiveMap] Error calibrando:', err);
+    } finally {
+      setIsLocating(false);
+    }
+  };
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
   const [mapRevision, setMapRevision] = useState(0);
 
@@ -75,9 +123,7 @@ export default function InteractiveCommunityMap({
             const newLng = Number(data.longitude);
             setCurrentLat(newLat);
             setCurrentLng(newLng);
-            if (onLocationChange) {
-              onLocationChange(newLat, newLng);
-            }
+            handlePinMoved(newLat, newLng);
           }
         } catch (_) {}
       };
@@ -250,6 +296,26 @@ export default function InteractiveCommunityMap({
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {/* Botón para Calibrar GPS */}
+          <TouchableOpacity
+            style={styles.calibrateMapBtn}
+            activeOpacity={0.8}
+            onPress={handleCalibrateLocation}
+            accessibilityLabel="Calibrar ubicación GPS precisa"
+            disabled={isLocating}
+          >
+            {isLocating ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <Ionicons name="locate" size={13} color="#ffffff" style={{ marginRight: 3 }} />
+                <Text style={[styles.calibrateMapBtnText, { fontSize: scale(10) }]}>
+                  Calibrar GPS
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
           {/* Botón para restablecer / recentrar mapa */}
           <TouchableOpacity
             style={styles.refreshMapBtn}
@@ -276,6 +342,15 @@ export default function InteractiveCommunityMap({
           </TouchableOpacity>
         </View>
       </View>
+
+      {justCalibrated && (
+        <View style={styles.calibrationSuccessBar}>
+          <Ionicons name="checkmark-circle" size={14} color="#15803d" style={{ marginRight: 4 }} />
+          <Text style={styles.calibrationSuccessText}>
+            ✓ Calibrado a tu puerta: {Number(currentLat).toFixed(4)}, {Number(currentLng).toFixed(4)}
+          </Text>
+        </View>
+      )}
 
       {/* Contenedor del Mapa Embebido */}
       <View style={[styles.mapCanvasWrapper, { height }]}>
@@ -310,11 +385,7 @@ export default function InteractiveCommunityMap({
                 if (data.type === 'PIN_MOVED') {
                   const newLat = Number(data.latitude);
                   const newLng = Number(data.longitude);
-                  setCurrentLat(newLat);
-                  setCurrentLng(newLng);
-                  if (onLocationChange) {
-                    onLocationChange(newLat, newLng);
-                  }
+                  handlePinMoved(newLat, newLng);
                 }
               } catch (_) {}
             }}
@@ -454,6 +525,38 @@ export default function InteractiveCommunityMap({
 }
 
 const styles = StyleSheet.create({
+  calibrateMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0d9488',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    shadowColor: '#0d9488',
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2
+  },
+  calibrateMapBtnText: {
+    color: '#ffffff',
+    fontWeight: '800'
+  },
+  calibrationSuccessBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 8
+  },
+  calibrationSuccessText: {
+    color: '#15803d',
+    fontSize: 11,
+    fontWeight: '700'
+  },
   cardContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 18,

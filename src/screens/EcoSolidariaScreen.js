@@ -669,7 +669,7 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 90 },
+  content: { padding: 16, paddingBottom: 130 },
   headerCard: {
     backgroundColor: COLORS.emergency,
     borderRadius: 22,

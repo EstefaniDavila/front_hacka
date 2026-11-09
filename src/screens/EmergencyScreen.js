@@ -95,6 +95,31 @@ export default function EmergencyScreen({
   const [reportPhoto, setReportPhoto] = useState(null);
   const [isPostingReport, setIsPostingReport] = useState(false);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [isCalibratingGps, setIsCalibratingGps] = useState(false);
+
+  const handleCalibrateEmergencyGps = async () => {
+    setIsCalibratingGps(true);
+    try {
+      const loc = await getOrDetectUserLocation(true);
+      if (loc && loc.latitude && loc.longitude) {
+        setUserCoords({
+          lat: loc.latitude,
+          lng: loc.longitude,
+          zone: loc.zone || loc.fullAddress || `${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}`
+        });
+        Alert.alert(
+          '📍 Ubicación GPS Calibrada',
+          `Tu posición satelital exacta ha sido actualizada:\n${loc.zone || loc.fullAddress}\n(GPS: ${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)})`
+        );
+      } else {
+        Alert.alert('Permiso de GPS', 'Activa el permiso de ubicación precisa en tu dispositivo para ubicar la emergencia.');
+      }
+    } catch (err) {
+      console.warn('Error calibrando GPS en emergencia:', err);
+    } finally {
+      setIsCalibratingGps(false);
+    }
+  };
 
   const calculateDistanceMeters = (lat1, lon1, lat2, lon2) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return 45;
@@ -689,9 +714,26 @@ export default function EmergencyScreen({
               <Text style={[styles.headerTitle, { fontSize: scale(17) }]}>
                 Centro de Respuesta Rápida
               </Text>
-              <Text style={[styles.headerSub, { fontSize: scale(11) }]}>
-                Tu ubicación GPS: {userCoords.zone}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, flexWrap: 'wrap', gap: 6 }}>
+                <Text style={[styles.headerSub, { fontSize: scale(10.5), flex: 1 }]} numberOfLines={1}>
+                  📍 GPS: {userCoords.zone}
+                </Text>
+                <TouchableOpacity
+                  style={styles.headerCalibrateBtn}
+                  onPress={handleCalibrateEmergencyGps}
+                  activeOpacity={0.8}
+                  disabled={isCalibratingGps}
+                >
+                  {isCalibratingGps ? (
+                    <ActivityIndicator size="small" color="#0f766e" />
+                  ) : (
+                    <>
+                      <Ionicons name="locate" size={12} color="#0f766e" style={{ marginRight: 3 }} />
+                      <Text style={styles.headerCalibrateBtnText}>Calibrar GPS</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
@@ -1083,12 +1125,15 @@ export default function EmergencyScreen({
             longitude={activeEmergency?.longitude || userCoords.lng}
             title={activeEmergency?.title || 'Epicentro de Emergencia Comunitaria'}
             subtitle={`Zona A • Manzana 2 (Radar: 🔴 500m | 🟠 1.5km | 🟡 3km | 🔵 5km)`}
-            height={260}
+            height={270}
             mode="emergency"
             radiusMeters={500}
             volunteers={volunteers}
             fontScale={fontScale}
             onOpenChat={onOpenChat}
+            onLocationChange={(newLat, newLng) => {
+              setUserCoords((prev) => ({ ...prev, lat: newLat, lng: newLng }));
+            }}
           />
 
           {/* Vecinos en Guardia / Brigada Vecinal */}
@@ -1316,13 +1361,28 @@ export default function EmergencyScreen({
 }
 
 const styles = StyleSheet.create({
+  headerCalibrateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ccfbf1',
+    borderWidth: 1,
+    borderColor: '#99f6e4',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6
+  },
+  headerCalibrateBtnText: {
+    color: '#0f766e',
+    fontSize: 10.5,
+    fontWeight: '800'
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc'
   },
   contentContainer: {
     padding: 14,
-    paddingBottom: 40
+    paddingBottom: 130
   },
   tabContainer: {
     flexDirection: 'row',

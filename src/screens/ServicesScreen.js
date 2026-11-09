@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
   },
 
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 90 },
+  content: { padding: 16, paddingBottom: 130 },
   tabToggleRow: {
     flexDirection: 'row',
     backgroundColor: '#f1f5f9',

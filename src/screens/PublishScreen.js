@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
     fontSize: 12
   },
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 90 },
+  content: { padding: 16, paddingBottom: 130 },
   headerCard: {
     backgroundColor: COLORS.primaryDark,
     borderRadius: 22,
