@@ -51,18 +51,18 @@ export default function InteractiveCommunityMap({
 
   useEffect(() => {
     let isMounted = true;
-    if (!latitude || latitude === -12.0463) {
-      getOrDetectUserLocation().then((loc) => {
-        if (isMounted && loc) {
+    if (latitude && latitude !== -12.0463) {
+      setCurrentLat(latitude);
+      setCurrentLng(longitude);
+    } else {
+      getOrDetectUserLocation(false).then((loc) => {
+        if (isMounted && loc && loc.latitude && loc.longitude) {
           setCurrentLat(loc.latitude);
           setCurrentLng(loc.longitude);
         }
       });
-    } else {
-      setCurrentLat(latitude);
-      setCurrentLng(longitude);
     }
-  return () => { isMounted = false; };
+    return () => { isMounted = false; };
   }, [latitude, longitude]);
 
   const scale = (val) => Math.round(val * fontScale);
@@ -72,9 +72,10 @@ export default function InteractiveCommunityMap({
     setIsLocating(true);
     try {
       const loc = await getOrDetectUserLocation(true);
-      if (loc) {
+      if (loc && loc.latitude && loc.longitude) {
         setCurrentLat(loc.latitude);
         setCurrentLng(loc.longitude);
+        setMapRevision((r) => r + 1);
         if (onLocationChange) {
           onLocationChange(loc.latitude, loc.longitude, loc.fullAddress);
         }
@@ -164,11 +165,11 @@ export default function InteractiveCommunityMap({
               {mode === 'emergency' ? 'ALERTA SATELITAL ACTIVA' : 'MAPA COMUNITARIO'}
             </Text>
           </View>
-          <Text style={[styles.title, { fontSize: scale(13) }]} numberOfLines={1}>
+          <Text style={[styles.title, { fontSize: scale(13) }]} numberOfLines={2}>
             {title}
           </Text>
-          <Text style={[styles.subtitle, { fontSize: scale(10) }]}>
-            {subtitle} • GPS: {Number(currentLat).toFixed(4)}, {Number(currentLng).toFixed(4)}
+          <Text style={[styles.subtitle, { fontSize: scale(10) }]} numberOfLines={2}>
+            {subtitle ? (subtitle.includes('GPS:') ? subtitle : `${subtitle} • GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`) : `GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`}
           </Text>
         </View>
 

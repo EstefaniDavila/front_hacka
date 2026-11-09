@@ -9,7 +9,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { getOrDetectUserLocation } from '../services/locationService';
@@ -43,6 +44,29 @@ export default function ProfileScreen({
   const [editAvatar, setEditAvatar] = useState(userProfile.avatar || '👤');
   const [isSyncingLocation, setIsSyncingLocation] = useState(false);
 
+  // Extraer coordenadas si están guardadas en el perfil o en el texto de dirección
+  const parsedCoords = React.useMemo(() => {
+    if (userProfile.latitude && userProfile.longitude) {
+      return { lat: Number(userProfile.latitude), lng: Number(userProfile.longitude) };
+    }
+    const addr = userProfile.address || '';
+    const m = addr.match(/GPS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+    if (m) {
+      return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+    }
+    return null;
+  }, [userProfile.latitude, userProfile.longitude, userProfile.address]);
+
+  const [profileLat, setProfileLat] = useState(parsedCoords?.lat || null);
+  const [profileLng, setProfileLng] = useState(parsedCoords?.lng || null);
+
+  useEffect(() => {
+    if (parsedCoords?.lat && parsedCoords?.lng) {
+      setProfileLat(parsedCoords.lat);
+      setProfileLng(parsedCoords.lng);
+    }
+  }, [parsedCoords]);
+
   useEffect(() => {
     setEditName(userProfile.name || '');
     setEditPhone(userProfile.phone || '');
@@ -67,12 +91,23 @@ export default function ProfileScreen({
     setIsSyncingLocation(true);
     try {
       const loc = await getOrDetectUserLocation(true);
-      if (loc && (loc.fullAddress || loc.street)) {
+      if (loc && (loc.fullAddress || loc.street) && loc.latitude && loc.longitude) {
         const detected = loc.fullAddress || `${loc.street}, ${loc.district || loc.city}`;
-        setEditAddress(detected);
-        Alert.alert('📍 Ubicación Detectada del Mapa', `Se cargó tu dirección exacta:\n\n${detected}`);
+        const finalAddress = `${detected} • GPS: ${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}`;
+        setEditAddress(finalAddress);
+        setProfileLat(loc.latitude);
+        setProfileLng(loc.longitude);
+        if (onSaveProfile) {
+          onSaveProfile({
+            ...userProfile,
+            address: finalAddress,
+            latitude: loc.latitude,
+            longitude: loc.longitude
+          });
+        }
+        Alert.alert('📍 Ubicación Calibrada con Éxito', `Tu domicilio ha sido calibrado y guardado en tiempo real con tu señal GPS satelital:\n\n${detected}`);
       } else {
-        Alert.alert('Ubicación GPS', 'No se pudo obtener la dirección del mapa. Verifica que tengas los permisos de ubicación habilitados.');
+        Alert.alert('Ubicación GPS', 'No se pudo obtener la señal GPS satelital. Asegúrate de tener los permisos de ubicación activados en el teléfono.');
       }
     } catch (e) {
       console.warn('Error sincronizando GPS en perfil:', e);
@@ -225,12 +260,51 @@ export default function ProfileScreen({
                   Mi Ubicación en el Mapa Comunitario
                 </Text>
               </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ fontSize: scale(10.5), color: '#64748b', flex: 1 }}>
+                  Calibra tu ubicación con el GPS en vivo de tu dispositivo:
+                </Text>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf4', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0' }}
+                  activeOpacity={0.8}
+                  onPress={handleSyncLocationFromMap}
+                  disabled={isSyncingLocation}
+                >
+                  {isSyncingLocation ? (
+                    <ActivityIndicator size="small" color="#16a34a" />
+                  ) : (
+                    <>
+                      <Ionicons name="locate" size={13} color="#16a34a" style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: scale(10), fontWeight: '800', color: '#16a34a' }}>Calibrar GPS</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
               <InteractiveCommunityMap
+                latitude={profileLat || -12.0463}
+                longitude={profileLng || -77.0427}
                 title="Mi Residencia Comunitaria"
                 subtitle={userProfile.address || "Zona A • Manzana 3"}
                 height={220}
                 mode="simple"
                 fontScale={fontScale}
+                onLocationChange={(newLat, newLng, newAddr) => {
+                  setProfileLat(newLat);
+                  setProfileLng(newLng);
+                  const finalAddress = newAddr
+                    ? `${newAddr} • GPS: ${Number(newLat).toFixed(4)}, ${Number(newLng).toFixed(4)}`
+                    : userProfile.address;
+                  setEditAddress(finalAddress);
+                  if (onSaveProfile) {
+                    onSaveProfile({
+                      ...userProfile,
+                      address: finalAddress,
+                      latitude: newLat,
+                      longitude: newLng
+                    });
+                  }
+                }}
               />
             </View>
             </View>

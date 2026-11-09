@@ -44,6 +44,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
   const { session, profile, user } = useAuth();
   const token = session?.access_token;
 
+
+
   useEffect(() => {
     if (onDismissBanner) onDismissBanner();
   }, []);
@@ -76,6 +78,8 @@ export default function EmergencyScreen({ onNavigate, fontScale = 1.0, onOpenCha
   const [isVolunteering, setIsVolunteering] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
   const [userCoords, setUserCoords] = useState({ lat: -12.0463, lng: -77.0427, zone: 'Zona A • Manzana 2' });
+  const [alertPhoto, setAlertPhoto] = useState(null);
+  const [alertNotes, setAlertNotes] = useState('');
 
   useEffect(() => {
     getOrDetectUserLocation().then((loc) => {

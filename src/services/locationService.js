@@ -1,13 +1,16 @@
+// ==========================================================
+// VECIRED IA - SERVICIO DE UBICACIÓN GPS Y GEOCODIFICACIÓN REAL
+// ==========================================================
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 
 const LOCATION_STORAGE_KEY = '@vecired_detected_location';
 
 /**
- * Obtiene la posición GPS real del navegador o dispositivo móvil.
+ * Obtiene la posición GPS real y calibrada del dispositivo móvil o navegador.
  * Retorna { latitude, longitude, accuracy }
  */
-export async function getRawGpsPosition(timeoutMs = 8000) {
+export async function getRawGpsPosition(timeoutMs = 9000, forceFresh = false) {
   // 1. Probar primero con expo-location en dispositivos móviles nativos
   try {
     const { status } = await Location.getForegroundPermissionsAsync().catch(() => ({ status: 'undetermined' }));
@@ -18,28 +21,36 @@ export async function getRawGpsPosition(timeoutMs = 8000) {
     }
 
     if (hasPermission) {
-      // Intentar primero última posición conocida (rápida)
-      const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
-      if (lastKnown && lastKnown.coords) {
-        return {
-          latitude: lastKnown.coords.latitude,
-          longitude: lastKnown.coords.longitude,
-          accuracy: lastKnown.coords.accuracy || 10
-        };
+      // 1.1 Intentar lectura GPS en tiempo real de alta precisión
+      try {
+        const cur = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout expo-location High Accuracy')), timeoutMs))
+        ]);
+
+        if (cur && cur.coords && cur.coords.latitude && cur.coords.longitude) {
+          return {
+            latitude: cur.coords.latitude,
+            longitude: cur.coords.longitude,
+            accuracy: cur.coords.accuracy || 5
+          };
+        }
+      } catch (errHigh) {
+        console.warn('[LocationService] getCurrentPositionAsync High falló o timeout:', errHigh?.message);
       }
 
-      // Si no hay última posición, pedir lectura balanceada con timeout de seguridad
-      const cur = await Promise.race([
-        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout expo-location')), timeoutMs))
-      ]).catch(() => null);
-
-      if (cur && cur.coords) {
-        return {
-          latitude: cur.coords.latitude,
-          longitude: cur.coords.longitude,
-          accuracy: cur.coords.accuracy || 10
-        };
+      // 1.2 Si falló o timeout y no se fuerza fresca estricta, usar última conocida
+      if (!forceFresh) {
+        const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
+        if (lastKnown && lastKnown.coords) {
+          return {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+            accuracy: lastKnown.coords.accuracy || 15
+          };
+        }
       }
     }
   } catch (err) {
@@ -64,7 +75,7 @@ export async function getRawGpsPosition(timeoutMs = 8000) {
         {
           enableHighAccuracy: true,
           timeout: timeoutMs,
-          maximumAge: 30000 // 30 segundos
+          maximumAge: forceFresh ? 0 : 15000
         }
       );
     });
@@ -80,11 +91,48 @@ export async function getRawGpsPosition(timeoutMs = 8000) {
 export async function reverseGeocodeCoords(latitude, longitude) {
   if (!latitude || !longitude) return null;
 
+  // 1. Intentar primero con Location nativo de Expo (alta precisión en iOS y Android)
   try {
-    // 1. Intentar con Nominatim (OpenStreetMap) para nombres exactos de calles
+    const nativeRev = await Promise.race([
+      Location.reverseGeocodeAsync({ latitude, longitude }),
+      new Promise((_, r) => setTimeout(() => r(null), 3500))
+    ]);
+
+    if (Array.isArray(nativeRev) && nativeRev.length > 0) {
+      const item = nativeRev[0];
+      const street = [item.street, item.streetNumber].filter(Boolean).join(' ') || item.name || '';
+      const district = item.district || item.subregion || '';
+      const city = item.city || item.region || 'Perú';
+      const department = item.region || 'Perú';
+      const fullAddr = [street, district, city].filter(Boolean).join(', ') || `${district}, ${city}`;
+      const zoneStr = district ? `${district} • Manzana comunal` : `${city} • Zona Comunitaria`;
+
+      if (fullAddr.length > 3) {
+        return {
+          latitude,
+          longitude,
+          street: street || fullAddr,
+          district: district || city,
+          city,
+          department,
+          fullAddress: fullAddr,
+          zone: zoneStr,
+          rawAddress: item
+        };
+      }
+    }
+  } catch (errNative) {
+    console.warn('[LocationService] Expo native reverseGeocode falló, probando Nominatim:', errNative?.message);
+  }
+
+  // 2. Intentar con Nominatim (OpenStreetMap) con User-Agent válido
+  try {
     const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
     const res = await fetch(nominatimUrl, {
-      headers: { 'Accept': 'application/json' }
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'VeciRedApp/1.0 (Hackathon Peru Community App)'
+      }
     });
 
     if (res.ok) {
@@ -94,8 +142,8 @@ export async function reverseGeocodeCoords(latitude, longitude) {
         const street = addr.road || addr.pedestrian || addr.footway || addr.cycleway || addr.neighbourhood || '';
         const houseNumber = addr.house_number ? ` ${addr.house_number}` : '';
         const district = addr.suburb || addr.city_district || addr.district || addr.neighbourhood || addr.quarter || addr.town || '';
-        const city = addr.city || addr.town || addr.municipality || addr.county || 'Lima';
-        const department = addr.state || addr.region || 'Lima';
+        const city = addr.city || addr.town || addr.municipality || addr.county || 'Perú';
+        const department = addr.state || addr.region || 'Perú';
 
         const fullStreet = street ? `${street}${houseNumber}`.trim() : (data.name || 'Mi ubicación comunitaria');
         const zoneStr = district ? `${district} • Manzana comunitaria` : `${city} • Zona Comunitaria`;
@@ -118,16 +166,15 @@ export async function reverseGeocodeCoords(latitude, longitude) {
     console.warn('[LocationService] Nominatim reverse error:', err?.message);
   }
 
-
+  // 3. Fallback a BigDataCloud Reverse Geocode
   try {
-    // 2. Fallback a BigDataCloud Reverse Geocode
     const bdcUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=es`;
     const bdcRes = await fetch(bdcUrl);
     if (bdcRes.ok) {
       const bdcData = await bdcRes.json();
-      const city = bdcData.city || bdcData.locality || 'Lima';
+      const city = bdcData.city || bdcData.locality || 'Perú';
       const district = bdcData.locality || bdcData.principalSubdivision || city;
-      const department = bdcData.principalSubdivision || 'Lima';
+      const department = bdcData.principalSubdivision || 'Perú';
       const fullStreet = `Ubicación GPS (${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)})`;
 
       return {
@@ -151,8 +198,8 @@ export async function reverseGeocodeCoords(latitude, longitude) {
     longitude,
     street: `Coordenadas: ${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}`,
     district: 'Mi comunidad',
-    city: 'Lima',
-    department: 'Lima',
+    city: 'Perú',
+    department: 'Perú',
     fullAddress: `GPS: ${Number(latitude).toFixed(4)}, ${Number(longitude).toFixed(4)}`,
     zone: `Comunidad vecinal • GPS Detectado`
   };
@@ -169,16 +216,20 @@ export async function getOrDetectUserLocation(forceRefresh = false) {
       const cached = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        // Si tiene menos de 30 minutos de antigüedad, retornarlo
-        if (Date.now() - (parsed.detectedAt || 0) < 1800000) {
+        // Si tiene menos de 10 minutos de antigüedad, retornarlo
+        if (Date.now() - (parsed.detectedAt || 0) < 600000) {
           return parsed;
         }
       }
     } catch (_) { }
+  } else {
+    try {
+      await AsyncStorage.removeItem(LOCATION_STORAGE_KEY);
+    } catch (_) { }
   }
 
-  // 2. Detectar GPS real
-  const gps = await getRawGpsPosition();
+  // 2. Detectar GPS real con alta precisión
+  const gps = await getRawGpsPosition(9000, forceRefresh);
   if (!gps) {
     try {
       const cached = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
