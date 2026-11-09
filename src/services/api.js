@@ -4,13 +4,14 @@
 import { Platform } from 'react-native';
 
 // export const LOCAL_PC_IP = '192.168.1.33';
-export const LOCAL_PC_IP = '10.160.244.226';
-
+export const LOCAL_PC_IP = '192.168.0.175';
 
 export const API_BASE_URL = Platform.OS === 'web'
   ? ((typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
     (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
-    'http://localhost:8000/api/v1')
+    (typeof window !== 'undefined' && window.location?.hostname && window.location.hostname !== 'localhost'
+      ? `http://${window.location.hostname}:8000/api/v1`
+      : 'http://' + LOCAL_PC_IP + ':8000/api/v1'))
   : 'http://' + LOCAL_PC_IP + ':8000/api/v1';
 
 let isBackendConnected = false;
