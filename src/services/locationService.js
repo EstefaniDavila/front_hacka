@@ -118,6 +118,7 @@ export async function reverseGeocodeCoords(latitude, longitude) {
     console.warn('[LocationService] Nominatim reverse error:', err?.message);
   }
 
+
   try {
     // 2. Fallback a BigDataCloud Reverse Geocode
     const bdcUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=es`;
@@ -173,7 +174,7 @@ export async function getOrDetectUserLocation(forceRefresh = false) {
           return parsed;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // 2. Detectar GPS real
@@ -182,7 +183,7 @@ export async function getOrDetectUserLocation(forceRefresh = false) {
     try {
       const cached = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
       if (cached) return JSON.parse(cached);
-    } catch (_) {}
+    } catch (_) { }
     return null;
   }
 
@@ -197,7 +198,7 @@ export async function getOrDetectUserLocation(forceRefresh = false) {
   // 4. Guardar en caché persistente
   try {
     await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(result));
-  } catch (_) {}
+  } catch (_) { }
 
   return result;
 }
