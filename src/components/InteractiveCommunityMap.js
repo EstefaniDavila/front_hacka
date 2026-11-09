@@ -62,7 +62,7 @@ export default function InteractiveCommunityMap({
       setCurrentLat(latitude);
       setCurrentLng(longitude);
     }
-    return () => { isMounted = false; };
+  return () => { isMounted = false; };
   }, [latitude, longitude]);
 
   const scale = (val) => Math.round(val * fontScale);
@@ -100,6 +100,58 @@ export default function InteractiveCommunityMap({
 
   // URL de Google Maps oficial embebido
   const embedUrl = `https://maps.google.com/maps?q=${currentLat},${currentLng}&t=${mapType}&z=${zoom}&ie=UTF8&iwloc=&output=embed`;
+
+  // Generación de mapa interactivo con soporte Satélite HD (Esri) y Calles (OSM)
+  const isSatellite = mapType === 'k';
+  const tileLayerUrl = isSatellite
+    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  const mapHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body, #map { width: 100%; height: 100%; background: #0f172a; overflow: hidden; }
+          .pulse-marker {
+            width: 24px; height: 24px; border-radius: 50%;
+            background: ${mode === 'emergency' ? '#dc2626' : '#0d9488'};
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.6);
+            animation: radarPulse 1.8s infinite;
+          }
+          @keyframes radarPulse {
+            0% { transform: scale(0.9); box-shadow: 0 0 0 0 ${mode === 'emergency' ? 'rgba(220, 38, 38, 0.7)' : 'rgba(13, 148, 136, 0.7)'}; }
+            70% { transform: scale(1.15); box-shadow: 0 0 0 16px rgba(0,0,0,0); }
+            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+          }
+          .leaflet-control-attribution { display: none !important; }
+        </style>
+      </head>
+      <body>
+        <div id="map"></div>
+        <script>
+          const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${currentLat}, ${currentLng}], ${zoom});
+          L.tileLayer('${tileLayerUrl}', { maxZoom: 19 }).addTo(map);
+          const icon = L.divIcon({ className: 'pulse-marker', iconSize: [24, 24], iconAnchor: [12, 12] });
+          L.marker([${currentLat}, ${currentLng}], { icon: icon }).addTo(map);
+          ${mode === 'emergency' ? `
+          L.circle([${currentLat}, ${currentLng}], {
+            color: '#dc2626',
+            fillColor: '#ef4444',
+            fillOpacity: 0.24,
+            radius: ${radiusMeters || 500}
+          }).addTo(map);
+          ` : ''}
+        </script>
+      </body>
+    </html>
+  `;
 
   return (
     <View style={[styles.cardContainer, { minHeight: height }]}>
@@ -152,9 +204,9 @@ export default function InteractiveCommunityMap({
       <View style={[styles.mapCanvasWrapper, { height }]}>
         {Platform.OS === 'web' ? (
           <iframe
-            key={`gmap-${currentLat}-${currentLng}-${mapType}-${zoom}-${mapRevision}`}
-            title="Google Maps VeciRed"
-            src={embedUrl}
+            key={`map-web-${currentLat}-${currentLng}-${mapType}-${zoom}-${mapRevision}`}
+            title="Mapa Comunitario VeciRed"
+            srcDoc={mapHtml}
             tabIndex={-1}
             width="100%"
             height="100%"
@@ -165,12 +217,11 @@ export default function InteractiveCommunityMap({
               width: '100%',
               height: '100%'
             }}
-            loading="lazy"
-            allowFullScreen
           />
         ) : (
           <WebView
-            source={{ uri: embedUrl }}
+            key={`map-mobile-${currentLat}-${currentLng}-${mapType}-${zoom}-${mapRevision}`}
+            source={{ html: mapHtml }}
             style={{ flex: 1, borderRadius: 14 }}
             javaScriptEnabled={true}
             domStorageEnabled={true}
@@ -184,8 +235,7 @@ export default function InteractiveCommunityMap({
             )}
           />
         )}
-
-        {/* Botonera Flotante de Controles sobre el Mapa */}
+{/* Botonera Flotante de Controles sobre el Mapa */}
         {showControls && (
           <View style={styles.floatingControls} pointerEvents="box-none">
             {/* Toggle Tipo de Mapa: Satélite vs Callejero */}

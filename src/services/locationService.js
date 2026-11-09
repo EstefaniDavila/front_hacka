@@ -18,7 +18,7 @@ export async function getRawGpsPosition(timeoutMs = 8000) {
     }
 
     if (hasPermission) {
-      // Intentar primero última posición conocida (0ms)
+      // Intentar primero última posición conocida (rápida)
       const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
       if (lastKnown && lastKnown.coords) {
         return {
@@ -28,7 +28,7 @@ export async function getRawGpsPosition(timeoutMs = 8000) {
         };
       }
 
-      // Si no hay última posición, pedir lectura balanceada con timeout
+      // Si no hay última posición, pedir lectura balanceada con timeout de seguridad
       const cur = await Promise.race([
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout expo-location')), timeoutMs))
@@ -47,30 +47,30 @@ export async function getRawGpsPosition(timeoutMs = 8000) {
   }
 
   // 2. Fallback a navigator.geolocation (Web o emulador)
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return null;
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy || 10
+          });
+        },
+        (err) => {
+          console.warn('[LocationService] No se pudo obtener GPS directo:', err?.message);
+          resolve(null);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: timeoutMs,
+          maximumAge: 30000 // 30 segundos
+        }
+      );
+    });
   }
 
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy || 10
-        });
-      },
-      (err) => {
-        console.warn('[LocationService] No se pudo obtener GPS directo:', err?.message);
-        resolve(null);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: timeoutMs,
-        maximumAge: 30000 // 30 segundos
-      }
-    );
-  });
+  return null;
 }
 
 /**

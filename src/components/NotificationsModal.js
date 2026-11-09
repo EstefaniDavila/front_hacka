@@ -45,6 +45,8 @@ export default function NotificationsModal({
           if (!exists) {
             items.unshift({
               id: 'notif-emg-' + (activeEmergency.id || Date.now()),
+              emergency_id: activeEmergency.id,
+              rawEmergency: activeEmergency,
               title: `🚨 ALERTA COMUNITARIA: ${activeEmergency.title || 'Emergencia en Manzana 2'}`,
               body: activeEmergency.description || 'Alerta activa en tu manzana. Se requiere apoyo vecinal.',
               notification_type: 'emergency_alert',

@@ -1,3 +1,4 @@
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useState, useEffect } from 'react';
 import {
@@ -79,23 +80,94 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
   const [showImagePickerModal, setShowImagePickerModal] = useState(false);
   const [customImageUrlInput, setCustomImageUrlInput] = useState('');
 
-  const handleOpenPhoneGallery = () => {
-    if (typeof document !== 'undefined') {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = (e) => {
-        const file = e.target && e.target.files && e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            setSelectedImage(event.target.result);
-            setShowImagePickerModal(false);
+  const handleOpenPhoneGallery = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof document !== 'undefined') {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = (e) => {
+            const file = e.target && e.target.files && e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                setSelectedImage(event.target.result);
+                setShowImagePickerModal(false);
+              };
+              reader.readAsDataURL(file);
+            }
           };
-          reader.readAsDataURL(file);
+          input.click();
         }
-      };
-      input.click();
+        return;
+      }
+
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permiso necesario',
+          'VeciRed requiere acceso a tu galería para adjuntar la foto del servicio o producto.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const imageUri = asset.base64
+          ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
+          : asset.uri;
+        setSelectedImage(imageUri);
+        setShowImagePickerModal(false);
+      }
+    } catch (err) {
+      console.warn('[PublishScreen] Error abriendo galería:', err);
+      Alert.alert('Error', 'No se pudo abrir la galería del dispositivo.');
+    }
+  };
+
+  const handleTakePhotoWithCamera = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        handleOpenPhoneGallery();
+        return;
+      }
+
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permiso necesario',
+          'VeciRed requiere permiso de cámara para tomar fotos directamente.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const imageUri = asset.base64
+          ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
+          : asset.uri;
+        setSelectedImage(imageUri);
+        setShowImagePickerModal(false);
+      }
+    } catch (err) {
+      console.warn('[PublishScreen] Error abriendo cámara:', err);
+      Alert.alert('Error', 'No se pudo abrir la cámara.');
     }
   };
 
@@ -657,21 +729,38 @@ export default function PublishScreen({ onNavigate, fontScale = 1.0, initialType
                 </TouchableOpacity>
               </View>
 
-              {/* Botón Principal: Abrir Galería o Cámara del Celular */}
-              <TouchableOpacity
-                style={styles.openGalleryBtn}
-                activeOpacity={0.85}
-                onPress={handleOpenPhoneGallery}
-              >
-                <View style={styles.galleryIconCircle}>
-                  <Ionicons name="images" size={22} color="#ffffff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.openGalleryTitle}>Abrir Galería de Fotos del Celular</Text>
-                  <Text style={styles.openGallerySub}>Toca aquí para seleccionar una foto de tu teléfono o cámara</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#0d9488" />
-              </TouchableOpacity>
+              {/* Opciones de Celular: Galería y Cámara */}
+              <View style={{ gap: 8, marginBottom: 6 }}>
+                <TouchableOpacity
+                  style={styles.openGalleryBtn}
+                  activeOpacity={0.85}
+                  onPress={handleOpenPhoneGallery}
+                >
+                  <View style={styles.galleryIconCircle}>
+                    <Ionicons name="images" size={22} color="#ffffff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.openGalleryTitle}>Elegir de la Galería del Celular</Text>
+                    <Text style={styles.openGallerySub}>Selecciona una imagen guardada en tu dispositivo</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#0d9488" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.openGalleryBtn, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}
+                  activeOpacity={0.85}
+                  onPress={handleTakePhotoWithCamera}
+                >
+                  <View style={[styles.galleryIconCircle, { backgroundColor: '#16a34a' }]}>
+                    <Ionicons name="camera" size={22} color="#ffffff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.openGalleryTitle, { color: '#15803d' }]}>Tomar Foto con la Cámara</Text>
+                    <Text style={styles.openGallerySub}>Captura una foto en vivo para tu publicación</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#16a34a" />
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.galleryDividerRow}>
                 <View style={styles.galleryDividerLine} />
