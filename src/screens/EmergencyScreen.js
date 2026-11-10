@@ -84,7 +84,10 @@ export default function EmergencyScreen({
   const [volunteers, setVolunteers] = useState([]);
   const [isVolunteering, setIsVolunteering] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
-  const [userCoords, setUserCoords] = useState({ lat: -12.0463, lng: -77.0427, zone: 'Zona A • Manzana 2' });
+  const initialLat = userProfile?.latitude || profile?.latitude || -16.4360;
+  const initialLng = userProfile?.longitude || profile?.longitude || -71.5612;
+  const initialZone = userProfile?.zone || profile?.address || 'Zona A • Manzana 2';
+  const [userCoords, setUserCoords] = useState({ lat: initialLat, lng: initialLng, zone: initialZone });
   const [alertPhoto, setAlertPhoto] = useState(null);
   const [alertNotes, setAlertNotes] = useState('');
   const [radarFilter, setRadarFilter] = useState('all'); // 'all' | 'in_radar' (<=5km) | 'wave1' (<=500m)
@@ -538,10 +541,14 @@ export default function EmergencyScreen({
 
     try {
       const savedReport = await api.postEmergencyCommunityReport(activeEmergency.id, newReportPayload, token);
-      setCommunityReports((prev) => [savedReport, ...prev]);
+      if (savedReport && savedReport.id) {
+        setCommunityReports((prev) => [savedReport, ...prev.filter((r) => String(r.id) !== String(savedReport.id))]);
+      } else {
+        await loadCommunityReports(activeEmergency.id);
+      }
       setReportMessage('');
       setReportPhoto(null);
-      Alert.alert('📸 Reporte Publicado', 'Tu evidencia ha sido compartida con todos los vecinos y brigadistas.');
+      Alert.alert('📸 Reporte Guardado en BD', 'Tu evidencia y fotografía han sido registradas en la base de datos de VeciRed.');
     } catch (err) {
       // Guardado local resiliente si el backend no estuviera temporalmente accesible
       const localReport = {
@@ -603,27 +610,38 @@ export default function EmergencyScreen({
       image_url: alertPhoto || null
     };
 
+    let finalAlert = newAlert;
     try {
       if (token) {
-        await api.reportEmergency(
+        const res = await api.reportEmergency(
           {
             title: newAlert.title,
             type: newAlert.type,
             latitude: newAlert.latitude,
             longitude: newAlert.longitude,
+            location: newAlert.location,
             desc: newAlert.description,
             severity: 'critical',
             image_url: alertPhoto || null
           },
           token
         );
+        if (res && res.id) {
+          finalAlert = {
+            ...newAlert,
+            id: res.id,
+            image_url: res.image_url || alertPhoto || null,
+            latitude: res.latitude ? Number(res.latitude) : newAlert.latitude,
+            longitude: res.longitude ? Number(res.longitude) : newAlert.longitude,
+          };
+        }
       }
-    } catch {
-      // Modo resiliente local
+    } catch (err) {
+      console.warn('Error emitiendo emergencia en backend:', err);
     }
 
-    setActiveEmergency(newAlert);
-    setActiveEmergenciesList((prev) => [newAlert, ...prev.filter((e) => String(e.id) !== String(newAlert.id))]);
+    setActiveEmergency(finalAlert);
+    setActiveEmergenciesList((prev) => [finalAlert, ...prev.filter((e) => String(e.id) !== String(finalAlert.id))]);
     setVolunteers([]);
     setCommunityReports([]);
     setAlertPhoto(null);
@@ -1121,19 +1139,17 @@ export default function EmergencyScreen({
 
           {/* Mapa Satelital Interactivo con 4 Ondas de Radar (500m, 1.5km, 3km, 5km) */}
           <InteractiveCommunityMap
-            latitude={activeEmergency?.latitude || userCoords.lat}
-            longitude={activeEmergency?.longitude || userCoords.lng}
+            key={`emg-map-${activeEmergency?.id || 'main'}-${activeEmergency?.latitude || userCoords.lat}-${activeEmergency?.longitude || userCoords.lng}`}
+            latitude={activeEmergency?.latitude ? Number(activeEmergency.latitude) : userCoords.lat}
+            longitude={activeEmergency?.longitude ? Number(activeEmergency.longitude) : userCoords.lng}
             title={activeEmergency?.title || 'Epicentro de Emergencia Comunitaria'}
-            subtitle={`Zona A • Manzana 2 (Radar: 🔴 500m | 🟠 1.5km | 🟡 3km | 🔵 5km)`}
+            subtitle={`${activeEmergency?.location || userCoords.zone} (Radar: 🔴 500m | 🟠 1.5km | 🟡 3km | 🔵 5km)`}
             height={270}
             mode="emergency"
             radiusMeters={500}
             volunteers={volunteers}
             fontScale={fontScale}
             onOpenChat={onOpenChat}
-            onLocationChange={(newLat, newLng) => {
-              setUserCoords((prev) => ({ ...prev, lat: newLat, lng: newLng }));
-            }}
           />
 
           {/* Vecinos en Guardia / Brigada Vecinal */}

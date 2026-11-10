@@ -29,8 +29,8 @@ import { WebView } from 'react-native-webview';
  * - Botón "Abrir en Google Maps" para navegación y rutas en tiempo real.
  */
 export default function InteractiveCommunityMap({
-  latitude = -12.0463,
-  longitude = -77.0427,
+  latitude = -16.4360,
+  longitude = -71.5612,
   title = 'Zona Comunitaria',
   subtitle = 'Zona A • Manzana 2',
   height = 240,
@@ -45,7 +45,7 @@ export default function InteractiveCommunityMap({
   const [currentLat, setCurrentLat] = useState(latitude);
   const [currentLng, setCurrentLng] = useState(longitude);
   const [mapType, setMapType] = useState('k'); // 'k': Satélite, 'm': Calles, 'h': Híbrido
-  const [zoom, setZoom] = useState(mode === 'emergency' ? 15 : 18);
+  const [zoom, setZoom] = useState(mode === 'emergency' ? 14 : 18);
   const [isLocating, setIsLocating] = useState(false);
   const [justCalibrated, setJustCalibrated] = useState(false);
 
@@ -99,7 +99,7 @@ export default function InteractiveCommunityMap({
 
   useEffect(() => {
     let isMounted = true;
-    if (latitude && latitude !== -12.0463) {
+    if (typeof latitude === 'number' && !isNaN(latitude)) {
       setCurrentLat(latitude);
       setCurrentLng(longitude);
     } else {
@@ -204,13 +204,63 @@ export default function InteractiveCommunityMap({
       <body>
         <div id="map"></div>
         <script>
-          const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${currentLat}, ${currentLng}], ${zoom});
+          const centerPos = [${currentLat}, ${currentLng}];
+          const map = L.map('map', { 
+            zoomControl: false, 
+            attributionControl: false,
+            touchZoom: true,
+            scrollWheelZoom: true,
+            doubleClickZoom: false
+          }).setView(centerPos, ${zoom});
+          
           L.tileLayer('${tileLayerUrl}', { maxZoom: 19 }).addTo(map);
           const icon = L.divIcon({ className: 'pulse-marker', iconSize: [24, 24], iconAnchor: [12, 12] });
-          const marker = L.marker([${currentLat}, ${currentLng}], {
+          const marker = L.marker(centerPos, {
             icon: icon,
-            draggable: true
+            draggable: ${mode === 'picker'}
           }).addTo(map);
+
+          const circles = [];
+          ${mode === 'emergency' ? `
+          // ONDA 1: Inmediata (0 a 500m) - Pulso Rojo Crítico
+          circles.push(L.circle(centerPos, {
+            color: '#dc2626',
+            fillColor: '#ef4444',
+            fillOpacity: 0.28,
+            weight: 2.5,
+            radius: 500
+          }).addTo(map));
+
+          // ONDA 2: Sectorial (500m a 1.5km) - Naranja Fuego
+          circles.push(L.circle(centerPos, {
+            color: '#ea580c',
+            fillColor: '#f97316',
+            fillOpacity: 0.14,
+            weight: 2,
+            dashArray: '6, 6',
+            radius: 1500
+          }).addTo(map));
+
+          // ONDA 3: Comunal (1.5km a 3km) - Amarillo Alerta
+          circles.push(L.circle(centerPos, {
+            color: '#ca8a04',
+            fillColor: '#facc15',
+            fillOpacity: 0.08,
+            weight: 1.5,
+            dashArray: '4, 8',
+            radius: 3000
+          }).addTo(map));
+
+          // ONDA 4: Perímetro Límite (3km a 5km) - Azul Perímetro (Límite Máximo)
+          circles.push(L.circle(centerPos, {
+            color: '#0284c7',
+            fillColor: '#38bdf8',
+            fillOpacity: 0.05,
+            weight: 1.5,
+            dashArray: '3, 10',
+            radius: 5000
+          }).addTo(map));
+          ` : ''}
 
           function notifyPinMoved(lat, lng) {
             const payload = JSON.stringify({ type: 'PIN_MOVED', latitude: lat, longitude: lng });
@@ -222,55 +272,31 @@ export default function InteractiveCommunityMap({
             }
           }
 
+          function moveAll(lat, lng) {
+            const pos = [lat, lng];
+            marker.setLatLng(pos);
+            circles.forEach(function(c) { c.setLatLng(pos); });
+          }
+
+          ${mode === 'picker' ? `
           marker.on('dragend', function(e) {
             const p = e.target.getLatLng();
+            moveAll(p.lat, p.lng);
             notifyPinMoved(p.lat, p.lng);
           });
 
           map.on('click', function(e) {
-            marker.setLatLng(e.latlng);
+            moveAll(e.latlng.lat, e.latlng.lng);
             notifyPinMoved(e.latlng.lat, e.latlng.lng);
           });
-          ${mode === 'emergency' ? `
-          // ONDA 1: Inmediata (0 a 500m) - Pulso Rojo Crítico
-          L.circle([${currentLat}, ${currentLng}], {
-            color: '#dc2626',
-            fillColor: '#ef4444',
-            fillOpacity: 0.28,
-            weight: 2.5,
-            radius: 500
-          }).addTo(map);
-
-          // ONDA 2: Sectorial (500m a 1.5km) - Naranja Fuego
-          L.circle([${currentLat}, ${currentLng}], {
-            color: '#ea580c',
-            fillColor: '#f97316',
-            fillOpacity: 0.12,
-            weight: 2,
-            dashArray: '6, 6',
-            radius: 1500
-          }).addTo(map);
-
-          // ONDA 3: Comunal (1.5km a 3km) - Amarillo Alerta
-          L.circle([${currentLat}, ${currentLng}], {
-            color: '#ca8a04',
-            fillColor: '#facc15',
-            fillOpacity: 0.07,
-            weight: 1.5,
-            dashArray: '4, 8',
-            radius: 3000
-          }).addTo(map);
-
-          // ONDA 4: Perímetro Límite (3km a 5km) - Azul Perímetro (Límite Máximo)
-          L.circle([${currentLat}, ${currentLng}], {
-            color: '#0284c7',
-            fillColor: '#38bdf8',
-            fillOpacity: 0.04,
-            weight: 1.5,
-            dashArray: '3, 10',
-            radius: 5000
-          }).addTo(map);
           ` : ''}
+
+          setTimeout(function() {
+            try {
+              map.invalidateSize();
+              map.setView(centerPos, ${zoom});
+            } catch(e) {}
+          }, 300);
         </script>
       </body>
     </html>
@@ -456,13 +482,15 @@ export default function InteractiveCommunityMap({
           </View>
         )}
 
-        {/* Franja de micro-calibración táctil para el usuario */}
-        <View style={styles.fineTunePill} pointerEvents="none">
-          <Ionicons name="hand-right" size={11} color="#0f766e" style={{ marginRight: 4 }} />
-          <Text style={styles.fineTunePillText}>
-            Toca el mapa o arrastra el punto para calibrar exactamente a tu puerta
-          </Text>
-        </View>
+        {/* Franja de micro-calibración táctil solo en modo selector de puerta */}
+        {mode === 'picker' && (
+          <View style={styles.fineTunePill} pointerEvents="none">
+            <Ionicons name="hand-right" size={11} color="#0f766e" style={{ marginRight: 4 }} />
+            <Text style={styles.fineTunePillText}>
+              Toca el mapa o arrastra el punto para calibrar exactamente a tu puerta
+            </Text>
+          </View>
+        )}
 
         {/* Overlay Especial para Modo Emergencia (Epicentro y Cobertura 500m) */}
         {mode === 'emergency' && (

@@ -652,7 +652,11 @@ export const api = {
           title: emergencyData.title,
           description: emergencyData.desc || emergencyData.description || '',
           severity: emergencyData.severity || 'critical',
-          image_url: emergencyData.image_url || emergencyData.image || null
+          image_url: emergencyData.image_url || emergencyData.image || null,
+          latitude: emergencyData.latitude || null,
+          longitude: emergencyData.longitude || null,
+          location: emergencyData.location || null,
+          alert_radius_m: emergencyData.alert_radius_m || 500
         })
       },
       token
