@@ -9,7 +9,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { COLORS } from '../theme/colors';
 import { getOrDetectUserLocation } from '../services/locationService';
@@ -43,6 +44,29 @@ export default function ProfileScreen({
   const [editAvatar, setEditAvatar] = useState(userProfile.avatar || '👤');
   const [isSyncingLocation, setIsSyncingLocation] = useState(false);
 
+  // Extraer coordenadas si están guardadas en el perfil o en el texto de dirección
+  const parsedCoords = React.useMemo(() => {
+    if (userProfile.latitude && userProfile.longitude) {
+      return { lat: Number(userProfile.latitude), lng: Number(userProfile.longitude) };
+    }
+    const addr = userProfile.address || '';
+    const m = addr.match(/GPS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+    if (m) {
+      return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+    }
+    return null;
+  }, [userProfile.latitude, userProfile.longitude, userProfile.address]);
+
+  const [profileLat, setProfileLat] = useState(parsedCoords?.lat || -16.4360);
+  const [profileLng, setProfileLng] = useState(parsedCoords?.lng || -71.5612);
+
+  useEffect(() => {
+    if (parsedCoords?.lat && parsedCoords?.lng) {
+      setProfileLat(parsedCoords.lat);
+      setProfileLng(parsedCoords.lng);
+    }
+  }, [parsedCoords]);
+
   useEffect(() => {
     setEditName(userProfile.name || '');
     setEditPhone(userProfile.phone || '');
@@ -67,12 +91,23 @@ export default function ProfileScreen({
     setIsSyncingLocation(true);
     try {
       const loc = await getOrDetectUserLocation(true);
-      if (loc && (loc.fullAddress || loc.street)) {
+      if (loc && (loc.fullAddress || loc.street) && loc.latitude && loc.longitude) {
         const detected = loc.fullAddress || `${loc.street}, ${loc.district || loc.city}`;
-        setEditAddress(detected);
-        Alert.alert('📍 Ubicación Detectada del Mapa', `Se cargó tu dirección exacta:\n\n${detected}`);
+        const finalAddress = `${detected} • GPS: ${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}`;
+        setEditAddress(finalAddress);
+        setProfileLat(loc.latitude);
+        setProfileLng(loc.longitude);
+        if (onSaveProfile) {
+          onSaveProfile({
+            ...userProfile,
+            address: finalAddress,
+            latitude: loc.latitude,
+            longitude: loc.longitude
+          });
+        }
+        Alert.alert('📍 Ubicación Calibrada con Éxito', `Tu domicilio ha sido calibrado y guardado en tiempo real con tu señal GPS satelital:\n\n${detected}`);
       } else {
-        Alert.alert('Ubicación GPS', 'No se pudo obtener la dirección del mapa. Verifica que tengas los permisos de ubicación habilitados.');
+        Alert.alert('Ubicación GPS', 'No se pudo obtener la señal GPS satelital. Asegúrate de tener los permisos de ubicación activados en el teléfono.');
       }
     } catch (e) {
       console.warn('Error sincronizando GPS en perfil:', e);
@@ -218,19 +253,31 @@ export default function ProfileScreen({
               </View>
 
             {/* Mi Ubicación en el Mapa Comunitario */}
-            <View style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <Ionicons name="map" size={16} color="#0f766e" style={{ marginRight: 6 }} />
-                <Text style={{ fontWeight: '800', fontSize: scale(12), color: COLORS.textPrimary }}>
-                  Mi Ubicación en el Mapa Comunitario
-                </Text>
-              </View>
+            <View style={{ marginTop: 12 }}>
               <InteractiveCommunityMap
+                latitude={profileLat || -16.4360}
+                longitude={profileLng || -71.5612}
                 title="Mi Residencia Comunitaria"
                 subtitle={userProfile.address || "Zona A • Manzana 3"}
-                height={220}
+                height={230}
                 mode="simple"
                 fontScale={fontScale}
+                onLocationChange={(newLat, newLng, newAddr) => {
+                  setProfileLat(newLat);
+                  setProfileLng(newLng);
+                  const finalAddress = newAddr
+                    ? `${newAddr} • GPS: ${Number(newLat).toFixed(4)}, ${Number(newLng).toFixed(4)}`
+                    : userProfile.address;
+                  setEditAddress(finalAddress);
+                  if (onSaveProfile) {
+                    onSaveProfile({
+                      ...userProfile,
+                      address: finalAddress,
+                      latitude: newLat,
+                      longitude: newLng
+                    });
+                  }
+                }}
               />
             </View>
             </View>

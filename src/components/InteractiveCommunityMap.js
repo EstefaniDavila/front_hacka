@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
-import { getOrDetectUserLocation } from '../services/locationService';
+import { getOrDetectUserLocation, saveCalibratedUserLocation, getCalibratedUserLocation, clearCalibratedLocation, requestLocationPermissions } from '../services/locationService';
+import { Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 /**
@@ -28,8 +29,8 @@ import { WebView } from 'react-native-webview';
  * - Botón "Abrir en Google Maps" para navegación y rutas en tiempo real.
  */
 export default function InteractiveCommunityMap({
-  latitude = -12.0463,
-  longitude = -77.0427,
+  latitude = -16.4360,
+  longitude = -71.5612,
   title = 'Zona Comunitaria',
   subtitle = 'Zona A • Manzana 2',
   height = 240,
@@ -44,26 +45,92 @@ export default function InteractiveCommunityMap({
   const [currentLat, setCurrentLat] = useState(latitude);
   const [currentLng, setCurrentLng] = useState(longitude);
   const [mapType, setMapType] = useState('k'); // 'k': Satélite, 'm': Calles, 'h': Híbrido
-  const [zoom, setZoom] = useState(17);
+  const [zoom, setZoom] = useState(mode === 'emergency' ? 14 : 18);
   const [isLocating, setIsLocating] = useState(false);
+  const [justCalibrated, setJustCalibrated] = useState(false);
+
+  const handlePinMoved = async (newLat, newLng) => {
+    setCurrentLat(newLat);
+    setCurrentLng(newLng);
+    setJustCalibrated(true);
+    setTimeout(() => setJustCalibrated(false), 3500);
+    try {
+      await saveCalibratedUserLocation(newLat, newLng);
+      if (onLocationChange) {
+        onLocationChange(newLat, newLng);
+      }
+    } catch (_) {}
+  };
+
+  const handleCalibrateLocation = async () => {
+    setIsLocating(true);
+    try {
+      await clearCalibratedLocation();
+      const loc = await getOrDetectUserLocation(true);
+      if (loc && loc.latitude && loc.longitude) {
+        setCurrentLat(loc.latitude);
+        setCurrentLng(loc.longitude);
+        setZoom(18);
+        setMapRevision((r) => r + 1);
+        setJustCalibrated(true);
+        setTimeout(() => setJustCalibrated(false), 4000);
+        await saveCalibratedUserLocation(loc.latitude, loc.longitude, loc.fullAddress);
+        if (onLocationChange) {
+          onLocationChange(loc.latitude, loc.longitude, loc.fullAddress);
+        }
+        Alert.alert(
+          '📍 GPS Actualizado y Calibrado',
+          `Se ha obtenido tu señal satelital en vivo:\nGPS: ${Number(loc.latitude).toFixed(4)}, ${Number(loc.longitude).toFixed(4)}\n\n💡 Si la señal quedó unos metros desfasada, toca el mapa o arrastra el punto rojo para fijar tu ubicación milimétrica.`
+        );
+      } else {
+        Alert.alert(
+          'Permiso de Ubicación',
+          'No se pudo obtener la señal GPS en vivo. Asegúrate de otorgar permisos de ubicación en tu celular.'
+        );
+      }
+    } catch (err) {
+      console.warn('[InteractiveMap] Error calibrando:', err);
+    } finally {
+      setIsLocating(false);
+    }
+  };
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
   const [mapRevision, setMapRevision] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
-    if (!latitude || latitude === -12.0463) {
-      getOrDetectUserLocation().then((loc) => {
-        if (isMounted && loc) {
+    if (typeof latitude === 'number' && !isNaN(latitude)) {
+      setCurrentLat(latitude);
+      setCurrentLng(longitude);
+    } else {
+      getOrDetectUserLocation(false).then((loc) => {
+        if (isMounted && loc && loc.latitude && loc.longitude) {
           setCurrentLat(loc.latitude);
           setCurrentLng(loc.longitude);
         }
       });
-    } else {
-      setCurrentLat(latitude);
-      setCurrentLng(longitude);
     }
-  return () => { isMounted = false; };
+    return () => { isMounted = false; };
   }, [latitude, longitude]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const handleWebMsg = (e) => {
+        try {
+          const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+          if (data && data.type === 'PIN_MOVED') {
+            const newLat = Number(data.latitude);
+            const newLng = Number(data.longitude);
+            setCurrentLat(newLat);
+            setCurrentLng(newLng);
+            handlePinMoved(newLat, newLng);
+          }
+        } catch (_) {}
+      };
+      window.addEventListener('message', handleWebMsg);
+      return () => window.removeEventListener('message', handleWebMsg);
+    }
+  }, [onLocationChange]);
 
   const scale = (val) => Math.round(val * fontScale);
 
@@ -72,9 +139,10 @@ export default function InteractiveCommunityMap({
     setIsLocating(true);
     try {
       const loc = await getOrDetectUserLocation(true);
-      if (loc) {
+      if (loc && loc.latitude && loc.longitude) {
         setCurrentLat(loc.latitude);
         setCurrentLng(loc.longitude);
+        setMapRevision((r) => r + 1);
         if (onLocationChange) {
           onLocationChange(loc.latitude, loc.longitude, loc.fullAddress);
         }
@@ -136,69 +204,172 @@ export default function InteractiveCommunityMap({
       <body>
         <div id="map"></div>
         <script>
-          const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${currentLat}, ${currentLng}], ${zoom});
+          const centerPos = [${currentLat}, ${currentLng}];
+          const map = L.map('map', { 
+            zoomControl: false, 
+            attributionControl: false,
+            touchZoom: true,
+            scrollWheelZoom: true,
+            doubleClickZoom: false
+          }).setView(centerPos, ${zoom});
+          
           L.tileLayer('${tileLayerUrl}', { maxZoom: 19 }).addTo(map);
           const icon = L.divIcon({ className: 'pulse-marker', iconSize: [24, 24], iconAnchor: [12, 12] });
-          L.marker([${currentLat}, ${currentLng}], { icon: icon }).addTo(map);
+          const marker = L.marker(centerPos, {
+            icon: icon,
+            draggable: ${mode === 'picker'}
+          }).addTo(map);
+
+          const circles = [];
           ${mode === 'emergency' ? `
-          L.circle([${currentLat}, ${currentLng}], {
+          // ONDA 1: Inmediata (0 a 500m) - Pulso Rojo Crítico
+          circles.push(L.circle(centerPos, {
             color: '#dc2626',
             fillColor: '#ef4444',
-            fillOpacity: 0.24,
-            radius: ${radiusMeters || 500}
-          }).addTo(map);
+            fillOpacity: 0.28,
+            weight: 2.5,
+            radius: 500
+          }).addTo(map));
+
+          // ONDA 2: Sectorial (500m a 1.5km) - Naranja Fuego
+          circles.push(L.circle(centerPos, {
+            color: '#ea580c',
+            fillColor: '#f97316',
+            fillOpacity: 0.14,
+            weight: 2,
+            dashArray: '6, 6',
+            radius: 1500
+          }).addTo(map));
+
+          // ONDA 3: Comunal (1.5km a 3km) - Amarillo Alerta
+          circles.push(L.circle(centerPos, {
+            color: '#ca8a04',
+            fillColor: '#facc15',
+            fillOpacity: 0.08,
+            weight: 1.5,
+            dashArray: '4, 8',
+            radius: 3000
+          }).addTo(map));
+
+          // ONDA 4: Perímetro Límite (3km a 5km) - Azul Perímetro (Límite Máximo)
+          circles.push(L.circle(centerPos, {
+            color: '#0284c7',
+            fillColor: '#38bdf8',
+            fillOpacity: 0.05,
+            weight: 1.5,
+            dashArray: '3, 10',
+            radius: 5000
+          }).addTo(map));
           ` : ''}
+
+          function notifyPinMoved(lat, lng) {
+            const payload = JSON.stringify({ type: 'PIN_MOVED', latitude: lat, longitude: lng });
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(payload);
+            }
+            if (window.parent && window.parent.postMessage) {
+              window.parent.postMessage(payload, '*');
+            }
+          }
+
+          function moveAll(lat, lng) {
+            const pos = [lat, lng];
+            marker.setLatLng(pos);
+            circles.forEach(function(c) { c.setLatLng(pos); });
+          }
+
+          ${mode === 'picker' ? `
+          marker.on('dragend', function(e) {
+            const p = e.target.getLatLng();
+            moveAll(p.lat, p.lng);
+            notifyPinMoved(p.lat, p.lng);
+          });
+
+          map.on('click', function(e) {
+            moveAll(e.latlng.lat, e.latlng.lng);
+            notifyPinMoved(e.latlng.lat, e.latlng.lng);
+          });
+          ` : ''}
+
+          setTimeout(function() {
+            try {
+              map.invalidateSize();
+              map.setView(centerPos, ${zoom});
+            } catch(e) {}
+          }, 300);
         </script>
       </body>
     </html>
   `;
 
   return (
-    <View style={[styles.cardContainer, { minHeight: height }]}>
+    <View style={styles.cardContainer}>
       {/* Barra de cabecera con información del cuadrante */}
       <View style={styles.headerRow}>
-        <View style={styles.headerInfo}>
+        <View style={styles.headerTopLine}>
           <View style={styles.badgeRow}>
             <View style={[styles.statusDot, mode === 'emergency' && styles.statusDotEmergency]} />
             <Text style={[styles.badgeText, mode === 'emergency' && styles.badgeTextEmergency]}>
               {mode === 'emergency' ? 'ALERTA SATELITAL ACTIVA' : 'MAPA COMUNITARIO'}
             </Text>
           </View>
-          <Text style={[styles.title, { fontSize: scale(13) }]} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={[styles.subtitle, { fontSize: scale(10) }]}>
-            {subtitle} • GPS: {Number(currentLat).toFixed(4)}, {Number(currentLng).toFixed(4)}
-          </Text>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.refreshMapBtn}
+              activeOpacity={0.8}
+              onPress={() => {
+                setZoom(mode === 'emergency' ? 14 : 17);
+                setMapRevision((r) => r + 1);
+              }}
+              accessibilityLabel="Centrar y restablecer mapa"
+            >
+              <Ionicons name="refresh" size={13} color="#0f766e" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.calibrateMapBtn}
+              activeOpacity={0.8}
+              onPress={handleCalibrateLocation}
+              disabled={isLocating}
+            >
+              {isLocating ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Ionicons name="locate" size={12} color="#ffffff" style={{ marginRight: 3 }} />
+                  <Text style={[styles.calibrateMapBtnText, { fontSize: scale(9.5) }]}>Calibrar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.openExternalBtn}
+              activeOpacity={0.8}
+              onPress={handleOpenExternalGoogleMaps}
+            >
+              <MaterialCommunityIcons name="google-maps" size={13} color="#ffffff" style={{ marginRight: 3 }} />
+              <Text style={[styles.openExternalBtnText, { fontSize: scale(9.5) }]}>Maps</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {/* Botón para restablecer / recentrar mapa */}
-          <TouchableOpacity
-            style={styles.refreshMapBtn}
-            activeOpacity={0.8}
-            onPress={() => {
-              setZoom(17);
-              setMapRevision((r) => r + 1);
-            }}
-            accessibilityLabel="Centrar y restablecer mapa"
-          >
-            <Ionicons name="refresh" size={14} color="#0f766e" />
-          </TouchableOpacity>
-
-          {/* Botón para abrir en Google Maps oficial */}
-          <TouchableOpacity
-            style={styles.openExternalBtn}
-            activeOpacity={0.8}
-            onPress={handleOpenExternalGoogleMaps}
-          >
-            <MaterialCommunityIcons name="google-maps" size={16} color="#ffffff" style={{ marginRight: 4 }} />
-            <Text style={[styles.openExternalBtnText, { fontSize: scale(10) }]}>
-              Abrir Maps
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={[styles.title, { fontSize: scale(12.5) }]} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={[styles.subtitle, { fontSize: scale(10) }]} numberOfLines={1}>
+          {subtitle ? (subtitle.includes('GPS:') ? subtitle : `${subtitle} • GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`) : `GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`}
+        </Text>
       </View>
+
+      {justCalibrated && (
+        <View style={styles.calibrationSuccessBar}>
+          <Ionicons name="checkmark-circle" size={14} color="#15803d" style={{ marginRight: 4 }} />
+          <Text style={styles.calibrationSuccessText}>
+            ✓ Calibrado a tu puerta: {Number(currentLat).toFixed(4)}, {Number(currentLng).toFixed(4)}
+          </Text>
+        </View>
+      )}
 
       {/* Contenedor del Mapa Embebido */}
       <View style={[styles.mapCanvasWrapper, { height }]}>
@@ -227,6 +398,16 @@ export default function InteractiveCommunityMap({
             domStorageEnabled={true}
             scalesPageToFit={true}
             startInLoadingState={true}
+            onMessage={(event) => {
+              try {
+                const data = JSON.parse(event.nativeEvent.data);
+                if (data.type === 'PIN_MOVED') {
+                  const newLat = Number(data.latitude);
+                  const newLng = Number(data.longitude);
+                  handlePinMoved(newLat, newLng);
+                }
+              } catch (_) {}
+            }}
             renderLoading={() => (
               <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' }]}>
                 <ActivityIndicator size="small" color={COLORS.primaryDark} />
@@ -294,12 +475,22 @@ export default function InteractiveCommunityMap({
           </View>
         )}
 
+        {/* Franja de micro-calibración táctil solo en modo selector de puerta */}
+        {mode === 'picker' && (
+          <View style={styles.fineTunePill} pointerEvents="none">
+            <Ionicons name="hand-right" size={11} color="#0f766e" style={{ marginRight: 4 }} />
+            <Text style={styles.fineTunePillText}>
+              Toca el mapa o arrastra el punto para calibrar exactamente a tu puerta
+            </Text>
+          </View>
+        )}
+
         {/* Overlay Especial para Modo Emergencia (Epicentro y Cobertura 500m) */}
         {mode === 'emergency' && (
           <View style={styles.emergencyOverlayBadge} pointerEvents="none">
             <View style={styles.radarPulseDot} />
             <Text style={styles.emergencyOverlayText}>
-              🔴 Radio de Cobertura Activo: {radiusMeters} metros
+              🔴 Radar Vecinal: 🔴 500m | 🟠 1.5km | 🟡 3km | 🔵 5km
             </Text>
           </View>
         )}
@@ -355,6 +546,38 @@ export default function InteractiveCommunityMap({
 }
 
 const styles = StyleSheet.create({
+  calibrateMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0d9488',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    shadowColor: '#0d9488',
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2
+  },
+  calibrateMapBtnText: {
+    color: '#ffffff',
+    fontWeight: '800'
+  },
+  calibrationSuccessBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 8
+  },
+  calibrationSuccessText: {
+    color: '#15803d',
+    fontSize: 11,
+    fontWeight: '700'
+  },
   cardContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 18,
@@ -369,18 +592,22 @@ const styles = StyleSheet.create({
     elevation: 3
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#f8fafc',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9'
   },
-  headerInfo: {
-    flex: 1,
-    marginRight: 8
+  headerTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 3
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5
   },
   badgeRow: {
     flexDirection: 'row',
@@ -519,6 +746,30 @@ const styles = StyleSheet.create({
   },
   circleControlBtnLoading: {
     backgroundColor: '#ccfbf1'
+  },
+  fineTunePill: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    right: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2
+  },
+  fineTunePillText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#0f766e',
+    flex: 1
   },
   emergencyOverlayBadge: {
     position: 'absolute',

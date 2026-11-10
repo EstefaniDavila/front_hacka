@@ -1100,7 +1100,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 90
+    paddingBottom: 130
   },
   headerCard: {
     backgroundColor: COLORS.primaryDark,

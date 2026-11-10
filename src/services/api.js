@@ -4,13 +4,14 @@
 import { Platform } from 'react-native';
 
 // export const LOCAL_PC_IP = '192.168.1.33';
-export const LOCAL_PC_IP = '10.160.244.226';
-
+export const LOCAL_PC_IP = '192.168.0.175';
 
 export const API_BASE_URL = Platform.OS === 'web'
   ? ((typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
     (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ||
-    'http://localhost:8000/api/v1')
+    (typeof window !== 'undefined' && window.location?.hostname && window.location.hostname !== 'localhost'
+      ? `http://${window.location.hostname}:8000/api/v1`
+      : 'http://' + LOCAL_PC_IP + ':8000/api/v1'))
   : 'http://' + LOCAL_PC_IP + ':8000/api/v1';
 
 let isBackendConnected = false;
@@ -651,7 +652,11 @@ export const api = {
           title: emergencyData.title,
           description: emergencyData.desc || emergencyData.description || '',
           severity: emergencyData.severity || 'critical',
-          image_url: emergencyData.image_url || emergencyData.image || null
+          image_url: emergencyData.image_url || emergencyData.image || null,
+          latitude: emergencyData.latitude || null,
+          longitude: emergencyData.longitude || null,
+          location: emergencyData.location || null,
+          alert_radius_m: emergencyData.alert_radius_m || 500
         })
       },
       token
@@ -678,6 +683,54 @@ export const api = {
     } catch {
       return [];
     }
+  },
+
+  async getEmergencyCommunityReports(emergencyId) {
+    if (!emergencyId) return [];
+    try {
+      const data = await request(`/emergencies/${emergencyId}/community-reports`);
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async deleteEmergencyCommunityReport(emergencyId, reportId, token = null) {
+    if (!emergencyId || !reportId) return;
+    try {
+      return await request(
+        `/emergencies/${emergencyId}/community-reports/${reportId}`,
+        { method: 'DELETE' },
+        token
+      );
+    } catch (e) {
+      console.warn('Error eliminando reporte:', e);
+      return null;
+    }
+  },
+
+  async updateEmergencyCommunityReport(emergencyId, reportId, updateData, token = null) {
+    if (!emergencyId || !reportId) throw new Error('ID requerido para editar');
+    return request(
+      `/emergencies/${emergencyId}/community-reports/${reportId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+      },
+      token
+    );
+  },
+
+  async postEmergencyCommunityReport(emergencyId, reportData, token = null) {
+    if (!emergencyId) throw new Error('ID de emergencia requerido');
+    return request(
+      `/emergencies/${emergencyId}/community-reports`,
+      {
+        method: 'POST',
+        body: JSON.stringify(reportData)
+      },
+      token
+    );
   },
 
   async joinEmergencyBrigade(volunteerData, token = null) {
