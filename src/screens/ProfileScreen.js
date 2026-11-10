@@ -57,8 +57,8 @@ export default function ProfileScreen({
     return null;
   }, [userProfile.latitude, userProfile.longitude, userProfile.address]);
 
-  const [profileLat, setProfileLat] = useState(parsedCoords?.lat || null);
-  const [profileLng, setProfileLng] = useState(parsedCoords?.lng || null);
+  const [profileLat, setProfileLat] = useState(parsedCoords?.lat || -16.4360);
+  const [profileLng, setProfileLng] = useState(parsedCoords?.lng || -71.5612);
 
   useEffect(() => {
     if (parsedCoords?.lat && parsedCoords?.lng) {
@@ -253,40 +253,13 @@ export default function ProfileScreen({
               </View>
 
             {/* Mi Ubicación en el Mapa Comunitario */}
-            <View style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <Ionicons name="map" size={16} color="#0f766e" style={{ marginRight: 6 }} />
-                <Text style={{ fontWeight: '800', fontSize: scale(12), color: COLORS.textPrimary }}>
-                  Mi Ubicación en el Mapa Comunitario
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <Text style={{ fontSize: scale(10.5), color: '#64748b', flex: 1 }}>
-                  Calibra tu ubicación con el GPS en vivo de tu dispositivo:
-                </Text>
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf4', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0' }}
-                  activeOpacity={0.8}
-                  onPress={handleSyncLocationFromMap}
-                  disabled={isSyncingLocation}
-                >
-                  {isSyncingLocation ? (
-                    <ActivityIndicator size="small" color="#16a34a" />
-                  ) : (
-                    <>
-                      <Ionicons name="locate" size={13} color="#16a34a" style={{ marginRight: 4 }} />
-                      <Text style={{ fontSize: scale(10), fontWeight: '800', color: '#16a34a' }}>Calibrar GPS</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-
+            <View style={{ marginTop: 12 }}>
               <InteractiveCommunityMap
-                latitude={profileLat || -12.0463}
-                longitude={profileLng || -77.0427}
+                latitude={profileLat || -16.4360}
+                longitude={profileLng || -71.5612}
                 title="Mi Residencia Comunitaria"
                 subtitle={userProfile.address || "Zona A • Manzana 3"}
-                height={220}
+                height={230}
                 mode="simple"
                 fontScale={fontScale}
                 onLocationChange={(newLat, newLng, newAddr) => {

@@ -98,6 +98,9 @@ export default function EmergencyScreen({
   const [reportPhoto, setReportPhoto] = useState(null);
   const [isPostingReport, setIsPostingReport] = useState(false);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [editingReportId, setEditingReportId] = useState(null);
+  const [editingReportText, setEditingReportText] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isCalibratingGps, setIsCalibratingGps] = useState(false);
 
   const handleCalibrateEmergencyGps = async () => {
@@ -505,6 +508,78 @@ export default function EmergencyScreen({
     } catch (err) {
       console.warn('Error al tomar foto de reporte:', err);
     }
+  };
+
+  // --- GESTIÓN (EDITAR / ELIMINAR) DE REPORTES SITUACIONALES ---
+  const handleStartEditReport = (rep) => {
+    setEditingReportId(rep.id);
+    setEditingReportText(rep.message || '');
+  };
+
+  const handleCancelEditReport = () => {
+    setEditingReportId(null);
+    setEditingReportText('');
+  };
+
+  const handleSaveEditReport = async (rep) => {
+    if (!editingReportText.trim()) {
+      Alert.alert('Mensaje requerido', 'El texto no puede quedar vacío.');
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      if (activeEmergency?.id && !String(rep.id).startsWith('rep_')) {
+        await api.updateEmergencyCommunityReport(
+          activeEmergency.id,
+          rep.id,
+          { message: editingReportText.trim() },
+          token
+        );
+      }
+      setCommunityReports((prev) =>
+        prev.map((r) => (String(r.id) === String(rep.id) ? { ...r, message: editingReportText.trim() } : r))
+      );
+      setEditingReportId(null);
+      setEditingReportText('');
+      Alert.alert('✓ Actualizado', 'Tu reporte ha sido modificado.');
+    } catch (err) {
+      console.warn('Error editando reporte:', err);
+      setCommunityReports((prev) =>
+        prev.map((r) => (String(r.id) === String(rep.id) ? { ...r, message: editingReportText.trim() } : r))
+      );
+      setEditingReportId(null);
+      setEditingReportText('');
+      Alert.alert('✓ Actualizado', 'Cambios guardados localmente.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteReport = (rep) => {
+    Alert.alert(
+      '🗑️ Eliminar Reporte',
+      '¿Estás seguro de que deseas eliminar esta evidencia o actualización?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (activeEmergency?.id && !String(rep.id).startsWith('rep_')) {
+                await api.deleteEmergencyCommunityReport(activeEmergency.id, rep.id, token);
+              }
+              setCommunityReports((prev) => prev.filter((r) => String(r.id) !== String(rep.id)));
+              Alert.alert('✓ Eliminado', 'El reporte ha sido retirado del muro.');
+            } catch (err) {
+              console.warn('Error eliminando reporte:', err);
+              setCommunityReports((prev) => prev.filter((r) => String(r.id) !== String(rep.id)));
+              Alert.alert('✓ Eliminado', 'Reporte retirado.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   // --- PUBLICAR REPORTE O EVIDENCIA SITUACIONAL EN LA ALERTA ---
@@ -1297,46 +1372,105 @@ export default function EmergencyScreen({
                   </Text>
                 </View>
               ) : (
-                communityReports.map((rep) => (
-                  <View key={rep.id} style={styles.reportItemCard}>
-                    <View style={styles.reportItemHeader}>
-                      <View style={styles.reportAvatar}>
-                        <Text style={{ fontSize: 18 }}>{rep.author_avatar || '🧑'}</Text>
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 8 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Text style={[styles.reportAuthorName, { fontSize: scale(12) }]}>
-                            {rep.author_name || 'Vecino'}
-                          </Text>
-                          <Text style={styles.reportTimeText}>
-                            📍 {rep.distance_m ? `${rep.distance_m}m` : 'Cerca'}
-                          </Text>
+                communityReports.map((rep) => {
+                  const isAuthor =
+                    (user?.id && rep.user_id && String(rep.user_id) === String(user.id)) ||
+                    rep.author_name === myName ||
+                    String(rep.id).startsWith('rep_');
+                  const isEditingThis = editingReportId === rep.id;
+
+                  return (
+                    <View key={rep.id} style={styles.reportItemCard}>
+                      <View style={styles.reportItemHeader}>
+                        <View style={styles.reportAvatar}>
+                          <Text style={{ fontSize: 18 }}>{rep.author_avatar || '🧑'}</Text>
                         </View>
-                        {rep.role_badge && (
-                          <View style={styles.roleBadgePill}>
-                            <Text style={styles.roleBadgeText}>{rep.role_badge}</Text>
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Text style={[styles.reportAuthorName, { fontSize: scale(12) }]}>
+                              {rep.author_name || 'Vecino'} {isAuthor && <Text style={{ fontSize: scale(10), color: '#0d9488', fontWeight: '800' }}>• Tú</Text>}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={styles.reportTimeText}>
+                                📍 {rep.distance_m ? `${rep.distance_m}m` : 'Cerca'}
+                              </Text>
+                              {isAuthor && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+                                  <TouchableOpacity
+                                    onPress={() => handleStartEditReport(rep)}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    accessibilityLabel="Editar reporte"
+                                  >
+                                    <Feather name="edit-2" size={13} color="#0d9488" />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={() => handleDeleteReport(rep)}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    accessibilityLabel="Eliminar reporte"
+                                  >
+                                    <Feather name="trash-2" size={13} color="#dc2626" />
+                                  </TouchableOpacity>
+                                </View>
+                              )}
+                            </View>
                           </View>
-                        )}
+                          {rep.role_badge && (
+                            <View style={styles.roleBadgePill}>
+                              <Text style={styles.roleBadgeText}>{rep.role_badge}</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
+
+                      {isEditingThis ? (
+                        <View style={{ marginTop: 6, backgroundColor: '#ffffff', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#0d9488' }}>
+                          <TextInput
+                            style={{ fontSize: scale(11.5), color: '#0f172a', minHeight: 45 }}
+                            value={editingReportText}
+                            onChangeText={setEditingReportText}
+                            multiline
+                            placeholder="Escribe la actualización corregida..."
+                          />
+                          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                            <TouchableOpacity
+                              onPress={handleCancelEditReport}
+                              style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: '#f1f5f9' }}
+                            >
+                              <Text style={{ fontSize: scale(10.5), color: '#64748b', fontWeight: '700' }}>Cancelar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleSaveEditReport(rep)}
+                              disabled={isSavingEdit}
+                              style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 6, backgroundColor: '#0d9488' }}
+                            >
+                              {isSavingEdit ? (
+                                <ActivityIndicator size="small" color="#ffffff" />
+                              ) : (
+                                <Text style={{ fontSize: scale(10.5), color: '#ffffff', fontWeight: '800' }}>Guardar</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        rep.message && (
+                          <Text style={[styles.reportItemMessage, { fontSize: scale(11.5) }]}>
+                            {rep.message}
+                          </Text>
+                        )
+                      )}
+
+                      {rep.image_url && (
+                        <View style={styles.reportImageContainer}>
+                          <Image
+                            source={{ uri: rep.image_url }}
+                            style={styles.reportImage}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
                     </View>
-
-                    {rep.message && (
-                      <Text style={[styles.reportItemMessage, { fontSize: scale(11.5) }]}>
-                        {rep.message}
-                      </Text>
-                    )}
-
-                    {rep.image_url && (
-                      <View style={styles.reportImageContainer}>
-                        <Image
-                          source={{ uri: rep.image_url }}
-                          style={styles.reportImage}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    )}
-                  </View>
-                ))
+                  );
+                })
               )}
             </View>
           </View>

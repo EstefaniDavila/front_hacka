@@ -303,70 +303,63 @@ export default function InteractiveCommunityMap({
   `;
 
   return (
-    <View style={[styles.cardContainer, { minHeight: height }]}>
+    <View style={styles.cardContainer}>
       {/* Barra de cabecera con información del cuadrante */}
       <View style={styles.headerRow}>
-        <View style={styles.headerInfo}>
+        <View style={styles.headerTopLine}>
           <View style={styles.badgeRow}>
             <View style={[styles.statusDot, mode === 'emergency' && styles.statusDotEmergency]} />
             <Text style={[styles.badgeText, mode === 'emergency' && styles.badgeTextEmergency]}>
               {mode === 'emergency' ? 'ALERTA SATELITAL ACTIVA' : 'MAPA COMUNITARIO'}
             </Text>
           </View>
-          <Text style={[styles.title, { fontSize: scale(13) }]} numberOfLines={2}>
-            {title}
-          </Text>
-          <Text style={[styles.subtitle, { fontSize: scale(10) }]} numberOfLines={2}>
-            {subtitle ? (subtitle.includes('GPS:') ? subtitle : `${subtitle} • GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`) : `GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`}
-          </Text>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.refreshMapBtn}
+              activeOpacity={0.8}
+              onPress={() => {
+                setZoom(mode === 'emergency' ? 14 : 17);
+                setMapRevision((r) => r + 1);
+              }}
+              accessibilityLabel="Centrar y restablecer mapa"
+            >
+              <Ionicons name="refresh" size={13} color="#0f766e" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.calibrateMapBtn}
+              activeOpacity={0.8}
+              onPress={handleCalibrateLocation}
+              disabled={isLocating}
+            >
+              {isLocating ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Ionicons name="locate" size={12} color="#ffffff" style={{ marginRight: 3 }} />
+                  <Text style={[styles.calibrateMapBtnText, { fontSize: scale(9.5) }]}>Calibrar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.openExternalBtn}
+              activeOpacity={0.8}
+              onPress={handleOpenExternalGoogleMaps}
+            >
+              <MaterialCommunityIcons name="google-maps" size={13} color="#ffffff" style={{ marginRight: 3 }} />
+              <Text style={[styles.openExternalBtnText, { fontSize: scale(9.5) }]}>Maps</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {/* Botón para Calibrar GPS */}
-          <TouchableOpacity
-            style={styles.calibrateMapBtn}
-            activeOpacity={0.8}
-            onPress={handleCalibrateLocation}
-            accessibilityLabel="Calibrar ubicación GPS precisa"
-            disabled={isLocating}
-          >
-            {isLocating ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <>
-                <Ionicons name="locate" size={13} color="#ffffff" style={{ marginRight: 3 }} />
-                <Text style={[styles.calibrateMapBtnText, { fontSize: scale(10) }]}>
-                  Calibrar GPS
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Botón para restablecer / recentrar mapa */}
-          <TouchableOpacity
-            style={styles.refreshMapBtn}
-            activeOpacity={0.8}
-            onPress={() => {
-              setZoom(17);
-              setMapRevision((r) => r + 1);
-            }}
-            accessibilityLabel="Centrar y restablecer mapa"
-          >
-            <Ionicons name="refresh" size={14} color="#0f766e" />
-          </TouchableOpacity>
-
-          {/* Botón para abrir en Google Maps oficial */}
-          <TouchableOpacity
-            style={styles.openExternalBtn}
-            activeOpacity={0.8}
-            onPress={handleOpenExternalGoogleMaps}
-          >
-            <MaterialCommunityIcons name="google-maps" size={16} color="#ffffff" style={{ marginRight: 4 }} />
-            <Text style={[styles.openExternalBtnText, { fontSize: scale(10) }]}>
-              Abrir Maps
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={[styles.title, { fontSize: scale(12.5) }]} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={[styles.subtitle, { fontSize: scale(10) }]} numberOfLines={1}>
+          {subtitle ? (subtitle.includes('GPS:') ? subtitle : `${subtitle} • GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`) : `GPS: ${Number(currentLat).toFixed(4)}, ${Number(currentLng).toFixed(4)}`}
+        </Text>
       </View>
 
       {justCalibrated && (
@@ -599,18 +592,22 @@ const styles = StyleSheet.create({
     elevation: 3
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#f8fafc',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9'
   },
-  headerInfo: {
-    flex: 1,
-    marginRight: 8
+  headerTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 3
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5
   },
   badgeRow: {
     flexDirection: 'row',

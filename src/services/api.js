@@ -695,6 +695,32 @@ export const api = {
     }
   },
 
+  async deleteEmergencyCommunityReport(emergencyId, reportId, token = null) {
+    if (!emergencyId || !reportId) return;
+    try {
+      return await request(
+        `/emergencies/${emergencyId}/community-reports/${reportId}`,
+        { method: 'DELETE' },
+        token
+      );
+    } catch (e) {
+      console.warn('Error eliminando reporte:', e);
+      return null;
+    }
+  },
+
+  async updateEmergencyCommunityReport(emergencyId, reportId, updateData, token = null) {
+    if (!emergencyId || !reportId) throw new Error('ID requerido para editar');
+    return request(
+      `/emergencies/${emergencyId}/community-reports/${reportId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+      },
+      token
+    );
+  },
+
   async postEmergencyCommunityReport(emergencyId, reportData, token = null) {
     if (!emergencyId) throw new Error('ID de emergencia requerido');
     return request(
