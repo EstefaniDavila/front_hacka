@@ -120,7 +120,6 @@ export async function reverseGeocodeCoords(latitude, longitude) {
 
 
   try {
-    // 2. Fallback a BigDataCloud Reverse Geocode
     const bdcUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=es`;
     const bdcRes = await fetch(bdcUrl);
     if (bdcRes.ok) {
@@ -158,12 +157,8 @@ export async function reverseGeocodeCoords(latitude, longitude) {
   };
 }
 
-/**
- * Función principal que detecta y retorna la ubicación real en vivo del usuario,
- * guardándola en memoria/caché local.
- */
+
 export async function getOrDetectUserLocation(forceRefresh = false) {
-  // 1. Revisar caché si no es forzado
   if (!forceRefresh) {
     try {
       const cached = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
