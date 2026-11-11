@@ -11,14 +11,67 @@ import {
   Alert,
   Modal,
   Platform,
-  PermissionsAndroid
+  PermissionsAndroid,
+  Animated,
+  Vibration
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { getOrDetectUserLocation } from '../services/locationService';
 import GlobalSearchModal from '../components/GlobalSearchModal';
 import SearchResultCard from '../components/SearchResultCard';
+
+const SPEECH_RECOGNITION_HTML = `
+<!DOCTYPE html>
+<html>
+<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body>
+<script>
+  (function() {
+    try {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'unsupported' }));
+        return;
+      }
+      const rec = new SpeechRec();
+      rec.lang = 'es-PE';
+      rec.continuous = true;
+      rec.interimResults = true;
+
+      rec.onstart = function() {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'start' }));
+      };
+
+      rec.onresult = function(event) {
+        let text = '';
+        for (let i = 0; i < event.results.length; i++) {
+          text += event.results[i][0].transcript;
+        }
+        if (text && text.trim()) {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'result', text: text.trim() }));
+        }
+      };
+
+      rec.onerror = function(err) {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', error: err.error }));
+      };
+
+      rec.onend = function() {
+        try { rec.start(); } catch(_) {}
+      };
+
+      rec.start();
+    } catch(e) {
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', error: e.message }));
+    }
+  })();
+</script>
+</body>
+</html>
+`;
 
 export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, onRecordTarget }) {
   const scale = (val) => Math.round(val * fontScale);
@@ -35,6 +88,37 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
   // Referencias para micrófono y reconocimiento
   const activeMediaStreamRef = useRef(null);
   const activeRecognitionRef = useRef(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isListening && showVoiceModal) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.18,
+            duration: 550,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.0,
+            duration: 550,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isListening, showVoiceModal]);
+
+  const handleWebViewMessage = (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data && data.type === 'result' && data.text) {
+        setVoiceQuery(data.text);
+      }
+    } catch (_) {}
+  };
 
   const stopActiveMicrophone = () => {
     if (activeMediaStreamRef.current) {
@@ -94,72 +178,12 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
     setShowSearchModal(true);
   };
 
-  const startVoiceSearch = async () => {
-    setIsCheckingMic(true);
-    let hasMicPermission = false;
-
-    try {
-      // 1. Android Nativo en Expo Go: PermissionsAndroid directo del sistema operativo
-      if (Platform.OS === 'android') {
-        try {
-          const checkAlready = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-          if (checkAlready) {
-            hasMicPermission = true;
-          } else {
-            const granted = await PermissionsAndroid.request(
-              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-              {
-                title: 'Permiso de Micrófono - VeciRed IA',
-                message: 'VeciRed IA necesita acceso a tu micrófono para buscar emergencias y servicios con tu voz.',
-                buttonNeutral: 'Preguntarme luego',
-                buttonNegative: 'Cancelar',
-                buttonPositive: 'Permitir',
-              }
-            );
-            hasMicPermission = (granted === PermissionsAndroid.RESULTS.GRANTED);
-          }
-        } catch (androidErr) {
-          console.warn('[Voice] PermissionsAndroid error:', androidErr);
-          hasMicPermission = true;
-        }
-      } else if (Platform.OS === 'web') {
-        // 2. Web / WebView
-        if (typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            activeMediaStreamRef.current = stream;
-            hasMicPermission = true;
-          } catch (e) {
-            console.warn('[Voice] Web getUserMedia error:', e);
-          }
-        } else {
-          hasMicPermission = true;
-        }
-      } else {
-        // iOS
-        hasMicPermission = true;
-      }
-    } catch (err) {
-      console.warn('[Voice] Error general al solicitar permisos:', err);
-    } finally {
-      setIsCheckingMic(false);
-    }
-
-    if (!hasMicPermission && Platform.OS === 'android') {
-      Alert.alert(
-        '🎤 Permiso de Micrófono',
-        'VeciRed IA necesita acceso al micrófono para escuchar tus consultas por voz en Expo Go.\n\nSi no apareció el diálogo, actívalo en Ajustes de tu celular > Aplicaciones > Expo Go > Permisos > Micrófono.',
-        [{ text: 'Entendido', style: 'cancel' }]
-      );
-      return;
-    }
-
-    // Permiso otorgado -> abrir interfaz de voz activa
+  const openVoiceInterface = () => {
     setVoiceQuery('');
     setIsListening(true);
     setShowVoiceModal(true);
 
-    // Reconocimiento web si está disponible
+    // Reconocimiento web si está disponible en navegador
     if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
       try {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -167,10 +191,6 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
         recognition.lang = 'es-PE';
         recognition.interimResults = true;
         recognition.continuous = true;
-
-        recognition.onstart = () => {
-          setIsListening(true);
-        };
 
         recognition.onresult = (event) => {
           let currentSpoken = '';
@@ -182,16 +202,63 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
           }
         };
 
-        recognition.onerror = (e) => {
-          console.warn('[Voice] Error en reconocimiento:', e);
-        };
-
         recognition.start();
         activeRecognitionRef.current = recognition;
-      } catch (err) {
-        console.warn('[Voice] SpeechRecognition no iniciado:', err);
-      }
+      } catch (err) {}
     }
+  };
+
+  const startVoiceSearch = async () => {
+    setIsCheckingMic(true);
+    let hasMicPermission = false;
+
+    try {
+      // 1. Android Nativo en Expo Go: Solicitar permiso de grabación de audio con diálogo nativo
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Permiso de Micrófono - VeciRed IA',
+            message: 'VeciRed IA necesita acceso al micrófono de tu celular para que puedas buscar emergencias y servicios comunitarios usando tu voz.',
+            buttonNeutral: 'Preguntarme luego',
+            buttonNegative: 'Cancelar',
+            buttonPositive: 'Permitir',
+          }
+        );
+        hasMicPermission = (granted === PermissionsAndroid.RESULTS.GRANTED);
+      } else if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            activeMediaStreamRef.current = stream;
+            hasMicPermission = true;
+          } catch (e) {}
+        } else {
+          hasMicPermission = true;
+        }
+      } else {
+        hasMicPermission = true;
+      }
+    } catch (err) {
+      console.warn('[Voice] Error al solicitar permisos:', err);
+      hasMicPermission = true;
+    } finally {
+      setIsCheckingMic(false);
+    }
+
+    if (!hasMicPermission && Platform.OS === 'android') {
+      Alert.alert(
+        '🎤 Permiso de Micrófono',
+        'El permiso de micrófono no fue concedido. Puedes habilitarlo en Ajustes de tu celular > Aplicaciones > Expo Go > Permisos > Micrófono, o ingresar a la interfaz de búsqueda para dictar con tu teclado.',
+        [
+          { text: 'Abrir de todos modos', onPress: () => openVoiceInterface() },
+          { text: 'Cancelar', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    openVoiceInterface();
   };
 
   const handleExecuteVoiceSearch = (queryToSearch) => {
@@ -513,7 +580,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
             <View style={styles.micVerifiedBadge}>
               <Ionicons name="shield-checkmark" size={14} color="#16a34a" />
               <Text style={styles.micVerifiedText}>
-                Búsqueda por voz activada y verificada
+                Micrófono activo y verificado en VeciRed
               </Text>
             </View>
 
@@ -522,22 +589,38 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
               style={styles.voicePulseWrapper}
               activeOpacity={0.85}
               onPress={() => {
-                if (!isListening) {
-                  startVoiceSearch();
-                } else if (voiceQuery.trim()) {
-                  handleExecuteVoiceSearch(voiceQuery);
-                }
+                try { Vibration.vibrate(35); } catch (_) {}
+                setIsListening(prev => !prev);
               }}
             >
-              <View style={styles.voicePulseRing}>
+              <Animated.View style={[styles.voicePulseRing, { transform: [{ scale: pulseAnim }] }]}>
                 <View style={[styles.voicePulseCore, !isListening && { backgroundColor: '#64748b' }]}>
-                  <Ionicons name={isListening ? "mic" : "mic-circle"} size={36} color="#ffffff" />
+                  <Ionicons name={isListening ? "mic" : "mic-off"} size={36} color="#ffffff" />
                 </View>
-              </View>
+              </Animated.View>
               <Text style={styles.voiceListeningStatus}>
-                {isListening ? "🎙️ Habla ahora o usa el dictado por voz del teclado:" : "Toca el micrófono para hablar o escribe abajo:"}
+                {isListening ? "🎙️ Escuchando... Di lo que necesitas o escribe:" : "Micrófono en pausa. Toca para escuchar de nuevo:"}
               </Text>
             </TouchableOpacity>
+
+            {/* Puente WebView para reconocimiento de voz continuo en dispositivos nativos */}
+            {Platform.OS !== 'web' && showVoiceModal && (
+              <View style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }}>
+                <WebView
+                  source={{ html: SPEECH_RECOGNITION_HTML }}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  mediaPlaybackRequiresUserAction={false}
+                  originWhitelist={['*']}
+                  onPermissionRequest={(request) => {
+                    try {
+                      request.grant(request.resources);
+                    } catch (_) {}
+                  }}
+                  onMessage={handleWebViewMessage}
+                />
+              </View>
+            )}
 
             {/* Campo con lo transcrito o para afinar la consulta */}
             <View style={styles.voiceInputBox}>
@@ -548,6 +631,8 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
                 placeholder="Di lo que necesitas... Ej. Gasfitero urgente"
                 placeholderTextColor="#94a3b8"
                 autoFocus={true}
+                returnKeyType="search"
+                onSubmitEditing={() => handleExecuteVoiceSearch(voiceQuery)}
               />
               {voiceQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setVoiceQuery('')} style={{ padding: 4 }}>
@@ -571,6 +656,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
                   key={chip.label}
                   style={styles.voiceChipBtn}
                   onPress={() => {
+                    try { Vibration.vibrate(25); } catch (_) {}
                     setVoiceQuery(chip.q);
                     handleExecuteVoiceSearch(chip.q);
                   }}
