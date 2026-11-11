@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 
 // export const LOCAL_PC_IP = '192.168.1.33';
 // export const LOCAL_PC_IP = '192.168.0.17';
-export const LOCAL_PC_IP = '192.168.0.17';
+export const LOCAL_PC_IP = ' 10.117.163.226';
 
 
 export const API_BASE_URL = Platform.OS === 'web'
