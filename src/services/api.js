@@ -1,11 +1,9 @@
-// ==========================================================
-// VECIRED IA - CLIENTE HTTP PARA API FASTAPI V1 UNIFICADO
-// ==========================================================
+
 import { Platform } from 'react-native';
 
 // export const LOCAL_PC_IP = '192.168.1.33';
 // export const LOCAL_PC_IP = '192.168.0.17';
-export const LOCAL_PC_IP = ' 10.117.163.226';
+export const LOCAL_PC_IP = '10.117.163.226';
 
 
 export const API_BASE_URL = Platform.OS === 'web'
@@ -18,7 +16,6 @@ export const API_BASE_URL = Platform.OS === 'web'
 
 let isBackendConnected = false;
 
-// Generador y validador de UUID v4 conforme a RFC 4122
 let currentTestUserId = null;
 
 export function isValidUUID(uuidStr) {
@@ -196,7 +193,7 @@ async function request(endpoint, options = {}, token = null) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const timeoutMs = 12000;
+  const timeoutMs = 25000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
