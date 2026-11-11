@@ -13,8 +13,6 @@ import {
   Platform,
   PermissionsAndroid
 } from 'react-native';
-import { Audio } from 'expo-av';
-import { Camera } from 'expo-camera';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
@@ -34,18 +32,11 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
 
-  // Referencias para micrófono de hardware real y reconocimiento continuo
-  const activeAudioRecordingRef = useRef(null);
+  // Referencias para micrófono y reconocimiento
   const activeMediaStreamRef = useRef(null);
   const activeRecognitionRef = useRef(null);
 
-  const stopActiveMicrophone = async () => {
-    if (activeAudioRecordingRef.current) {
-      try {
-        await activeAudioRecordingRef.current.stopAndUnloadAsync();
-      } catch (_) {}
-      activeAudioRecordingRef.current = null;
-    }
+  const stopActiveMicrophone = () => {
     if (activeMediaStreamRef.current) {
       try {
         activeMediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -108,7 +99,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
     let hasMicPermission = false;
 
     try {
-      // 1. Android Nativo en Expo Go: PermissionsAndroid directo del sistema
+      // 1. Android Nativo en Expo Go: PermissionsAndroid directo del sistema operativo
       if (Platform.OS === 'android') {
         try {
           const checkAlready = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
@@ -129,42 +120,24 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
           }
         } catch (androidErr) {
           console.warn('[Voice] PermissionsAndroid error:', androidErr);
-        }
-      }
-
-      // 2. Módulo oficial de Expo Go: expo-av Audio
-      if (!hasMicPermission && Audio && typeof Audio.requestPermissionsAsync === 'function') {
-        try {
-          const audioStatus = await Audio.requestPermissionsAsync();
-          if (audioStatus.granted || audioStatus.status === 'granted') {
-            hasMicPermission = true;
-          }
-        } catch (audioErr) {
-          console.warn('[Voice] Audio.requestPermissionsAsync error:', audioErr);
-        }
-      }
-
-      // 3. Fallback adicional Camera
-      if (!hasMicPermission && Camera && typeof Camera.requestMicrophonePermissionsAsync === 'function') {
-        try {
-          const camMicStatus = await Camera.requestMicrophonePermissionsAsync();
-          if (camMicStatus.granted || camMicStatus.status === 'granted') {
-            hasMicPermission = true;
-          }
-        } catch (camErr) {
-          console.warn('[Voice] Camera.requestMicrophonePermissionsAsync error:', camErr);
-        }
-      }
-
-      // 4. Web / WebView
-      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          activeMediaStreamRef.current = stream;
           hasMicPermission = true;
-        } catch (e) {
-          console.warn('[Voice] Web getUserMedia error:', e);
         }
+      } else if (Platform.OS === 'web') {
+        // 2. Web / WebView
+        if (typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            activeMediaStreamRef.current = stream;
+            hasMicPermission = true;
+          } catch (e) {
+            console.warn('[Voice] Web getUserMedia error:', e);
+          }
+        } else {
+          hasMicPermission = true;
+        }
+      } else {
+        // iOS
+        hasMicPermission = true;
       }
     } catch (err) {
       console.warn('[Voice] Error general al solicitar permisos:', err);
@@ -172,7 +145,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
       setIsCheckingMic(false);
     }
 
-    if (!hasMicPermission && Platform.OS !== 'web') {
+    if (!hasMicPermission && Platform.OS === 'android') {
       Alert.alert(
         '🎤 Permiso de Micrófono',
         'VeciRed IA necesita acceso al micrófono para escuchar tus consultas por voz en Expo Go.\n\nSi no apareció el diálogo, actívalo en Ajustes de tu celular > Aplicaciones > Expo Go > Permisos > Micrófono.',
@@ -181,27 +154,10 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
       return;
     }
 
-    // Permiso otorgado -> abrir interfaz de voz activa y activar hardware de grabación
+    // Permiso otorgado -> abrir interfaz de voz activa
     setVoiceQuery('');
     setIsListening(true);
     setShowVoiceModal(true);
-
-    // Activar hardware real de grabación en Expo Go
-    if (Platform.OS !== 'web' && Audio) {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        }).catch(() => {});
-
-        const recording = new Audio.Recording();
-        await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        await recording.startAsync();
-        activeAudioRecordingRef.current = recording;
-      } catch (recErr) {
-        console.warn('[Voice] No se pudo iniciar Audio.Recording en Expo Go:', recErr);
-      }
-    }
 
     // Reconocimiento web si está disponible
     if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
@@ -557,7 +513,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
             <View style={styles.micVerifiedBadge}>
               <Ionicons name="shield-checkmark" size={14} color="#16a34a" />
               <Text style={styles.micVerifiedText}>
-                Micrófono activo y verificado en Expo Go
+                Búsqueda por voz activada y verificada
               </Text>
             </View>
 
@@ -579,7 +535,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
                 </View>
               </View>
               <Text style={styles.voiceListeningStatus}>
-                {isListening ? "🎙️ Micrófono grabando en vivo... Habla ahora o escribe:" : "Toca el micrófono para hablar o escribe abajo:"}
+                {isListening ? "🎙️ Habla ahora o usa el dictado por voz del teclado:" : "Toca el micrófono para hablar o escribe abajo:"}
               </Text>
             </TouchableOpacity>
 
