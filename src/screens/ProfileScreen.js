@@ -22,6 +22,7 @@ export default function ProfileScreen({
   setFontScale,
   onRestartOnboarding,
   onLogout,
+  onStartTour,
   helpedCount = 12,
   userProfile = {
     name: 'Vecino',
@@ -589,6 +590,28 @@ export default function ProfileScreen({
 
       {/* Acciones de Cuenta */}
       <View style={styles.accountCard}>
+        {onStartTour && (
+          <TouchableOpacity
+            style={styles.tourBtn}
+            onPress={onStartTour}
+            activeOpacity={0.8}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+              <View style={styles.tourIconCircle}>
+                <Ionicons name="sparkles" size={16} color="#0d9488" />
+              </View>
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={[styles.tourBtnTitle, { fontSize: scale(12.5) }]}>
+                  🎓 Tour Guiado de Funciones
+                </Text>
+                <Text style={[styles.tourBtnSub, { fontSize: scale(10) }]} numberOfLines={1}>
+                  Aprende a usar el SOS, radar 5km, IA y servicios
+                </Text>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={16} color="#0d9488" />
+          </TouchableOpacity>
+        )}
 
         {onLogout && (
           <TouchableOpacity
@@ -881,6 +904,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     gap: 10
+  },
+  tourBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#f0fdfa',
+    borderWidth: 1.5,
+    borderColor: '#99f6e4',
+    marginBottom: 4
+  },
+  tourIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ccfbf1',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  tourBtnTitle: {
+    fontWeight: '800',
+    color: '#0f766e'
+  },
+  tourBtnSub: {
+    color: '#0d9488',
+    marginTop: 1
   },
   accountBtn: {
     flexDirection: 'row',

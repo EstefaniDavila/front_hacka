@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 
-export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0 }) {
+export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0, onRecordTarget }) {
   const scale = (val) => Math.round(val * fontScale);
 
   const tabs = [
@@ -24,6 +24,15 @@ export default function BottomNavBar({ currentTab, onSelectTab, fontScale = 1.0 
               style={styles.centerButtonWrap}
               activeOpacity={0.85}
               onPress={() => onSelectTab('publish')}
+              onLayout={(e) => {
+                if (onRecordTarget && e?.nativeEvent?.layout) {
+                  e?.target?.measureInWindow?.((x, y, width, height) => {
+                    if (width > 0 && height > 0) {
+                      onRecordTarget('publish', { x, y, width, height, radius: 28 });
+                    }
+                  });
+                }
+              }}
             >
               <View style={styles.centerCircle}>
                 <Ionicons name="add" size={26} color="#ffffff" />

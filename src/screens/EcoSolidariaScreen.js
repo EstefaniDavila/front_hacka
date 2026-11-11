@@ -13,11 +13,51 @@ import {
 import { COLORS } from '../theme/colors';
 import { mockEmergencyNeeds } from '../data/mockData';
 
+const DEFAULT_EMERGENCY_NEEDS = [
+  {
+    id: "need-001",
+    emergency_id: "emg-001",
+    resource_name: "Agua potable",
+    icon: "💧",
+    quantity_required: 20,
+    quantity_committed: 8,
+    unit: "botellas",
+    priority: "Alta",
+    status: "active"
+  },
+  {
+    id: "need-002",
+    emergency_id: "emg-001",
+    resource_name: "Alimentos",
+    icon: "🍴",
+    quantity_required: 15,
+    quantity_committed: 10,
+    unit: "packs",
+    priority: "Alta",
+    status: "active"
+  },
+  {
+    id: "need-003",
+    emergency_id: "emg-001",
+    resource_name: "Mantas y frazadas",
+    icon: "🛏️",
+    quantity_required: 10,
+    quantity_committed: 3,
+    unit: "unidades",
+    priority: "Media",
+    status: "active"
+  }
+];
+
 export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncrementHelped, onOpenChat }) {
-  const [needs, setNeeds] = useState(mockEmergencyNeeds);
+  const [needs, setNeeds] = useState(
+    Array.isArray(mockEmergencyNeeds) && mockEmergencyNeeds.length > 0
+      ? mockEmergencyNeeds
+      : DEFAULT_EMERGENCY_NEEDS
+  );
   const [selectedNeed, setSelectedNeed] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [hasContributed, setHasContributed] = useState(false);
+  const [contributedMap, setContributedMap] = useState({});
   const [contributionQty, setContributionQty] = useState(1);
 
   // Pantalla especial "Se necesita" (Solicitud de Recursos Urgentes)
@@ -41,10 +81,20 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
       Alert.alert('Falta descripción', 'Describe brevemente qué insumos o ayuda requiere tu familia.');
       return;
     }
+    const categoryIcons = {
+      'Agua Potable': '💧',
+      'Alimentos / Víveres': '🍴',
+      'Medicinas / Primeros Aux.': '💊',
+      'Frazadas / Ropa Seca': '🛏️',
+      'Linternas / Baterías': '🔦',
+      'Herramientas / Palas': '🛠️',
+      'Evacuación / Rescate': '🦺'
+    };
     const newNeedItem = {
       id: Date.now().toString(),
       resource_name: needCategory,
       category: needCategory,
+      icon: categoryIcons[needCategory] || '📦',
       quantity_required: 10,
       quantity_committed: 0,
       unit: 'unidades',
@@ -80,34 +130,34 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
   };
 
   const handlePledgeContribution = () => {
-    if (hasContributed) {
-      Alert.alert('✅ Ya aportaste', 'Ya has registrado tu compromiso de aporte para esta emergencia.');
-      return;
-    }
+    if (!selectedNeed) return;
+    const qty = Math.max(1, contributionQty);
 
-    setHasContributed(true);
     setNeeds(prev => prev.map(n => {
       if (n.id === selectedNeed.id) {
         return {
           ...n,
-          quantity_committed: n.quantity_committed + 2
+          quantity_committed: Math.min(n.quantity_required, n.quantity_committed + qty)
         };
       }
       return n;
     }));
 
-    if (selectedNeed) {
-      setSelectedNeed(prev => ({
-        ...prev,
-        quantity_committed: prev.quantity_committed + 2
-      }));
-    }
+    setSelectedNeed(prev => ({
+      ...prev,
+      quantity_committed: Math.min(prev.quantity_required, prev.quantity_committed + qty)
+    }));
 
-    onIncrementHelped();
+    setContributedMap(prev => ({
+      ...prev,
+      [selectedNeed.id]: (prev[selectedNeed.id] || 0) + qty
+    }));
+
+    if (onIncrementHelped) onIncrementHelped();
 
     Alert.alert(
       '🎉 ¡Aporte Registrado!',
-      `Has comprometido 2 ${selectedNeed.unit} de ${selectedNeed.resource_name} para las familias de Manzana 2.\nPunto de acopio: Casa Comunal Manzana 2.`
+      `Has comprometido ${qty} ${selectedNeed.unit} de ${selectedNeed.resource_name} para las familias de Manzana 2.\nPunto de acopio: Casa Comunal Manzana 2.`
     );
   };
 
@@ -370,13 +420,23 @@ export default function EcoSolidariaScreen({ onNavigate, fontScale = 1.0, onIncr
                   </View>
                 </View>
 
+                {contributedMap[selectedNeed.id] > 0 && (
+                  <View style={{ backgroundColor: '#dcfce7', padding: 8, borderRadius: 10, marginVertical: 6, alignItems: 'center' }}>
+                    <Text style={{ color: '#15803d', fontWeight: '800', fontSize: scale(11) }}>
+                      ✅ Ya te comprometiste con {contributedMap[selectedNeed.id]} {selectedNeed.unit}
+                    </Text>
+                  </View>
+                )}
+
                 <TouchableOpacity
-                  style={[styles.modalPledgeBtn, hasContributed && { backgroundColor: COLORS.primaryDark }]}
+                  style={[styles.modalPledgeBtn, (contributedMap[selectedNeed.id] > 0) && { backgroundColor: COLORS.primaryDark }]}
                   activeOpacity={0.8}
                   onPress={handlePledgeContribution}
                 >
                   <Text style={[styles.modalPledgeBtnText, { fontSize: scale(14) }]}>
-                    {hasContributed ? `✅ APORTE CONFIRMADO (+${contributionQty})` : `🤝 APORTAR ${contributionQty} ${selectedNeed.unit.toUpperCase()}`}
+                    {(contributedMap[selectedNeed.id] > 0)
+                      ? `🤝 APORTAR OTROS ${contributionQty} ${selectedNeed.unit.toUpperCase()}`
+                      : `🤝 APORTAR ${contributionQty} ${selectedNeed.unit.toUpperCase()}`}
                   </Text>
                 </TouchableOpacity>
 

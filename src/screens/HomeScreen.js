@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,12 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  Platform
+  Platform,
+  PermissionsAndroid,
+  Animated,
+  Vibration
 } from 'react-native';
-import { Camera } from 'expo-camera';
+import { WebView } from 'react-native-webview';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
@@ -21,7 +24,57 @@ import { useAuth } from '../context/AuthContext';
 import GlobalSearchModal from '../components/GlobalSearchModal';
 import SearchResultCard from '../components/SearchResultCard';
 
-export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
+const SPEECH_RECOGNITION_HTML = `
+<!DOCTYPE html>
+<html>
+<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body>
+<script>
+  (function() {
+    try {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'unsupported' }));
+        return;
+      }
+      const rec = new SpeechRec();
+      rec.lang = 'es-PE';
+      rec.continuous = true;
+      rec.interimResults = true;
+
+      rec.onstart = function() {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'start' }));
+      };
+
+      rec.onresult = function(event) {
+        let text = '';
+        for (let i = 0; i < event.results.length; i++) {
+          text += event.results[i][0].transcript;
+        }
+        if (text && text.trim()) {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'result', text: text.trim() }));
+        }
+      };
+
+      rec.onerror = function(err) {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', error: err.error }));
+      };
+
+      rec.onend = function() {
+        try { rec.start(); } catch(_) {}
+      };
+
+      rec.start();
+    } catch(e) {
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', error: e.message }));
+    }
+  })();
+</script>
+</body>
+</html>
+`;
+
+export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, onRecordTarget }) {
   const { profile } = useAuth();
   const scale = (val) => Math.round(val * fontScale);
   const [recommendedServices, setRecommendedServices] = useState([]);
@@ -33,6 +86,62 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
   const [voiceQuery, setVoiceQuery] = useState('');
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
+
+  // Referencias para micrófono y reconocimiento
+  const activeMediaStreamRef = useRef(null);
+  const activeRecognitionRef = useRef(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isListening && showVoiceModal) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.18,
+            duration: 550,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.0,
+            duration: 550,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isListening, showVoiceModal]);
+
+  const handleWebViewMessage = (event) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data && data.type === 'result' && data.text) {
+        setVoiceQuery(data.text);
+      }
+    } catch (_) {}
+  };
+
+  const stopActiveMicrophone = () => {
+    if (activeMediaStreamRef.current) {
+      try {
+        activeMediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (_) {}
+      activeMediaStreamRef.current = null;
+    }
+    if (activeRecognitionRef.current) {
+      try {
+        activeRecognitionRef.current.stop();
+      } catch (_) {}
+      activeRecognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  const handleCloseVoiceModal = () => {
+    stopActiveMicrophone();
+    setShowVoiceModal(false);
+  };
 
   useEffect(() => {
     loadRecommended();
@@ -109,90 +218,93 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
     setShowSearchModal(true);
   };
 
-  const startVoiceSearch = async () => {
-    setIsCheckingMic(true);
-    let hasMicPermission = false;
-
-    try {
-      if (Platform.OS === 'web') {
-        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(track => track.stop());
-            hasMicPermission = true;
-          } catch (e) {
-            console.warn('[Voice] Permiso de micrófono web denegado:', e);
-          }
-        } else {
-          hasMicPermission = true;
-        }
-      } else {
-        // En dispositivo móvil nativo (Android / iOS) solicitar permiso mediante expo-camera
-        if (Camera?.requestMicrophonePermissionsAsync) {
-          const perm = await Camera.requestMicrophonePermissionsAsync().catch(() => null);
-          hasMicPermission = perm?.status === 'granted';
-        } else {
-          hasMicPermission = true;
-        }
-      }
-    } catch (err) {
-      console.warn('[Voice] Error al solicitar permiso:', err);
-    } finally {
-      setIsCheckingMic(false);
-    }
-
-    if (!hasMicPermission) {
-      Alert.alert(
-        '🎤 Permiso de Micrófono Requerido',
-        'VeciRed IA necesita acceso al micrófono de tu dispositivo para escuchar tus consultas por voz. Por favor autoriza el permiso en los ajustes de tu teléfono o navegador.',
-        [{ text: 'Entendido', style: 'cancel' }]
-      );
-      return;
-    }
-
-    // Permiso otorgado -> abrir interfaz de voz activa
+  const openVoiceInterface = () => {
     setVoiceQuery('');
     setIsListening(true);
     setShowVoiceModal(true);
 
-    // Intentar Web Speech recognition si está disponible
+    // Reconocimiento web si está disponible en navegador
     if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
       try {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRec();
         recognition.lang = 'es-PE';
         recognition.interimResults = true;
-        recognition.continuous = false;
+        recognition.continuous = true;
 
         recognition.onresult = (event) => {
           let currentSpoken = '';
           for (let k = 0; k < event.results.length; k++) {
             currentSpoken += event.results[k][0].transcript;
           }
-          if (currentSpoken) {
-            setVoiceQuery(currentSpoken);
+          if (currentSpoken && currentSpoken.trim()) {
+            setVoiceQuery(currentSpoken.trim());
           }
         };
 
-        recognition.onerror = (e) => {
-          console.warn('[Voice] Error de reconocimiento:', e);
-        };
-
-        recognition.onend = () => {
-          setIsListening(false);
-        };
-
         recognition.start();
-      } catch (err) {
-        console.warn('[Voice] Web Speech no iniciado:', err);
-      }
+        activeRecognitionRef.current = recognition;
+      } catch (err) {}
     }
+  };
+
+  const startVoiceSearch = async () => {
+    setIsCheckingMic(true);
+    let hasMicPermission = false;
+
+    try {
+      // 1. Android Nativo en Expo Go: Solicitar permiso de grabación de audio con diálogo nativo
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Permiso de Micrófono - VeciRed IA',
+            message: 'VeciRed IA necesita acceso al micrófono de tu celular para que puedas buscar emergencias y servicios comunitarios usando tu voz.',
+            buttonNeutral: 'Preguntarme luego',
+            buttonNegative: 'Cancelar',
+            buttonPositive: 'Permitir',
+          }
+        );
+        hasMicPermission = (granted === PermissionsAndroid.RESULTS.GRANTED);
+      } else if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            activeMediaStreamRef.current = stream;
+            hasMicPermission = true;
+          } catch (e) {}
+        } else {
+          hasMicPermission = true;
+        }
+      } else {
+        hasMicPermission = true;
+      }
+    } catch (err) {
+      console.warn('[Voice] Error al solicitar permisos:', err);
+      hasMicPermission = true;
+    } finally {
+      setIsCheckingMic(false);
+    }
+
+    if (!hasMicPermission && Platform.OS === 'android') {
+      Alert.alert(
+        '🎤 Permiso de Micrófono',
+        'El permiso de micrófono no fue concedido. Puedes habilitarlo en Ajustes de tu celular > Aplicaciones > Expo Go > Permisos > Micrófono, o ingresar a la interfaz de búsqueda para dictar con tu teclado.',
+        [
+          { text: 'Abrir de todos modos', onPress: () => openVoiceInterface() },
+          { text: 'Cancelar', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    openVoiceInterface();
   };
 
   const handleExecuteVoiceSearch = (queryToSearch) => {
     const finalQ = (queryToSearch || voiceQuery || '').trim();
+    stopActiveMicrophone();
     setShowVoiceModal(false);
-    setIsListening(false);
     if (!finalQ) return;
 
     setSearchText(finalQ);
@@ -246,7 +358,18 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         </Text>
 
         {/* Buscador Interactivo con Micrófono Real */}
-        <View style={styles.searchBar}>
+        <View
+          style={styles.searchBar}
+          onLayout={(e) => {
+            if (onRecordTarget && e?.nativeEvent?.layout) {
+              e?.target?.measureInWindow?.((x, y, width, height) => {
+                if (width > 0 && height > 0) {
+                  onRecordTarget('voice', { x, y, width, height, radius: 14 });
+                }
+              });
+            }
+          }}
+        >
           <TouchableOpacity onPress={handleSearchSubmit} style={{ padding: 4 }}>
             <Ionicons name="search" size={18} color="#0d9488" />
           </TouchableOpacity>
@@ -292,6 +415,15 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
           style={[styles.gridCard, { backgroundColor: '#f0fdfa', borderColor: '#ccfbf1' }]}
           activeOpacity={0.8}
           onPress={() => onNavigate('services')}
+          onLayout={(e) => {
+            if (onRecordTarget && e?.nativeEvent?.layout) {
+              e?.target?.measureInWindow?.((x, y, width, height) => {
+                if (width > 0 && height > 0) {
+                  onRecordTarget('services', { x, y, width, height, radius: 14 });
+                }
+              });
+            }
+          }}
         >
           <View style={styles.cardHeaderRow}>
             <View style={[styles.iconCircle, { backgroundColor: '#ccfbf1' }]}>
@@ -352,6 +484,15 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
           style={[styles.gridCard, styles.emergencyGridCard]}
           activeOpacity={0.85}
           onPress={() => onNavigate('emergency')}
+          onLayout={(e) => {
+            if (onRecordTarget && e?.nativeEvent?.layout) {
+              e?.target?.measureInWindow?.((x, y, width, height) => {
+                if (width > 0 && height > 0) {
+                  onRecordTarget('emergencies', { x, y, width, height, radius: 14 });
+                }
+              });
+            }
+          }}
         >
           <View style={styles.cardHeaderRow}>
             <View style={[styles.iconCircle, { backgroundColor: '#fee2e2' }]}>
@@ -455,10 +596,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         visible={showVoiceModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => {
-          setShowVoiceModal(false);
-          setIsListening(false);
-        }}
+        onRequestClose={handleCloseVoiceModal}
       >
         <View style={styles.voiceModalBackdrop}>
           <View style={styles.voiceModalCard}>
@@ -471,10 +609,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => {
-                  setShowVoiceModal(false);
-                  setIsListening(false);
-                }}
+                onPress={handleCloseVoiceModal}
                 style={{ padding: 4 }}
               >
                 <Ionicons name="close" size={22} color="#64748b" />
@@ -485,21 +620,47 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
             <View style={styles.micVerifiedBadge}>
               <Ionicons name="shield-checkmark" size={14} color="#16a34a" />
               <Text style={styles.micVerifiedText}>
-                Micrófono del dispositivo activado y verificado
+                Micrófono activo y verificado en VeciRed
               </Text>
             </View>
 
             {/* Icono Pulsante de Escucha */}
-            <View style={styles.voicePulseWrapper}>
-              <View style={styles.voicePulseRing}>
-                <View style={styles.voicePulseCore}>
-                  <Ionicons name={isListening ? "mic" : "mic-circle"} size={36} color="#ffffff" />
+            <TouchableOpacity
+              style={styles.voicePulseWrapper}
+              activeOpacity={0.85}
+              onPress={() => {
+                try { Vibration.vibrate(35); } catch (_) {}
+                setIsListening(prev => !prev);
+              }}
+            >
+              <Animated.View style={[styles.voicePulseRing, { transform: [{ scale: pulseAnim }] }]}>
+                <View style={[styles.voicePulseCore, !isListening && { backgroundColor: '#64748b' }]}>
+                  <Ionicons name={isListening ? "mic" : "mic-off"} size={36} color="#ffffff" />
                 </View>
-              </View>
+              </Animated.View>
               <Text style={styles.voiceListeningStatus}>
-                {isListening ? "🎙️ Escuchando tu voz en tiempo real..." : "Voz capturada. Confirma o busca abajo:"}
+                {isListening ? "🎙️ Escuchando... Di lo que necesitas o escribe:" : "Micrófono en pausa. Toca para escuchar de nuevo:"}
               </Text>
-            </View>
+            </TouchableOpacity>
+
+            {/* Puente WebView para reconocimiento de voz continuo en dispositivos nativos */}
+            {Platform.OS !== 'web' && showVoiceModal && (
+              <View style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }}>
+                <WebView
+                  source={{ html: SPEECH_RECOGNITION_HTML }}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  mediaPlaybackRequiresUserAction={false}
+                  originWhitelist={['*']}
+                  onPermissionRequest={(request) => {
+                    try {
+                      request.grant(request.resources);
+                    } catch (_) {}
+                  }}
+                  onMessage={handleWebViewMessage}
+                />
+              </View>
+            )}
 
             {/* Campo con lo transcrito o para afinar la consulta */}
             <View style={styles.voiceInputBox}>
@@ -510,6 +671,8 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
                 placeholder="Di lo que necesitas... Ej. Gasfitero urgente"
                 placeholderTextColor="#94a3b8"
                 autoFocus={true}
+                returnKeyType="search"
+                onSubmitEditing={() => handleExecuteVoiceSearch(voiceQuery)}
               />
               {voiceQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setVoiceQuery('')} style={{ padding: 4 }}>
@@ -533,6 +696,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
                   key={chip.label}
                   style={styles.voiceChipBtn}
                   onPress={() => {
+                    try { Vibration.vibrate(25); } catch (_) {}
                     setVoiceQuery(chip.q);
                     handleExecuteVoiceSearch(chip.q);
                   }}
