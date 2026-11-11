@@ -20,7 +20,7 @@ import { getOrDetectUserLocation } from '../services/locationService';
 import GlobalSearchModal from '../components/GlobalSearchModal';
 import SearchResultCard from '../components/SearchResultCard';
 
-export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
+export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, onRecordTarget }) {
   const scale = (val) => Math.round(val * fontScale);
   const [recommendedServices, setRecommendedServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(true);
@@ -206,7 +206,18 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         </Text>
 
         {/* Buscador Interactivo con Micrófono Real */}
-        <View style={styles.searchBar}>
+        <View
+          style={styles.searchBar}
+          onLayout={(e) => {
+            if (onRecordTarget && e?.nativeEvent?.layout) {
+              e?.target?.measureInWindow?.((x, y, width, height) => {
+                if (width > 0 && height > 0) {
+                  onRecordTarget('voice', { x, y, width, height, radius: 14 });
+                }
+              });
+            }
+          }}
+        >
           <TouchableOpacity onPress={handleSearchSubmit} style={{ padding: 4 }}>
             <Ionicons name="search" size={18} color="#0d9488" />
           </TouchableOpacity>
@@ -252,6 +263,15 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
           style={[styles.gridCard, { backgroundColor: '#f0fdfa', borderColor: '#ccfbf1' }]}
           activeOpacity={0.8}
           onPress={() => onNavigate('services')}
+          onLayout={(e) => {
+            if (onRecordTarget && e?.nativeEvent?.layout) {
+              e?.target?.measureInWindow?.((x, y, width, height) => {
+                if (width > 0 && height > 0) {
+                  onRecordTarget('services', { x, y, width, height, radius: 14 });
+                }
+              });
+            }
+          }}
         >
           <View style={styles.cardHeaderRow}>
             <View style={[styles.iconCircle, { backgroundColor: '#ccfbf1' }]}>
@@ -312,6 +332,15 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
           style={[styles.gridCard, styles.emergencyGridCard]}
           activeOpacity={0.85}
           onPress={() => onNavigate('emergency')}
+          onLayout={(e) => {
+            if (onRecordTarget && e?.nativeEvent?.layout) {
+              e?.target?.measureInWindow?.((x, y, width, height) => {
+                if (width > 0 && height > 0) {
+                  onRecordTarget('emergencies', { x, y, width, height, radius: 14 });
+                }
+              });
+            }
+          }}
         >
           <View style={styles.cardHeaderRow}>
             <View style={[styles.iconCircle, { backgroundColor: '#fee2e2' }]}>

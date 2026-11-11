@@ -39,6 +39,7 @@ import ChatScreen from './src/screens/ChatScreen';
 import MyServicesScreen from './src/screens/MyServicesScreen';
 import ServiceDetailScreen from './src/screens/ServiceDetailScreen';
 import NotificationsModal from './src/components/NotificationsModal';
+import SpotlightTourModal from './src/components/SpotlightTourModal';
 
 class ScreenErrorBoundary extends React.Component {
   constructor(props) {
@@ -102,6 +103,49 @@ function MainApp() {
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [targetEmergency, setTargetEmergency] = useState(null);
+
+  // Estados para el Tour Guiado Interactivo con Focos (Opción 2)
+  const [showSpotlightTour, setShowSpotlightTour] = useState(false);
+  const [tourTargetLayouts, setTourTargetLayouts] = useState({});
+
+  const recordTourTarget = (key, layout) => {
+    if (!key || !layout) return;
+    setTourTargetLayouts((prev) => ({ ...prev, [key]: layout }));
+  };
+
+  const handleCloseTour = async () => {
+    setShowSpotlightTour(false);
+    try {
+      await customStorage.setItem('@vecired_spotlight_tour_seen_v1', 'true');
+    } catch (_) {}
+  };
+
+  const handleStartTour = () => {
+    setCurrentTab('home');
+    setTimeout(() => {
+      setShowSpotlightTour(true);
+    }, 200);
+  };
+
+  // Lanzar automáticamente el Tour la primera vez que el usuario ingresa
+  useEffect(() => {
+    let isMounted = true;
+    async function checkFirstTimeTour() {
+      try {
+        const seen = await customStorage.getItem('@vecired_spotlight_tour_seen_v1');
+        if (isMounted && seen !== 'true') {
+          setTimeout(() => {
+            if (isMounted) setShowSpotlightTour(true);
+          }, 900);
+        }
+      } catch (_) {}
+    }
+
+    if (isLoggedIn || isAuthenticated) {
+      checkFirstTimeTour();
+    }
+    return () => { isMounted = false; };
+  }, [isLoggedIn, isAuthenticated]);
 
   // Verificación de estado de backend y sondeo en tiempo real de alertas comunitarias
   useEffect(() => {
@@ -402,6 +446,15 @@ function MainApp() {
                 ]}
                 activeOpacity={0.85}
                 onPress={() => handleNavigate('emergency')}
+                onLayout={(e) => {
+                  if (e?.nativeEvent?.layout) {
+                    e?.target?.measureInWindow?.((x, y, width, height) => {
+                      if (width > 0 && height > 0) {
+                        recordTourTarget('sos', { x, y, width, height, radius: 18 });
+                      }
+                    });
+                  }
+                }}
               >
                 <MaterialCommunityIcons name="alarm-light" size={16} color="#ffffff" style={{ marginRight: 3 }} />
                 <Text style={styles.headerEmergencyBtnText}>SOS</Text>
@@ -482,6 +535,7 @@ function MainApp() {
               userProfile={userProfile}
               onOpenDetail={handleOpenDetail}
               onOpenChat={handleOpenChatWith}
+              onRecordTarget={recordTourTarget}
             />
           )}
 
@@ -585,6 +639,7 @@ function MainApp() {
                 setAuthView('register');
               }}
               onLogout={handleLogout}
+              onStartTour={handleStartTour}
               helpedCount={helpedCount}
               userProfile={userProfile}
               onSaveProfile={handleSaveUserProfile}
@@ -616,6 +671,7 @@ function MainApp() {
             currentTab={currentTab}
             onSelectTab={handleNavigate}
             fontScale={fontScale}
+            onRecordTarget={recordTourTarget}
           />
         )}
 
@@ -641,6 +697,14 @@ function MainApp() {
             setIsEmergencyBannerDismissed(false);
             handleNavigate('emergency');
           }}
+        />
+
+        {/* Tour Guiado Interactivo con Focos / Spotlight (Opción 2) */}
+        <SpotlightTourModal
+          visible={showSpotlightTour}
+          onClose={handleCloseTour}
+          fontScale={fontScale}
+          targetLayouts={tourTargetLayouts}
         />
 
       </View>
