@@ -91,6 +91,8 @@ export default function EmergencyScreen({
   const [alertPhoto, setAlertPhoto] = useState(null);
   const [alertNotes, setAlertNotes] = useState('');
   const [radarFilter, setRadarFilter] = useState('all'); // 'all' | 'in_radar' (<=5km) | 'wave1' (<=500m)
+  const [isAlertsDropdownOpen, setIsAlertsDropdownOpen] = useState(false);
+  const [isTab1DropdownOpen, setIsTab1DropdownOpen] = useState(false);
 
   // Estados de Evidencias / Reportes Comunitarios en Vivo
   const [communityReports, setCommunityReports] = useState([]);
@@ -759,6 +761,13 @@ export default function EmergencyScreen({
     return true; // 'all'
   });
 
+  const activeDist = activeEmergency
+    ? (typeof activeEmergency.distance_m === 'number'
+        ? activeEmergency.distance_m
+        : calculateDistanceMeters(userCoords.lat, userCoords.lng, activeEmergency.latitude, activeEmergency.longitude))
+    : 45;
+  const activeRadarTier = getRadarTier(activeDist);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} bounces={false}>
       {/* Selector de pestañas: 'alert' (Emitir Alerta) o 'map' (Mapa & Brigada) */}
@@ -830,87 +839,154 @@ export default function EmergencyScreen({
             </View>
           </View>
 
-          {/* Carrusel de Emergencias Vecinales Activas */}
+          {/* Selector Desplegable de Emergencias Vecinales Activas */}
           {activeEmergenciesList.length > 0 && (
             <View style={styles.activeAlertsWrapper}>
-              <View style={styles.alertListHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={styles.blinkingRedDot} />
-                  <Text style={[styles.alertListTitle, { fontSize: scale(13) }]}>
-                    Emergencias Reportadas ({activeEmergenciesList.length})
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => setActiveTab('map')} style={styles.seeMapQuickBtn}>
-                  <Text style={styles.seeMapQuickBtnText}>Ver Radar 5km ›</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={[styles.alertListSub, { fontSize: scale(11) }]}>
-                Toca cualquier alerta para ver su perímetro satelital, sumarte a su auxilio o subir fotos:
-              </Text>
-
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.alertsCarousel}
+              <TouchableOpacity
+                style={styles.dropdownSelectorHeader}
+                activeOpacity={0.85}
+                onPress={() => setIsTab1DropdownOpen(!isTab1DropdownOpen)}
               >
-                {activeEmergenciesList.map((emg) => {
-                  const isSelected = activeEmergency && String(activeEmergency.id) === String(emg.id);
-                  const icon = getEmgIcon(emg.type);
-                  const bgColor = getEmgBgColor(emg.type);
-                  const dist = typeof emg.distance_m === 'number'
-                    ? emg.distance_m
-                    : calculateDistanceMeters(userCoords.lat, userCoords.lng, emg.latitude, emg.longitude);
-                  const radarInfo = getRadarTier(dist);
-
-                  return (
+                <View style={styles.dropdownTopRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <View style={styles.blinkingRedDot} />
+                    <Text style={[styles.alertListTitle, { fontSize: scale(13) }]}>
+                      Emergencias Reportadas ({activeEmergenciesList.length})
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <TouchableOpacity
-                      key={emg.id}
-                      style={[
-                        styles.alertCarouselCard,
-                        isSelected && styles.alertCarouselCardSelected
-                      ]}
-                      activeOpacity={0.85}
-                      onPress={() => {
-                        setActiveEmergency(emg);
-                        loadVolunteersForEmergency(emg.id);
-                        loadCommunityReports(emg.id);
+                      onPress={(e) => {
+                        e.stopPropagation?.();
                         setActiveTab('map');
                       }}
+                      style={styles.seeMapQuickBtn}
                     >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                        <View style={[styles.emgIconCircle, { backgroundColor: bgColor }]}>
-                          <Text style={{ fontSize: 18 }}>{icon}</Text>
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 8 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text
-                              style={[styles.alertItemTitle, isSelected && styles.alertItemTitleSelected, { fontSize: scale(12) }]}
-                              numberOfLines={1}
-                            >
-                              {emg.title}
-                            </Text>
-                            {isEmergencyOwner(emg) && (
-                              <View style={styles.myBadge}>
-                                <Text style={styles.myBadgeText}>MÍA</Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text style={[styles.alertItemSub, { fontSize: scale(10.5) }]} numberOfLines={1}>
-                            📍 {emg.location || 'Zona A'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Pill de Onda de Radar Concéntrico */}
-                      <View style={[styles.radarPill, { backgroundColor: radarInfo.bg }]}>
-                        <Text style={[styles.radarPillText, { color: radarInfo.color }]}>
-                          {radarInfo.label} • {radarInfo.text}
-                        </Text>
-                      </View>
+                      <Text style={styles.seeMapQuickBtnText}>Ver Radar 5km ›</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                    <View style={styles.dropdownToggleBadge}>
+                      <Text style={styles.dropdownToggleText}>
+                        {isTab1DropdownOpen ? 'Ocultar ▲' : 'Ver lista ▼'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {activeEmergency && (
+                  <View style={styles.dropdownActiveItemPreview}>
+                    <View style={[styles.emgIconCircleSmall, { backgroundColor: getEmgBgColor(activeEmergency.type) }]}>
+                      <Text style={{ fontSize: 14 }}>{getEmgIcon(activeEmergency.type)}</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={[styles.dropdownActiveTitle, { fontSize: scale(12) }]} numberOfLines={1}>
+                        {activeEmergency.title}
+                      </Text>
+                      <Text style={[styles.dropdownActiveSub, { fontSize: scale(10) }]} numberOfLines={1}>
+                        📍 {activeEmergency.location || userCoords.zone}
+                      </Text>
+                    </View>
+                    <View style={[styles.radarPillSmall, { backgroundColor: activeRadarTier.bg }]}>
+                      <Text style={[styles.radarPillSmallText, { color: activeRadarTier.color }]}>
+                        {activeRadarTier.label} ({activeRadarTier.text})
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {isTab1DropdownOpen && (
+                <View style={styles.dropdownMenuContainer}>
+                  <View style={styles.dropdownMenuHeader}>
+                    <Text style={[styles.dropdownMenuHint, { fontSize: scale(10.5) }]}>
+                      Toca cualquier alerta para ver su perímetro satelital, sumarte o coordinar auxilio:
+                    </Text>
+                  </View>
+                  <ScrollView
+                    style={{ maxHeight: 240 }}
+                    nestedScrollEnabled={true}
+                    showsVerticalScrollIndicator={true}
+                  >
+                    {activeEmergenciesList.map((emg) => {
+                      const isSelected = activeEmergency && String(activeEmergency.id) === String(emg.id);
+                      const icon = getEmgIcon(emg.type);
+                      const bgColor = getEmgBgColor(emg.type);
+                      const dist = typeof emg.distance_m === 'number'
+                        ? emg.distance_m
+                        : calculateDistanceMeters(userCoords.lat, userCoords.lng, emg.latitude, emg.longitude);
+                      const radarInfo = getRadarTier(dist);
+
+                      return (
+                        <TouchableOpacity
+                          key={emg.id}
+                          style={[
+                            styles.dropdownItemRow,
+                            isSelected && styles.dropdownItemRowSelected
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setActiveEmergency(emg);
+                            loadVolunteersForEmergency(emg.id);
+                            loadCommunityReports(emg.id);
+                            setIsTab1DropdownOpen(false);
+                            setActiveTab('map');
+                          }}
+                        >
+                          <View style={[styles.emgIconCircleSmall, { backgroundColor: bgColor }]}>
+                            <Text style={{ fontSize: 16 }}>{icon}</Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Text
+                                style={[
+                                  styles.dropdownItemTitle,
+                                  isSelected && styles.dropdownItemTitleSelected,
+                                  { fontSize: scale(11.5) }
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {emg.title}
+                              </Text>
+                              {isEmergencyOwner(emg) && (
+                                <View style={styles.myBadgeSmall}>
+                                  <Text style={styles.myBadgeTextSmall}>MÍA</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={[styles.dropdownItemSub, { fontSize: scale(10) }]} numberOfLines={1}>
+                              📍 {emg.location || 'Zona A'}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 }}>
+                              <View style={[styles.radarPillSmall, { backgroundColor: radarInfo.bg }]}>
+                                <Text style={[styles.radarPillSmallText, { color: radarInfo.color }]}>
+                                  {radarInfo.label} ({radarInfo.text})
+                                </Text>
+                              </View>
+                              {isSelected && (
+                                <View style={styles.selectedIndicatorBadge}>
+                                  <Ionicons name="checkmark-circle" size={12} color="#dc2626" />
+                                  <Text style={styles.selectedIndicatorText}>Seleccionada</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                          <Ionicons
+                            name={isSelected ? "radio-button-on" : "radio-button-off"}
+                            size={18}
+                            color={isSelected ? "#dc2626" : "#94a3b8"}
+                          />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  <TouchableOpacity
+                    style={styles.dropdownCloseBtn}
+                    onPress={() => setIsTab1DropdownOpen(false)}
+                  >
+                    <Ionicons name="chevron-up" size={14} color="#64748b" />
+                    <Text style={styles.dropdownCloseBtnText}>Cerrar lista desplegable</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
 
@@ -1151,64 +1227,150 @@ export default function EmergencyScreen({
             </TouchableOpacity>
           </View>
 
-          {/* Carrusel horizontal para cambiar entre emergencias */}
+          {/* Selector Desplegable de Alertas en Seguimiento */}
           {filteredEmergencies.length > 0 && (
             <View style={{ marginBottom: 12 }}>
-              <View style={styles.alertListHeader}>
-                <Text style={[styles.alertListTitle, { fontSize: scale(13) }]}>
-                  🚨 Alertas en Seguimiento ({filteredEmergencies.length})
-                </Text>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 4, gap: 8, paddingVertical: 4 }}
+              <TouchableOpacity
+                style={styles.dropdownSelectorHeader}
+                activeOpacity={0.85}
+                onPress={() => setIsAlertsDropdownOpen(!isAlertsDropdownOpen)}
               >
-                {filteredEmergencies.map((emg) => {
-                  const isSelected = activeEmergency && String(activeEmergency.id) === String(emg.id);
-                  const dist = typeof emg.distance_m === 'number'
-                    ? emg.distance_m
-                    : calculateDistanceMeters(userCoords.lat, userCoords.lng, emg.latitude, emg.longitude);
-                  const tier = getRadarTier(dist);
+                <View style={styles.dropdownTopRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <Text style={{ fontSize: 16 }}>🚨</Text>
+                    <Text style={[styles.alertListTitle, { fontSize: scale(13) }]}>
+                      Alertas en Seguimiento ({filteredEmergencies.length})
+                    </Text>
+                  </View>
+                  <View style={styles.dropdownToggleBadge}>
+                    <Text style={styles.dropdownToggleText}>
+                      {isAlertsDropdownOpen ? 'Cerrar' : 'Cambiar'}
+                    </Text>
+                    <Ionicons
+                      name={isAlertsDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                      size={14}
+                      color="#dc2626"
+                      style={{ marginLeft: 3 }}
+                    />
+                  </View>
+                </View>
 
-                  return (
-                    <TouchableOpacity
-                      key={emg.id}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 7,
-                        borderRadius: 10,
-                        backgroundColor: isSelected ? '#fee2e2' : '#f8fafc',
-                        borderWidth: 1.5,
-                        borderColor: isSelected ? '#dc2626' : '#cbd5e1',
-                        minWidth: 130
-                      }}
-                      onPress={() => {
-                        setActiveEmergency(emg);
-                        loadVolunteersForEmergency(emg.id);
-                        loadCommunityReports(emg.id);
-                      }}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={{ fontSize: 13 }}>{getEmgIcon(emg.type)}</Text>
-                        <Text
-                          style={{
-                            fontWeight: isSelected ? '800' : '600',
-                            fontSize: scale(11),
-                            color: isSelected ? '#991b1b' : '#334155'
-                          }}
-                          numberOfLines={1}
-                        >
-                          {emg.title}
-                        </Text>
-                      </View>
-                      <Text style={{ fontSize: 9.5, color: tier.color, fontWeight: '700', marginTop: 2 }}>
-                        {tier.label}
+                {/* Vista previa de la alerta activa en seguimiento */}
+                {activeEmergency && (
+                  <View style={styles.dropdownActiveItemPreview}>
+                    <View style={[styles.emgIconCircleSmall, { backgroundColor: getEmgBgColor(activeEmergency.type) }]}>
+                      <Text style={{ fontSize: 14 }}>{getEmgIcon(activeEmergency.type)}</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={[styles.dropdownActiveTitle, { fontSize: scale(12) }]} numberOfLines={1}>
+                        {activeEmergency.title}
                       </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                      <Text style={[styles.dropdownActiveSub, { fontSize: scale(10) }]} numberOfLines={1}>
+                        📍 {activeEmergency.location || userCoords.zone}
+                      </Text>
+                    </View>
+                    <View style={[styles.radarPillSmall, { backgroundColor: activeRadarTier.bg }]}>
+                      <Text style={[styles.radarPillSmallText, { color: activeRadarTier.color }]}>
+                        {activeRadarTier.label} ({activeRadarTier.text})
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Lista Desplegable Vertical de Alertas */}
+              {isAlertsDropdownOpen && (
+                <View style={styles.dropdownMenuContainer}>
+                  <View style={styles.dropdownMenuHeader}>
+                    <Text style={[styles.dropdownMenuHint, { fontSize: scale(10.5) }]}>
+                      Toca cualquier alerta para centrar el radar satelital y coordinar auxilio:
+                    </Text>
+                  </View>
+                  <ScrollView
+                    style={{ maxHeight: 260 }}
+                    nestedScrollEnabled={true}
+                    showsVerticalScrollIndicator={true}
+                  >
+                    {filteredEmergencies.map((emg) => {
+                      const isSelected = activeEmergency && String(activeEmergency.id) === String(emg.id);
+                      const icon = getEmgIcon(emg.type);
+                      const bgColor = getEmgBgColor(emg.type);
+                      const dist = typeof emg.distance_m === 'number'
+                        ? emg.distance_m
+                        : calculateDistanceMeters(userCoords.lat, userCoords.lng, emg.latitude, emg.longitude);
+                      const tier = getRadarTier(dist);
+
+                      return (
+                        <TouchableOpacity
+                          key={emg.id}
+                          style={[
+                            styles.dropdownItemRow,
+                            isSelected && styles.dropdownItemRowSelected
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setActiveEmergency(emg);
+                            loadVolunteersForEmergency(emg.id);
+                            loadCommunityReports(emg.id);
+                            setIsAlertsDropdownOpen(false);
+                          }}
+                        >
+                          <View style={[styles.emgIconCircleSmall, { backgroundColor: bgColor }]}>
+                            <Text style={{ fontSize: 16 }}>{icon}</Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10, marginRight: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Text
+                                style={[
+                                  styles.dropdownItemTitle,
+                                  isSelected && styles.dropdownItemTitleSelected,
+                                  { fontSize: scale(11.5) }
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {emg.title}
+                              </Text>
+                              {isEmergencyOwner(emg) && (
+                                <View style={styles.myBadgeSmall}>
+                                  <Text style={styles.myBadgeTextSmall}>MÍA</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={[styles.dropdownItemSub, { fontSize: scale(10) }]} numberOfLines={1}>
+                              📍 {emg.location || 'Zona vecinal'}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 }}>
+                              <View style={[styles.radarPillSmall, { backgroundColor: tier.bg }]}>
+                                <Text style={[styles.radarPillSmallText, { color: tier.color }]}>
+                                  {tier.label} ({tier.text})
+                                </Text>
+                              </View>
+                              {isSelected && (
+                                <View style={styles.selectedIndicatorBadge}>
+                                  <Ionicons name="checkmark-circle" size={12} color="#dc2626" />
+                                  <Text style={styles.selectedIndicatorText}>En radar</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                          <Ionicons
+                            name={isSelected ? "radio-button-on" : "radio-button-off"}
+                            size={18}
+                            color={isSelected ? "#dc2626" : "#94a3b8"}
+                          />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  <TouchableOpacity
+                    style={styles.dropdownCloseBtn}
+                    onPress={() => setIsAlertsDropdownOpen(false)}
+                  >
+                    <Ionicons name="chevron-up" size={14} color="#64748b" />
+                    <Text style={styles.dropdownCloseBtnText}>Cerrar lista desplegable</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
 
@@ -1635,6 +1797,161 @@ const styles = StyleSheet.create({
   alertListSub: {
     color: '#64748b',
     marginBottom: 8
+  },
+  dropdownSelectorHeader: {
+    backgroundColor: '#fff5f5',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#fca5a5',
+    padding: 10,
+    marginBottom: 6,
+  },
+  dropdownTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownTitleText: {
+    fontWeight: '800',
+    color: '#991b1b',
+  },
+  dropdownToggleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  dropdownToggleText: {
+    color: '#b91c1c',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  dropdownActiveItemPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#fed7d7',
+  },
+  dropdownActiveTitle: {
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  dropdownActiveSub: {
+    color: '#64748b',
+    marginTop: 1,
+  },
+  dropdownMenuContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    padding: 10,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dropdownMenuHeader: {
+    marginBottom: 8,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  dropdownMenuHint: {
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  dropdownItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 9,
+    marginBottom: 6,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  dropdownItemRowSelected: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#dc2626',
+  },
+  dropdownItemTitle: {
+    fontWeight: '700',
+    color: '#334155',
+  },
+  dropdownItemTitleSelected: {
+    color: '#991b1b',
+    fontWeight: '800',
+  },
+  dropdownItemSub: {
+    color: '#64748b',
+    marginTop: 1,
+  },
+  selectedIndicatorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  selectedIndicatorText: {
+    color: '#dc2626',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  dropdownCloseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    gap: 4,
+  },
+  dropdownCloseBtnText: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '700',
+  },
+  radarPillSmall: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  radarPillSmallText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  emgIconCircleSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  myBadgeSmall: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  myBadgeTextSmall: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
   },
   alertsCarousel: {
     gap: 8,
