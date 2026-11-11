@@ -18,6 +18,7 @@ import { getOrDetectUserLocation } from '../services/locationService';
 
 export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat, onOpenDetail, userProfile, initialSearch = "" }) {
   const { user, profile } = useAuth();
+  const activeProfile = userProfile || profile;
   const [categories, setCategories] = useState([
     { id: 'all', name: 'Todos', icon: '▦' }
   ]);
@@ -26,6 +27,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
   const [searchQuery, setSearchQuery] = useState('');
   const [services, setServices] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [expansionLabel, setExpansionLabel] = useState('Búsqueda por proximidad progresiva');
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
   const debounceRef = useRef(null);
@@ -33,10 +35,10 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
   const scale = (val) => Math.round(val * fontScale);
 
   useEffect(() => {
-    getOrDetectUserLocation().then((loc) => {
+    getOrDetectUserLocation(false, activeProfile).then((loc) => {
       if (loc) setUserLocation(loc);
     }).catch(() => {});
-  }, []);
+  }, [activeProfile?.latitude, activeProfile?.longitude]);
 
   useEffect(() => {
     if (initialSearch) {
@@ -51,7 +53,7 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
 
   useEffect(() => {
     loadServices();
-  }, [activeCategory, filterType, userLocation]);
+  }, [activeCategory, filterType, userLocation, activeProfile?.latitude, activeProfile?.longitude]);
 
   const loadCategories = async () => {
     try {
@@ -80,11 +82,14 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
       else if (filterType === 'recommended') sort = 'recommended';
       else if (filterType === 'promos') sort = 'relevance';
 
+      const effectiveLat = userLocation?.latitude || activeProfile?.latitude || -16.397650;
+      const effectiveLon = userLocation?.longitude || activeProfile?.longitude || -71.536120;
+
       const res = await api.searchServices({
         q: searchTerm?.trim() || null,
         category_id: activeCategory !== 'all' ? activeCategory : null,
-        latitude: userLocation?.latitude || null,
-        longitude: userLocation?.longitude || null,
+        latitude: effectiveLat,
+        longitude: effectiveLon,
         sort,
         page: 1,
         page_size: 30
@@ -93,6 +98,9 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
       if (res && Array.isArray(res.items)) {
         setServices(res.items);
         setTotalCount(res.meta?.total ?? res.items.length);
+        if (res.location_applied?.expansion_label) {
+          setExpansionLabel(res.location_applied.expansion_label);
+        }
       } else {
         const fallback = await api.getServices({
           q: searchTerm,
@@ -295,11 +303,11 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
           <MaterialCommunityIcons name="radar" size={24} color="#0d9488" />
         </View>
         <View style={styles.radarDetails}>
-          <Text style={[styles.radarTitle, { fontSize: scale(12) }]}>Radar Barrial VeciRed</Text>
+          <Text style={[styles.radarTitle, { fontSize: scale(12) }]}>Radar Barrial Progresivo</Text>
           <Text style={[styles.radarSub, { fontSize: scale(11) }]}>
-            {totalCount} oficios y servicios disponibles en Mz 2 (Zona A)
+            {expansionLabel} ({totalCount} disponibles)
           </Text>
-          <Text style={[styles.radarNumber, { fontSize: scale(10) }]}>Red Vecinal Activa • Zona A</Text>
+          <Text style={[styles.radarNumber, { fontSize: scale(10) }]}>Red Vecinal Activa • Radio hasta 10 km</Text>
         </View>
         <TouchableOpacity
           style={styles.radarPublishBtn}
@@ -330,10 +338,10 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
         <View style={styles.emptyContainer}>
           <Text style={{ fontSize: 36, marginBottom: 8 }}>🏪</Text>
           <Text style={[styles.emptyTitle, { fontSize: scale(14) }]}>
-            No hay servicios en esta sección
+            No se encontraron servicios cercanos
           </Text>
           <Text style={[styles.emptySub, { fontSize: scale(12) }]}>
-            Aún no hay publicaciones en la base de datos para esta búsqueda. ¡Sé el primero en ofrecer un servicio para tus vecinos!
+            No encontramos oficios ni servicios dentro del radio de 10 km para esta búsqueda. ¡Sé el primero en ofrecer un servicio para tus vecinos!
           </Text>
           <TouchableOpacity
             style={styles.emptyPublishBtn}
@@ -417,6 +425,15 @@ export default function ServicesScreen({ onNavigate, fontScale = 1.0, onOpenChat
               <Text style={[styles.serviceDescription, { fontSize: scale(12) }]} numberOfLines={2}>
                 {service.description}
               </Text>
+            ) : null}
+
+            {service.proximity_label ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdfa', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start', marginTop: 6, marginBottom: 2, borderWidth: 1, borderColor: '#ccfbf1' }}>
+                <Ionicons name="navigate-circle-outline" size={13} color="#0d9488" style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: scale(10), color: '#0f766e', fontWeight: '600' }}>
+                  {service.proximity_label}
+                </Text>
+              </View>
             ) : null}
 
             <View style={styles.serviceItemBottom}>

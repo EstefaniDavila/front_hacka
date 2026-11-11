@@ -1,7 +1,7 @@
 // ==========================================================
 // VECIRED IA - SERVICIO DE UBICACIÓN GPS Y CALIBRACIÓN PRECISA
 // ==========================================================
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './safeStorage';
 import * as Location from 'expo-location';
 import { Alert, Linking, Platform } from 'react-native';
 
@@ -294,12 +294,43 @@ export async function reverseGeocodeCoords(latitude, longitude) {
   };
 }
 
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const R = 6371;
+  const dLat = ((Number(lat2) - Number(lat1)) * Math.PI) / 180;
+  const dLon = ((Number(lon2) - Number(lon1)) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((Number(lat1) * Math.PI) / 180) *
+      Math.cos((Number(lat2) * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 /**
- * Función principal que detecta y retorna la ubicación real en vivo del usuario.
- * Prioriza calibración manual guardada a menos que se fuerce refresco.
+ * Función principal que detecta y retorna la ubicación real de búsqueda del usuario
+ * respetando la jerarquía estricta de prioridad comunitaria:
+ * 1. Calibración manual guardada por el usuario (si existe).
+ * 2. GPS real del dispositivo (si está disponible y en proximidad al vecindario o sin dirección previa).
+ * 3. Si el GPS está fuera de rango (>10 km de su comunidad) o no está disponible,
+ *    utilizar la dirección principal registrada (profile.latitude, profile.longitude).
+ * 4. Si está offline, utilizar las coordenadas guardadas en almacenamiento local persistente.
+ * 5. Fallback canónico de la comunidad en Arequipa (-16.397650, -71.536120) para evitar nulos.
  */
-export async function getOrDetectUserLocation(forceRefresh = false) {
-  // 1. Si no es refresco forzado, revisar primero si el usuario ya calibró manualmente su posición
+export async function getOrDetectUserLocation(arg1 = false, arg2 = null) {
+  let forceRefresh = false;
+  let userProfile = null;
+  if (typeof arg1 === 'boolean') {
+    forceRefresh = arg1;
+    userProfile = arg2;
+  } else if (arg1 && typeof arg1 === 'object') {
+    userProfile = arg1;
+    forceRefresh = Boolean(arg2);
+  }
+
+  // 1. Revisar calibración manual explícita
   if (!forceRefresh) {
     const calibrated = await getCalibratedUserLocation();
     if (calibrated && calibrated.latitude && calibrated.longitude) {
@@ -321,33 +352,103 @@ export async function getOrDetectUserLocation(forceRefresh = false) {
     } catch (_) {}
   }
 
-  // 2. Detectar GPS real con alta precisión y solicitud de permisos
-  const gps = await getRawGpsPosition(8000, forceRefresh);
-  if (!gps) {
-    const calibrated = await getCalibratedUserLocation();
-    if (calibrated) return calibrated;
+  // 2. Intentar detección GPS real fresca con timeout corto (4.5s)
+  const gps = await getRawGpsPosition(4500, forceRefresh);
+  const hasProfileCoords = userProfile?.latitude != null && userProfile?.longitude != null;
 
+  if (gps && typeof gps.latitude === 'number' && typeof gps.longitude === 'number') {
+    // Si el usuario tiene una dirección comunitaria registrada, evaluar coherencia geográfica
+    if (hasProfileCoords) {
+      const distFromRegistered = getDistanceKm(
+        gps.latitude,
+        gps.longitude,
+        userProfile.latitude,
+        userProfile.longitude
+      );
+
+      // Si el GPS del dispositivo está a más de 10 km (ej. tester en Lima o emulador fuera de Arequipa),
+      // priorizar la dirección principal declarada para no dejar la pantalla vacía sin resultados
+      if (distFromRegistered != null && distFromRegistered > 10.0) {
+        const declaredLocation = {
+          latitude: Number(userProfile.latitude),
+          longitude: Number(userProfile.longitude),
+          street: userProfile.street_address || userProfile.address || 'Calle San Francisco 214',
+          district: userProfile.district_name || 'Cercado',
+          city: 'Arequipa',
+          department: 'Arequipa',
+          fullAddress: userProfile.street_address || userProfile.address || 'Calle San Francisco 214, Cercado, Arequipa',
+          zone: `${userProfile.district_name || 'Cercado'} • Dirección declarada`,
+          accuracy: 5,
+          source: 'declared_primary_address',
+          isDeclaredAddress: true,
+          detectedAt: Date.now()
+        };
+        try {
+          await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(declaredLocation));
+        } catch (_) {}
+        return declaredLocation;
+      }
+    }
+
+    // El GPS es válido y está dentro del ámbito comunal
+    const geocoded = await reverseGeocodeCoords(gps.latitude, gps.longitude);
+    const result = {
+      ...geocoded,
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      accuracy: gps.accuracy,
+      source: 'device_gps',
+      detectedAt: Date.now()
+    };
     try {
-      const cached = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
-      if (cached) return JSON.parse(cached);
+      await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(result));
     } catch (_) {}
-    return null;
+    return result;
   }
 
-  // 3. Geocodificar la dirección física
-  const geocoded = await reverseGeocodeCoords(gps.latitude, gps.longitude);
-  const result = {
-    ...geocoded,
-    accuracy: gps.accuracy,
-    detectedAt: Date.now()
-  };
+  // 3. Fallback a la dirección principal registrada si el GPS no está disponible o fue denegado
+  if (hasProfileCoords) {
+    const declaredLocation = {
+      latitude: Number(userProfile.latitude),
+      longitude: Number(userProfile.longitude),
+      street: userProfile.street_address || userProfile.address || 'Calle San Francisco 214',
+      district: userProfile.district_name || 'Cercado',
+      city: 'Arequipa',
+      department: 'Arequipa',
+      fullAddress: userProfile.street_address || userProfile.address || 'Calle San Francisco 214, Cercado, Arequipa',
+      zone: `${userProfile.district_name || 'Cercado'} • Dirección declarada`,
+      accuracy: 10,
+      source: 'declared_primary_address',
+      isDeclaredAddress: true,
+      detectedAt: Date.now()
+    };
+    try {
+      await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(declaredLocation));
+    } catch (_) {}
+    return declaredLocation;
+  }
 
-  // 4. Guardar en caché persistente
+  // 4. Fallback a caché persistente
   try {
-    await AsyncStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(result));
+    const cached = await AsyncStorage.getItem(LOCATION_STORAGE_KEY);
+    if (cached) return JSON.parse(cached);
   } catch (_) {}
 
-  return result;
+  // 5. Fallback canónico de la comunidad en Arequipa para jamás enviar nulo
+  const fallbackAqp = {
+    latitude: -16.397650,
+    longitude: -71.536120,
+    street: 'Calle San Francisco 214',
+    district: 'Cercado',
+    city: 'Arequipa',
+    department: 'Arequipa',
+    fullAddress: 'Calle San Francisco 214, Cercado, Arequipa',
+    zone: 'Cercado • Manzana comunal',
+    accuracy: 25,
+    source: 'community_default',
+    detectedAt: Date.now()
+  };
+  return fallbackAqp;
 }
 
 export default {

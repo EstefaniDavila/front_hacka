@@ -17,10 +17,12 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { getOrDetectUserLocation } from '../services/locationService';
+import { useAuth } from '../context/AuthContext';
 import GlobalSearchModal from '../components/GlobalSearchModal';
 import SearchResultCard from '../components/SearchResultCard';
 
 export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }) {
+  const { profile } = useAuth();
   const scale = (val) => Math.round(val * fontScale);
   const [recommendedServices, setRecommendedServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(true);
@@ -34,28 +36,66 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
 
   useEffect(() => {
     loadRecommended();
-  }, []);
+  }, [profile?.latitude, profile?.longitude]);
 
   const loadRecommended = async () => {
     try {
       setLoadingServices(true);
-      const loc = await getOrDetectUserLocation().catch(() => null);
+      const loc = await getOrDetectUserLocation(false, profile).catch(() => null);
       if (loc) setUserLocation(loc);
 
+      const effectiveLat = loc?.latitude || profile?.latitude || -16.397650;
+      const effectiveLon = loc?.longitude || profile?.longitude || -71.536120;
+
       // Consumir el motor de búsqueda inteligente con ranking multidimensional y proximidad
+      // Excluye estrictamente emergencias activas (las cuales tienen su módulo SOS propio en Home)
       const res = await api.searchGlobal({
         sort: 'recommended',
-        page_size: 6,
-        latitude: loc?.latitude || null,
-        longitude: loc?.longitude || null,
+        page_size: 8,
+        latitude: effectiveLat,
+        longitude: effectiveLon,
+        include_emergencies: false,
+        modules: 'services,products,solidarity',
       });
 
-      if (res && Array.isArray(res.items) && res.items.length > 0) {
-        setRecommendedServices(res.items.slice(0, 4));
+      const cleanItems = (res?.items || []).filter(item => item && item.module !== 'emergencies');
+
+      if (cleanItems.length > 0) {
+        setRecommendedServices(cleanItems.slice(0, 4));
       } else {
-        // Fallback secundario si la base de datos está vacía en búsqueda
-        const fallback = await api.getServices({ sort_by: 'rating', limit: 4 }).catch(() => ({ items: [] }));
-        setRecommendedServices(fallback?.items || []);
+        // Fallback secundario de alta proximidad por si la búsqueda global no arrojó resultados
+        const fallback = await api.searchServices({
+          sort: 'recommended',
+          latitude: effectiveLat,
+          longitude: effectiveLon,
+          page_size: 4,
+        }).catch(() => null);
+
+        if (fallback && Array.isArray(fallback.items) && fallback.items.length > 0) {
+          const mappedFallback = fallback.items.map(s => ({
+            id: s.id,
+            module: 'services',
+            title: s.title,
+            subtitle: s.provider_name,
+            description: s.description,
+            category: s.category_name,
+            icon: s.category_icon || '🛠️',
+            badge: s.is_verified ? 'Verificado' : (s.is_new ? 'Nuevo' : null),
+            price_label: s.price_from ? `S/ ${s.price_from}${s.price_unit ? ` /${s.price_unit}` : ''}` : 'A cotizar',
+            distance_km: s.distance_km,
+            distance_meters: s.distance_meters,
+            proximity_tier: s.proximity_tier,
+            proximity_label: s.proximity_label,
+            location_label: s.district_name || s.community_name,
+            rating: s.rating_avg && s.reviews_count > 0 ? s.rating_avg : null,
+            reviews_count: s.reviews_count,
+            score: s.score,
+            ranking_score: s.ranking_score,
+          }));
+          setRecommendedServices(mappedFallback.slice(0, 4));
+        } else {
+          setRecommendedServices([]);
+        }
       }
     } catch (err) {
       console.warn('[HomeScreen] Error al cargar recomendados:', err);
@@ -365,10 +405,10 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail }
         <View style={styles.emptyFeaturedCard}>
           <Text style={{ fontSize: 32, marginBottom: 8 }}>🏘️</Text>
           <Text style={[styles.emptyFeaturedTitle, { fontSize: scale(13) }]}>
-            Aún no hay publicaciones en tu manzana
+            Aún no hay publicaciones en tu radio cercano (hasta 10 km)
           </Text>
           <Text style={[styles.emptyFeaturedSub, { fontSize: scale(11) }]}>
-            Sé el primero en ofrecer tu talento o emprendimiento a tus vecinos de Zona A.
+            Sé el primero en ofrecer tu talento o emprendimiento a tus vecinos de la comunidad.
           </Text>
           <TouchableOpacity
             style={styles.emptyFeaturedBtn}

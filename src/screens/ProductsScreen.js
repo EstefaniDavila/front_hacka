@@ -36,13 +36,14 @@ export default function ProductsScreen({
   ]);
 
   const [productsList, setProductsList] = useState([]);
+  const [expansionLabel, setExpansionLabel] = useState('Búsqueda por proximidad progresiva');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getOrDetectUserLocation().then((loc) => {
+    getOrDetectUserLocation(false, profile).then((loc) => {
       if (loc) setUserLocation(loc);
     }).catch(() => {});
-  }, []);
+  }, [profile?.latitude, profile?.longitude]);
 
   useEffect(() => {
     loadCategories();
@@ -50,7 +51,7 @@ export default function ProductsScreen({
 
   useEffect(() => {
     loadProducts();
-  }, [activeCategory, userLocation]);
+  }, [activeCategory, userLocation, profile?.latitude, profile?.longitude]);
 
   const loadCategories = async () => {
     try {
@@ -96,17 +97,23 @@ export default function ProductsScreen({
   const loadProducts = async (searchTerm = searchQuery) => {
     setLoading(true);
     try {
+      const effectiveLat = userLocation?.latitude || profile?.latitude || -16.397650;
+      const effectiveLon = userLocation?.longitude || profile?.longitude || -71.536120;
+
       // Consumir el endpoint especializado de búsqueda geolocalizada de productos
       const res = await api.searchProducts({
         q: searchTerm?.trim() || null,
-        latitude: userLocation?.latitude || null,
-        longitude: userLocation?.longitude || null,
+        latitude: effectiveLat,
+        longitude: effectiveLon,
         sort: 'recommended',
         page: 1,
         page_size: 40
       });
 
       if (res && Array.isArray(res.items)) {
+        if (res.location_applied?.expansion_label) {
+          setExpansionLabel(res.location_applied.expansion_label);
+        }
         const filtered = res.items.filter((prod) => {
           const cat = prod.category || prod.category_name;
           return activeCategory === 'all' || cat === activeCategory;
@@ -236,10 +243,10 @@ export default function ProductsScreen({
         <View style={styles.emptyContainer}>
           <MaterialCommunityIcons name="basket-outline" size={44} color="#94a3b8" style={{ marginBottom: 8 }} />
           <Text style={[styles.emptyTitle, { fontSize: scale(15) }]}>
-            Aún no hay productos en tu manzana
+            No se encontraron productos cercanos
           </Text>
           <Text style={[styles.emptySub, { fontSize: scale(11) }]}>
-            ¡Sé el primero en ofrecer productos caseros, panadería o abarrotes a tus vecinos!
+            No encontramos productos dentro del radio de 10 km para esta búsqueda. ¡Sé el primero en ofrecer productos caseros a tus vecinos!
           </Text>
           <TouchableOpacity
             style={styles.emptyPublishBtn}
@@ -330,11 +337,13 @@ export default function ProductsScreen({
                   </View>
                 </View>
 
-                {/* Ubicación y Distancia */}
+                {/* Ubicación y Distancia Progresiva */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
                   <Ionicons name="location-sharp" size={11} color="#0d9488" style={{ marginRight: 2 }} />
                   <Text style={[styles.locationText, { fontSize: scale(9) }]}>
-                    {prod.block_code || 'Zona A'} • a {prod.distance_m || 100} m
+                    {prod.proximity_label || (prod.distance_meters != null
+                      ? (prod.distance_meters < 1000 ? `${Math.round(prod.distance_meters)} m` : `${(prod.distance_meters / 1000).toFixed(1)} km`)
+                      : (prod.district_name || 'Comunidad Vecinal'))}
                   </Text>
                 </View>
 

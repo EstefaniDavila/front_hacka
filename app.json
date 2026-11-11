@@ -44,7 +44,8 @@
           "locationAlwaysAndWhenInUsePermission": "Permite a VeciRed IA acceder a tu ubicación para registrar tu domicilio de residencia actual.",
           "locationWhenInUsePermission": "Permite a VeciRed IA acceder a tu ubicación para registrar tu domicilio de residencia actual."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

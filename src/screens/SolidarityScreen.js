@@ -14,6 +14,7 @@ import {
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
 import { getOrDetectUserLocation } from '../services/locationService';
+import { useAuth } from '../context/AuthContext';
 import { mockSolidarityPosts } from '../data/mockData';
 
 export default function SolidarityScreen({
@@ -23,6 +24,7 @@ export default function SolidarityScreen({
   onIncrementHelped,
   onOpenChat
 }) {
+  const { profile } = useAuth();
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedPost, setSelectedPost] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -33,20 +35,23 @@ export default function SolidarityScreen({
   const [postsList, setPostsList] = useState([]);
 
   useEffect(() => {
-    getOrDetectUserLocation().then((loc) => {
+    getOrDetectUserLocation(false, profile).then((loc) => {
       if (loc) setUserLocation(loc);
     }).catch(() => {});
-  }, []);
+  }, [profile?.latitude, profile?.longitude]);
 
   useEffect(() => {
     loadPosts();
-  }, [activeCategory, userLocation]);
+  }, [activeCategory, userLocation, profile?.latitude, profile?.longitude]);
 
   const loadPosts = async () => {
     try {
+      const effectiveLat = userLocation?.latitude || profile?.latitude || -16.397650;
+      const effectiveLon = userLocation?.longitude || profile?.longitude || -71.536120;
+
       const res = await api.searchSolidarity({
-        latitude: userLocation?.latitude || null,
-        longitude: userLocation?.longitude || null,
+        latitude: effectiveLat,
+        longitude: effectiveLon,
         sort: 'recommended',
         page: 1,
         page_size: 40
@@ -450,7 +455,7 @@ export default function SolidarityScreen({
                 <Text style={{ fontSize: 16, marginRight: 6 }}>{post.author_avatar || '👤'}</Text>
               )}
               <Text style={[styles.authorName, { fontSize: scale(11) }]}>
-                {post.author_name} • {post.block_code}
+                {post.author_name} • {post.proximity_label || post.block_code || 'Comunidad'}
               </Text>
             </View>
 

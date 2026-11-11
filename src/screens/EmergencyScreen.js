@@ -19,6 +19,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import InteractiveCommunityMap from '../components/InteractiveCommunityMap';
 import { getOrDetectUserLocation } from '../services/locationService';
+import { networkMonitor, smsAssistedService, offlineStorageService, syncManager } from '../services/offline';
 
 function getEmgIcon(type) {
   const t = (type || '').toLowerCase();
@@ -41,8 +42,8 @@ function getEmgBgColor(type) {
 }
 
 export function getRadarTier(distanceMeters) {
-  if (typeof distanceMeters !== 'number' || isNaN(distanceMeters)) {
-    return { tier: 1, label: 'Onda 1 (<500m)', color: '#dc2626', bg: '#fee2e2', text: 'Prioridad Inmediata' };
+  if (typeof distanceMeters !== 'number' || isNaN(distanceMeters) || distanceMeters == null) {
+    return { tier: null, label: '📍 Sin coordenadas GPS', color: '#64748b', bg: '#f1f5f9', text: 'Sin GPS preciso' };
   }
   if (distanceMeters <= 500) {
     return { tier: 1, label: `🔴 Onda 1 (${distanceMeters}m)`, color: '#dc2626', bg: '#fee2e2', text: 'Inmediata (<500m)' };
@@ -84,9 +85,10 @@ export default function EmergencyScreen({
   const [volunteers, setVolunteers] = useState([]);
   const [isVolunteering, setIsVolunteering] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
-  const initialLat = userProfile?.latitude || profile?.latitude || -16.4360;
-  const initialLng = userProfile?.longitude || profile?.longitude || -71.5612;
-  const initialZone = userProfile?.zone || profile?.address || 'Zona A • Manzana 2';
+  const activeProfile = userProfile || profile;
+  const initialLat = activeProfile?.latitude || -16.397650;
+  const initialLng = activeProfile?.longitude || -71.536120;
+  const initialZone = activeProfile?.street_address || activeProfile?.address || 'Calle San Francisco 214, Cercado';
   const [userCoords, setUserCoords] = useState({ lat: initialLat, lng: initialLng, zone: initialZone });
   const [alertPhoto, setAlertPhoto] = useState(null);
   const [alertNotes, setAlertNotes] = useState('');
@@ -146,12 +148,12 @@ export default function EmergencyScreen({
   }, []);
 
   useEffect(() => {
-    getOrDetectUserLocation().then((loc) => {
+    getOrDetectUserLocation(false, activeProfile).then((loc) => {
       if (loc) {
-        setUserCoords({ lat: loc.latitude, lng: loc.longitude, zone: loc.zone });
+        setUserCoords({ lat: loc.latitude, lng: loc.longitude, zone: loc.zone || loc.fullAddress });
       }
     });
-  }, []);
+  }, [activeProfile?.latitude, activeProfile?.longitude]);
 
   useEffect(() => {
     if (targetEmergency) {
@@ -200,10 +202,13 @@ export default function EmergencyScreen({
 
   const loadEmergencyData = async () => {
     try {
-      const loc = await getOrDetectUserLocation().catch(() => null);
+      const loc = await getOrDetectUserLocation(false, activeProfile).catch(() => null);
+      const effectiveLat = loc?.latitude || userCoords?.lat || activeProfile?.latitude || -16.397650;
+      const effectiveLon = loc?.longitude || userCoords?.lng || activeProfile?.longitude || -71.536120;
+
       const res = await api.searchEmergencies({
-        latitude: loc?.latitude || null,
-        longitude: loc?.longitude || null,
+        latitude: effectiveLat,
+        longitude: effectiveLon,
         sort: 'recommended',
         page: 1,
         page_size: 20
@@ -686,8 +691,29 @@ export default function EmergencyScreen({
     };
 
     let finalAlert = newAlert;
+    let savedLocal = null;
+    let reportedOnline = false;
+
+    // 1. Persistencia atómica local en SQLite
     try {
-      if (token) {
+      savedLocal = await offlineStorageService.saveLocalEmergency({
+        ...newAlert,
+        emergency_type: newAlert.type,
+        location_text: newAlert.location,
+        accuracy_m: 15,
+        coords_origin: 'gps'
+      });
+      if (savedLocal?.id) {
+        finalAlert = { ...newAlert, id: savedLocal.id };
+      }
+    } catch (dbErr) {
+      console.warn('Error guardando emergencia local en SQLite:', dbErr);
+    }
+
+    // 2. Intento de emisión online si hay conectividad
+    const isOnlineNow = networkMonitor.isOnline();
+    if (isOnlineNow && token) {
+      try {
         const res = await api.reportEmergency(
           {
             title: newAlert.title,
@@ -697,11 +723,14 @@ export default function EmergencyScreen({
             location: newAlert.location,
             desc: newAlert.description,
             severity: 'critical',
-            image_url: alertPhoto || null
+            image_url: alertPhoto || null,
+            local_id: savedLocal?.id,
+            token: token || null
           },
           token
         );
         if (res && res.id) {
+          reportedOnline = true;
           finalAlert = {
             ...newAlert,
             id: res.id,
@@ -709,10 +738,39 @@ export default function EmergencyScreen({
             latitude: res.latitude ? Number(res.latitude) : newAlert.latitude,
             longitude: res.longitude ? Number(res.longitude) : newAlert.longitude,
           };
+          if (savedLocal?.id) {
+            await offlineStorageService.markEmergencySynced(savedLocal.id, res);
+          }
         }
+      } catch (err) {
+        console.warn('Error emitiendo emergencia en backend:', err);
       }
-    } catch (err) {
-      console.warn('Error emitiendo emergencia en backend:', err);
+    }
+
+    // 3. Fallback Offline: Si no se pudo emitir online, encolar para sincronización
+    if (!reportedOnline) {
+      try {
+        await syncManager.enqueueOperation({
+          module: 'emergency',
+          endpoint: '/emergencies',
+          httpMethod: 'POST',
+          payload: {
+            title: newAlert.title,
+            type: newAlert.type,
+            latitude: newAlert.latitude,
+            longitude: newAlert.longitude,
+            location: newAlert.location,
+            desc: newAlert.description,
+            severity: 'critical',
+            image_url: alertPhoto || null,
+            local_id: savedLocal?.id,
+            token: token || null
+          },
+          isCritical: true
+        });
+      } catch (qErr) {
+        console.warn('Error encolando emergencia offline:', qErr);
+      }
     }
 
     setActiveEmergency(finalAlert);
@@ -727,10 +785,40 @@ export default function EmergencyScreen({
     }
 
     setActiveTab('map');
-    Alert.alert(
-      '🚨 ALERTA COMUNITARIA EMITIDA',
-      `Se ha notificado a los vecinos del radar de 500m, 1.5km, 3km y 5km con prioridad concéntrica.`
-    );
+
+    if (reportedOnline) {
+      Alert.alert(
+        '🚨 ALERTA COMUNITARIA EMITIDA',
+        `Se ha notificado a los vecinos del radar de 500m, 1.5km, 3km y 5km con prioridad concéntrica.`
+      );
+    } else {
+      Alert.alert(
+        '📶 MODO SIN CONEXIÓN',
+        'Tu emergencia quedó registrada en este dispositivo y se sincronizará automáticamente cuando vuelva internet.\n\n¿Deseas enviar alerta SOS inmediata por SMS asistido a tus brigadistas más cercanos?',
+        [
+          { text: 'Solo guardar local', style: 'cancel' },
+          {
+            text: 'Enviar SMS SOS',
+            onPress: async () => {
+              const smsResult = await smsAssistedService.dispatchAssistedSos({
+                id: savedLocal?.id,
+                emergencyType: newAlert.type,
+                latitude: newAlert.latitude,
+                longitude: newAlert.longitude,
+                accuracyM: 15,
+                locationText: newAlert.location,
+                senderName: myName
+              });
+              if (smsResult.success) {
+                Alert.alert('SMS Preparado', 'Compositor SMS abierto con las coordenadas y contactos de auxilio.');
+              } else {
+                Alert.alert('Aviso SMS', smsResult.message);
+              }
+            }
+          }
+        ]
+      );
+    }
   };
 
   const handleEmergencyCall = (number, name) => {
@@ -983,7 +1071,7 @@ export default function EmergencyScreen({
                   Barrio en Normalidad
                 </Text>
                 <Text style={[styles.calmSub, { fontSize: scale(11) }]}>
-                  No se reportan emergencias activas en tu manzana en este momento.
+                  No se reportan emergencias activas en el radar comunitario en este momento.
                 </Text>
               </View>
             </View>
@@ -1278,6 +1366,57 @@ export default function EmergencyScreen({
                 {isAlreadyInBrigade ? '✋ ✓ YA ESTÁS EN LA BRIGADA' : '✋ 💛 UNIRME A LA BRIGADA DE GUARDIA'}
               </Text>
             </TouchableOpacity>
+
+            {/* Acceso a la Sala Grupal de Coordinación de Emergencia */}
+            {(isAlreadyInBrigade || (user && activeEmergency && user.id === activeEmergency.reported_by)) ? (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#dc2626',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  borderRadius: 12,
+                  marginTop: 10,
+                  elevation: 2,
+                }}
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (onOpenChat) {
+                    onOpenChat({
+                      emergencyId: activeEmergency?.id,
+                      conversationId: activeEmergency?.conversation_id,
+                      isEmergency: true,
+                      topic: activeEmergency?.title || 'Coordinación de Emergencia',
+                      name: `🚨 Coordinación: ${activeEmergency?.title || 'Emergencia'}`
+                    });
+                  }
+                }}
+              >
+                <Ionicons name="chatbubbles" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: scale(13) }}>
+                  💬 ENTRAR A LA SALA DE COORDINACIÓN
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{
+                backgroundColor: '#fef2f2',
+                borderColor: '#fecaca',
+                borderWidth: 1,
+                borderRadius: 10,
+                padding: 10,
+                marginTop: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <Ionicons name="lock-closed" size={18} color="#dc2626" />
+                <Text style={{ fontSize: scale(11), color: '#991b1b', flex: 1, fontWeight: '600' }}>
+                  🔒 Sala privada de coordinación activa. Únete a la brigada arriba para coordinar auxilio vecinal en tiempo real.
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* MURO COMUNITARIO DE REPORTES Y FOTOS EN VIVO (RED SOCIAL DE LA ALERTA) */}

@@ -78,7 +78,15 @@ export default function ServiceDetailScreen({
       setShowReviewForm(false);
       await loadServiceDetail();
     } catch (err) {
-      Alert.alert('Atención', err.message || 'No fue posible registrar tu valoración.');
+      const errMsg = err?.message || '';
+      if (errMsg.includes('completado') || errMsg.includes('bilateral')) {
+        Alert.alert(
+          'Finalización requerida',
+          'Para calificar a este vecino, primero debes coordinar la atención por el chat de VeciRed y ambas partes deben confirmar la finalización del servicio.'
+        );
+      } else {
+        Alert.alert('Atención', errMsg || 'No fue posible registrar tu valoración.');
+      }
     } finally {
       setSubmittingReview(false);
     }
@@ -219,10 +227,12 @@ export default function ServiceDetailScreen({
                   onOpenChat({
                     name: provider.full_name || service.provider_name,
                     userId: service.provider_id || provider.id,
+                    serviceId: service.id,
+                    serviceTitle: service.title,
                     topic: service.title,
-                    avatar: '👨‍🔧',
-                    zone: 'Zona A',
-                    badge: 'Vecino Verificado',
+                    avatar: provider.avatar_url || '👨‍🔧',
+                    zone: service.community_name || 'Comunidad Vecinal',
+                    badge: 'Proveedor Verificado',
                     phone: provider.phone || service.provider_phone
                   });
                 }

@@ -17,6 +17,7 @@ import { api } from './src/services/api';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { getOrDetectUserLocation } from './src/services/locationService';
 import { customStorage } from './src/services/supabase';
+import { initOfflineSubsystem, runOfflineSmokeTest } from './src/services/offline';
 
 // Pantallas de Autenticación
 import LoginScreen from './src/screens/LoginScreen';
@@ -102,6 +103,13 @@ function MainApp() {
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [targetEmergency, setTargetEmergency] = useState(null);
+
+  // Inicialización de SQLite y Subsistema Offline en Expo Go
+  useEffect(() => {
+    initOfflineSubsystem().then(() => {
+      runOfflineSmokeTest().catch(() => {});
+    });
+  }, []);
 
   // Verificación de estado de backend y sondeo en tiempo real de alertas comunitarias
   useEffect(() => {

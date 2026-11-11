@@ -142,12 +142,19 @@ export default function SearchResultCard({ item, onPress, fontScale = 1.0 }) {
               </Text>
             )}
 
-            {distance && (
+            {item.proximity_label ? (
+              <View style={[styles.metaItem, { backgroundColor: item.proximity_tier ? '#f0fdfa' : '#f8fafc', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }]}>
+                <Ionicons name={item.proximity_tier ? "navigate-circle-outline" : "help-circle-outline"} size={11} color={item.proximity_tier ? "#0d9488" : "#94a3b8"} />
+                <Text style={[styles.metaText, { fontSize: scale(9), color: item.proximity_tier ? "#0f766e" : "#64748b", fontWeight: '500' }]}>
+                  {item.proximity_label}
+                </Text>
+              </View>
+            ) : distance ? (
               <View style={styles.metaItem}>
                 <Ionicons name="location-outline" size={12} color="#0f766e" />
                 <Text style={[styles.metaText, { fontSize: scale(10) }]}>{distance}</Text>
               </View>
-            )}
+            ) : null}
 
             {rating != null && rating > 0 && moduleType !== 'emergencies' && (
               <View style={styles.metaItem}>

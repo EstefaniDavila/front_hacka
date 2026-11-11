@@ -2,7 +2,7 @@
 // VECIRED IA — CLIENTE SUPABASE AUTH Y STORAGE
 // ==========================================================
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './safeStorage';
 import { Platform } from 'react-native';
 
 const getEnvVar = (name) => {

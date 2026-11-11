@@ -4,7 +4,9 @@
 import { Platform } from 'react-native';
 
 // export const LOCAL_PC_IP = '192.168.1.33';
-export const LOCAL_PC_IP = '192.168.0.175';
+// export const LOCAL_PC_IP = '192.168.0.17';
+export const LOCAL_PC_IP = '192.168.0.17';
+
 
 export const API_BASE_URL = Platform.OS === 'web'
   ? ((typeof import.meta !== 'undefined' && import.meta.env?.EXPO_PUBLIC_API_URL) ||
@@ -828,6 +830,50 @@ export const api = {
     }
   },
 
+  async updateServiceAction(conversationId, action, token) {
+    try {
+      return await request(
+        `/chats/${conversationId}/service-action`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ action })
+        },
+        token
+      );
+    } catch (err) {
+      console.warn('[api.updateServiceAction] Error:', err);
+      throw err;
+    }
+  },
+
+  async getEmergencyChat(emergencyId, token) {
+    try {
+      return await request(`/chats/emergency/${emergencyId}`, { method: 'GET' }, token);
+    } catch (err) {
+      console.warn('[api.getEmergencyChat] Error:', err);
+      throw err;
+    }
+  },
+
+  async leaveEmergencyChat(emergencyId, token) {
+    try {
+      return await request(`/chats/emergency/${emergencyId}/leave`, { method: 'POST' }, token);
+    } catch (err) {
+      console.warn('[api.leaveEmergencyChat] Error:', err);
+      throw err;
+    }
+  },
+
+  async getRecommendations(recType = null, limit = 10, token = null) {
+    try {
+      let query = `?limit=${limit}`;
+      if (recType) query += `&rec_type=${recType}`;
+      return await request(`/search/recommendations${query}`, { method: 'GET' }, token);
+    } catch {
+      return [];
+    }
+  },
+
   // ==========================================================
   // MOTOR DE BÚSQUEDA INTELIGENTE GEOLOCALIZADA V1
   // ==========================================================
@@ -839,7 +885,9 @@ export const api = {
     community_id = null,
     sort = 'recommended',
     page = 1,
-    page_size = 20
+    page_size = 20,
+    include_emergencies = true,
+    modules = null
   } = {}) {
     const params = new URLSearchParams();
     if (q && q.trim()) params.append('q', q.trim());
@@ -850,6 +898,10 @@ export const api = {
     if (sort) params.append('sort', sort);
     if (page) params.append('page', String(page));
     if (page_size) params.append('page_size', String(page_size));
+    if (include_emergencies !== undefined && include_emergencies !== null) {
+      params.append('include_emergencies', String(include_emergencies));
+    }
+    if (modules) params.append('modules', String(modules));
 
     const qs = params.toString();
     return request(`/search${qs ? `?${qs}` : ''}`, { method: 'GET' });

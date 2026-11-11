@@ -107,7 +107,12 @@ export function AuthProvider({ children }) {
         full_name: localSaved?.name || validBackendName || currentUser?.user_metadata?.full_name || defaultName,
         phone: localSaved?.phone || validBackendPhone || currentUser?.user_metadata?.phone || defaultPhone,
         skill: localSaved?.skill || profileData?.skill || currentUser?.user_metadata?.skill || defaultSkill,
-        address: localSaved?.address || profileData?.address || currentUser?.user_metadata?.address || 'Zona A • Manzana 2',
+        address: profileData?.street_address || profileData?.address || localSaved?.address || currentUser?.user_metadata?.address || 'Calle San Francisco 214, Cercado',
+        street_address: profileData?.street_address || profileData?.address || localSaved?.street_address || null,
+        latitude: profileData?.latitude != null ? Number(profileData.latitude) : (localSaved?.latitude != null ? Number(localSaved.latitude) : -16.397650),
+        longitude: profileData?.longitude != null ? Number(profileData.longitude) : (localSaved?.longitude != null ? Number(localSaved.longitude) : -71.536120),
+        district_name: profileData?.district_name || localSaved?.district_name || 'Arequipa',
+        residence_status: profileData?.residence_status || localSaved?.residence_status || 'declared',
         avatar_url: localSaved?.avatar || profileData?.avatar_url || currentUser?.user_metadata?.avatar || defaultAvatar
       };
 
