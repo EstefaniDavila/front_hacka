@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Modal,
   Platform
 } from 'react-native';
-import { Camera } from 'expo-camera';
+import { Camera, requestMicrophonePermissionsAsync, getMicrophonePermissionsAsync } from 'expo-camera';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
@@ -31,6 +31,31 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
   const [voiceQuery, setVoiceQuery] = useState('');
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
+
+  // Referencias para micrófono de hardware real y reconocimiento continuo
+  const activeMediaStreamRef = useRef(null);
+  const activeRecognitionRef = useRef(null);
+
+  const stopActiveMicrophone = () => {
+    if (activeMediaStreamRef.current) {
+      try {
+        activeMediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (_) {}
+      activeMediaStreamRef.current = null;
+    }
+    if (activeRecognitionRef.current) {
+      try {
+        activeRecognitionRef.current.stop();
+      } catch (_) {}
+      activeRecognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  const handleCloseVoiceModal = () => {
+    stopActiveMicrophone();
+    setShowVoiceModal(false);
+  };
 
   useEffect(() => {
     loadRecommended();
@@ -74,85 +99,93 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
     let hasMicPermission = false;
 
     try {
-      if (Platform.OS === 'web') {
-        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(track => track.stop());
-            hasMicPermission = true;
-          } catch (e) {
-            console.warn('[Voice] Permiso de micrófono web denegado:', e);
-          }
-        } else {
+      // 1. En dispositivo móvil nativo (Android / iOS): Invocar diálogo real de permisos del sistema operativo
+      if (typeof requestMicrophonePermissionsAsync === 'function') {
+        const check = await getMicrophonePermissionsAsync?.().catch(() => null);
+        if (check?.granted) {
           hasMicPermission = true;
+        } else {
+          const req = await requestMicrophonePermissionsAsync().catch(() => null);
+          hasMicPermission = req?.granted || req?.status === 'granted';
         }
-      } else {
-        // En dispositivo móvil nativo (Android / iOS) solicitar permiso mediante expo-camera
-        if (Camera?.requestMicrophonePermissionsAsync) {
-          const perm = await Camera.requestMicrophonePermissionsAsync().catch(() => null);
-          hasMicPermission = perm?.status === 'granted';
-        } else {
+      } else if (Camera?.requestMicrophonePermissionsAsync) {
+        const req = await Camera.requestMicrophonePermissionsAsync().catch(() => null);
+        hasMicPermission = req?.granted || req?.status === 'granted';
+      }
+
+      // 2. Hardware real de micrófono en Web / WebView: Iniciar stream de audio para activar el hardware (ícono verde)
+      if (typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          activeMediaStreamRef.current = stream;
           hasMicPermission = true;
+        } catch (e) {
+          console.warn('[Voice] Error activando hardware de micrófono web:', e);
         }
       }
     } catch (err) {
-      console.warn('[Voice] Error al solicitar permiso:', err);
+      console.warn('[Voice] Error en permisos de micrófono:', err);
     } finally {
       setIsCheckingMic(false);
     }
 
-    if (!hasMicPermission) {
+    if (!hasMicPermission && Platform.OS !== 'web') {
       Alert.alert(
-        '🎤 Permiso de Micrófono Requerido',
-        'VeciRed IA necesita acceso al micrófono de tu dispositivo para escuchar tus consultas por voz. Por favor autoriza el permiso en los ajustes de tu teléfono o navegador.',
+        '🎤 Permiso de Micrófono',
+        'VeciRed IA necesita acceso al micrófono para escuchar tus consultas por voz. Por favor autoriza el permiso.',
         [{ text: 'Entendido', style: 'cancel' }]
       );
       return;
     }
 
-    // Permiso otorgado -> abrir interfaz de voz activa
+    // Permiso otorgado -> abrir interfaz de voz activa y activar escucha
     setVoiceQuery('');
     setIsListening(true);
     setShowVoiceModal(true);
 
-    // Intentar Web Speech recognition si está disponible
+    // 3. Reconocimiento de voz continuo
     if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
       try {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRec();
         recognition.lang = 'es-PE';
         recognition.interimResults = true;
-        recognition.continuous = false;
+        recognition.continuous = true;
+
+        recognition.onstart = () => {
+          setIsListening(true);
+        };
 
         recognition.onresult = (event) => {
           let currentSpoken = '';
           for (let k = 0; k < event.results.length; k++) {
             currentSpoken += event.results[k][0].transcript;
           }
-          if (currentSpoken) {
-            setVoiceQuery(currentSpoken);
+          if (currentSpoken && currentSpoken.trim()) {
+            setVoiceQuery(currentSpoken.trim());
           }
         };
 
         recognition.onerror = (e) => {
-          console.warn('[Voice] Error de reconocimiento:', e);
+          console.warn('[Voice] Error en reconocimiento:', e);
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          // El modal sigue abierto para que el usuario pueda seguir dictando o presionar buscar
         };
 
         recognition.start();
+        activeRecognitionRef.current = recognition;
       } catch (err) {
-        console.warn('[Voice] Web Speech no iniciado:', err);
+        console.warn('[Voice] SpeechRecognition no iniciado:', err);
       }
     }
   };
 
   const handleExecuteVoiceSearch = (queryToSearch) => {
     const finalQ = (queryToSearch || voiceQuery || '').trim();
+    stopActiveMicrophone();
     setShowVoiceModal(false);
-    setIsListening(false);
     if (!finalQ) return;
 
     setSearchText(finalQ);
@@ -444,10 +477,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
         visible={showVoiceModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => {
-          setShowVoiceModal(false);
-          setIsListening(false);
-        }}
+        onRequestClose={handleCloseVoiceModal}
       >
         <View style={styles.voiceModalBackdrop}>
           <View style={styles.voiceModalCard}>
@@ -460,10 +490,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => {
-                  setShowVoiceModal(false);
-                  setIsListening(false);
-                }}
+                onPress={handleCloseVoiceModal}
                 style={{ padding: 4 }}
               >
                 <Ionicons name="close" size={22} color="#64748b" />
@@ -479,16 +506,26 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
             </View>
 
             {/* Icono Pulsante de Escucha */}
-            <View style={styles.voicePulseWrapper}>
+            <TouchableOpacity
+              style={styles.voicePulseWrapper}
+              activeOpacity={0.85}
+              onPress={() => {
+                if (!isListening) {
+                  startVoiceSearch();
+                } else if (voiceQuery.trim()) {
+                  handleExecuteVoiceSearch(voiceQuery);
+                }
+              }}
+            >
               <View style={styles.voicePulseRing}>
-                <View style={styles.voicePulseCore}>
+                <View style={[styles.voicePulseCore, !isListening && { backgroundColor: '#64748b' }]}>
                   <Ionicons name={isListening ? "mic" : "mic-circle"} size={36} color="#ffffff" />
                 </View>
               </View>
               <Text style={styles.voiceListeningStatus}>
-                {isListening ? "🎙️ Escuchando tu voz en tiempo real..." : "Voz capturada. Confirma o busca abajo:"}
+                {isListening ? "🎙️ Micrófono activo: habla ahora en tiempo real..." : "Toca el micrófono para hablar o escribe abajo:"}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Campo con lo transcrito o para afinar la consulta */}
             <View style={styles.voiceInputBox}>

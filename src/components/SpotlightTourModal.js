@@ -99,6 +99,7 @@ export default function SpotlightTourModal({
 }) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const scale = (val) => Math.round(val * fontScale);
+  const previewScale = (val) => Math.round(val * Math.min(fontScale, 1.15));
   const [currentStepIndex, setCurrentStepIndex] = useState(initialStep);
 
   // Animaciones de pulso y transición suave
@@ -162,38 +163,40 @@ export default function SpotlightTourModal({
         return (
           <View style={styles.previewContainer}>
             <View style={styles.previewHeaderMock}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, flexShrink: 1 }}>
                 <View style={styles.previewLogoCircle}>
                   <Text style={{ fontSize: 13 }}>🏘️</Text>
                 </View>
-                <Text style={styles.previewBrandText}>VeciRed <Text style={{ color: '#0d9488' }}>IA</Text></Text>
+                <Text style={[styles.previewBrandText, { fontSize: previewScale(12.5) }]} numberOfLines={1}>
+                  VeciRed <Text style={{ color: '#0d9488' }}>IA</Text>
+                </Text>
               </View>
 
               {/* Botón SOS Destacado con aro pulsante */}
               <Animated.View
                 style={[
                   styles.previewSosBtnHighlight,
-                  { transform: [{ scale: pulseAnim }] }
+                  { flexShrink: 0, transform: [{ scale: pulseAnim }] }
                 ]}
               >
-                <MaterialCommunityIcons name="alarm-light" size={15} color="#ffffff" style={{ marginRight: 3 }} />
-                <Text style={styles.previewSosBtnText}>SOS</Text>
+                <MaterialCommunityIcons name="alarm-light" size={14} color="#ffffff" style={{ marginRight: 3 }} />
+                <Text style={[styles.previewSosBtnText, { fontSize: previewScale(11.5) }]}>SOS</Text>
               </Animated.View>
             </View>
 
             {/* Simulación de Ondas de Radar Concéntricas */}
             <View style={styles.radarWavesRow}>
               <View style={[styles.radarWavePill, { backgroundColor: '#fee2e2' }]}>
-                <Text style={[styles.radarWavePillText, { color: '#dc2626' }]}>🔴 Onda 1 (≤500m)</Text>
+                <Text style={[styles.radarWavePillText, { color: '#dc2626', fontSize: previewScale(9.5) }]}>🔴 Onda 1 (≤500m)</Text>
               </View>
               <View style={[styles.radarWavePill, { backgroundColor: '#ffedd5' }]}>
-                <Text style={[styles.radarWavePillText, { color: '#ea580c' }]}>🟠 Onda 2 (1.5km)</Text>
+                <Text style={[styles.radarWavePillText, { color: '#ea580c', fontSize: previewScale(9.5) }]}>🟠 Onda 2 (1.5km)</Text>
               </View>
               <View style={[styles.radarWavePill, { backgroundColor: '#fef3c7' }]}>
-                <Text style={[styles.radarWavePillText, { color: '#d97706' }]}>🟡 Onda 3 (3km)</Text>
+                <Text style={[styles.radarWavePillText, { color: '#d97706', fontSize: previewScale(9.5) }]}>🟡 Onda 3 (3km)</Text>
               </View>
               <View style={[styles.radarWavePill, { backgroundColor: '#e0f2fe' }]}>
-                <Text style={[styles.radarWavePillText, { color: '#0284c7' }]}>🔵 Onda 4 (5km)</Text>
+                <Text style={[styles.radarWavePillText, { color: '#0284c7', fontSize: previewScale(9.5) }]}>🔵 Onda 4 (5km)</Text>
               </View>
             </View>
           </View>
@@ -203,26 +206,28 @@ export default function SpotlightTourModal({
         return (
           <View style={styles.previewContainer}>
             <View style={styles.previewSearchBar}>
-              <Ionicons name="search" size={17} color="#0d9488" style={{ marginRight: 6 }} />
-              <Text style={styles.previewSearchInputText} numberOfLines={1}>
-                "Necesito un electricista urgente en Mz 2..."
+              <Ionicons name="search" size={16} color="#0d9488" style={{ marginRight: 6 }} />
+              <Text style={[styles.previewSearchInputText, { fontSize: previewScale(10.5) }]} numberOfLines={1}>
+                "Necesito un electricista urgente..."
               </Text>
 
               {/* Micrófono animado con pulso */}
               <Animated.View
                 style={[
                   styles.previewMicBtn,
-                  { transform: [{ scale: pulseAnim }] }
+                  { flexShrink: 0, transform: [{ scale: pulseAnim }] }
                 ]}
               >
-                <Ionicons name="mic" size={15} color="#ffffff" />
+                <Ionicons name="mic" size={14} color="#ffffff" />
               </Animated.View>
             </View>
 
             <View style={styles.previewAiBadgeRow}>
               <View style={styles.previewAiBadge}>
-                <Ionicons name="sparkles" size={12} color="#0f766e" style={{ marginRight: 4 }} />
-                <Text style={styles.previewAiBadgeText}>IA VeciRed: Filtra por cercanía exacta y estrellas</Text>
+                <Ionicons name="sparkles" size={11} color="#0f766e" style={{ marginRight: 4 }} />
+                <Text style={[styles.previewAiBadgeText, { fontSize: previewScale(9) }]} numberOfLines={1}>
+                  IA VeciRed: Filtra por cercanía exacta y estrellas
+                </Text>
               </View>
             </View>
           </View>
@@ -232,33 +237,33 @@ export default function SpotlightTourModal({
         return (
           <View style={styles.previewContainer}>
             <View style={styles.previewAlertMockCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Text style={{ fontSize: 14 }}>🚨</Text>
-                  <Text style={styles.previewAlertTitle} numberOfLines={1}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5, gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, minWidth: 0, flexShrink: 1 }}>
+                  <Text style={{ fontSize: 13 }}>🚨</Text>
+                  <Text style={[styles.previewAlertTitle, { fontSize: previewScale(11) }]} numberOfLines={1}>
                     Accidente en Av. Principal
                   </Text>
                 </View>
-                <View style={styles.previewRadarTierBadge}>
-                  <Text style={styles.previewRadarTierText}>🔴 Onda 1 (45m)</Text>
+                <View style={[styles.previewRadarTierBadge, { flexShrink: 0 }]}>
+                  <Text style={[styles.previewRadarTierText, { fontSize: previewScale(9) }]}>🔴 Onda 1 (45m)</Text>
                 </View>
               </View>
 
               <View style={styles.previewMapPlaceholder}>
-                <Text style={styles.previewMapPlaceholderText}>
+                <Text style={[styles.previewMapPlaceholderText, { fontSize: previewScale(9.5) }]} numberOfLines={1}>
                   🛰️ Radar Satelital Concéntrico en Vivo (500m - 5km)
                 </Text>
               </View>
 
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+              <View style={{ flexDirection: 'row', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
                 <View style={styles.previewActionPill}>
-                  <Text style={styles.previewActionPillText}>🗺️ Ver Mapa</Text>
+                  <Text style={[styles.previewActionPillText, { fontSize: previewScale(9) }]}>🗺️ Ver Mapa</Text>
                 </View>
                 <View style={[styles.previewActionPill, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
-                  <Text style={[styles.previewActionPillText, { color: '#059669' }]}>✋ Sumarme</Text>
+                  <Text style={[styles.previewActionPillText, { color: '#059669', fontSize: previewScale(9) }]}>✋ Sumarme</Text>
                 </View>
                 <View style={[styles.previewActionPill, { backgroundColor: '#fef2f2', borderColor: '#fecaca' }]}>
-                  <Text style={[styles.previewActionPillText, { color: '#dc2626' }]}>📸 Subir Foto</Text>
+                  <Text style={[styles.previewActionPillText, { color: '#dc2626', fontSize: previewScale(9) }]}>📸 Subir Foto</Text>
                 </View>
               </View>
             </View>
@@ -268,28 +273,28 @@ export default function SpotlightTourModal({
       case 'services':
         return (
           <View style={styles.previewContainer}>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
               {/* Tarjeta 1: Servicios */}
-              <View style={[styles.previewGridCard, { backgroundColor: '#f0fdfa', borderColor: '#99f6e4' }]}>
+              <View style={[styles.previewGridCard, { backgroundColor: '#f0fdfa', borderColor: '#99f6e4', flex: 1, minWidth: 0 }]}>
                 <View style={[styles.previewGridIconCircle, { backgroundColor: '#ccfbf1' }]}>
-                  <Ionicons name="build" size={16} color="#0f766e" />
+                  <Ionicons name="build" size={15} color="#0f766e" />
                 </View>
-                <Text style={styles.previewGridTitle}>Servicios Cercanos</Text>
-                <Text style={styles.previewGridSub}>Técnicos verificados</Text>
+                <Text style={[styles.previewGridTitle, { fontSize: previewScale(10.5) }]} numberOfLines={1}>Servicios Cercanos</Text>
+                <Text style={[styles.previewGridSub, { fontSize: previewScale(9) }]} numberOfLines={1}>Técnicos verificados</Text>
                 <View style={styles.previewStarsBadge}>
-                  <Text style={styles.previewStarsText}>⭐ 4.9 • Vecinos</Text>
+                  <Text style={[styles.previewStarsText, { fontSize: previewScale(8.5) }]}>⭐ 4.9 • Vecinos</Text>
                 </View>
               </View>
 
               {/* Tarjeta 2: Solidaridad */}
-              <View style={[styles.previewGridCard, { backgroundColor: '#f5f3ff', borderColor: '#ddd6fe' }]}>
+              <View style={[styles.previewGridCard, { backgroundColor: '#f5f3ff', borderColor: '#ddd6fe', flex: 1, minWidth: 0 }]}>
                 <View style={[styles.previewGridIconCircle, { backgroundColor: '#ede9fe' }]}>
-                  <Ionicons name="people" size={16} color="#6d28d9" />
+                  <Ionicons name="people" size={15} color="#6d28d9" />
                 </View>
-                <Text style={styles.previewGridTitle}>Ayuda Solidaria</Text>
-                <Text style={styles.previewGridSub}>Apoyo sin dinero</Text>
+                <Text style={[styles.previewGridTitle, { fontSize: previewScale(10.5) }]} numberOfLines={1}>Ayuda Solidaria</Text>
+                <Text style={[styles.previewGridSub, { fontSize: previewScale(9) }]} numberOfLines={1}>Apoyo sin dinero</Text>
                 <View style={[styles.previewStarsBadge, { backgroundColor: '#ede9fe' }]}>
-                  <Text style={[styles.previewStarsText, { color: '#6d28d9' }]}>🤝 Donaciones</Text>
+                  <Text style={[styles.previewStarsText, { color: '#6d28d9', fontSize: previewScale(8.5) }]}>🤝 Donaciones</Text>
                 </View>
               </View>
             </View>
@@ -301,35 +306,35 @@ export default function SpotlightTourModal({
           <View style={styles.previewContainer}>
             <View style={styles.previewBottomBarMock}>
               <View style={styles.previewNavTab}>
-                <Ionicons name="home-outline" size={16} color="#94a3b8" />
-                <Text style={styles.previewNavLabel}>Inicio</Text>
+                <Ionicons name="home-outline" size={15} color="#94a3b8" />
+                <Text style={[styles.previewNavLabel, { fontSize: previewScale(8) }]}>Inicio</Text>
               </View>
 
               {/* Botón Central Publicar Pulsante */}
               <Animated.View
                 style={[
                   styles.previewPublishBtnHighlight,
-                  { transform: [{ scale: pulseAnim }] }
+                  { flexShrink: 0, transform: [{ scale: pulseAnim }] }
                 ]}
               >
-                <Ionicons name="add" size={24} color="#ffffff" />
+                <Ionicons name="add" size={22} color="#ffffff" />
               </Animated.View>
 
               <View style={styles.previewNavTab}>
-                <Ionicons name="person-outline" size={16} color="#94a3b8" />
-                <Text style={styles.previewNavLabel}>Perfil</Text>
+                <Ionicons name="person-outline" size={15} color="#94a3b8" />
+                <Text style={[styles.previewNavLabel, { fontSize: previewScale(8) }]}>Perfil</Text>
               </View>
             </View>
 
-            <View style={styles.previewPublishPillsRow}>
+            <View style={[styles.previewPublishPillsRow, { flexWrap: 'wrap', gap: 4 }]}>
               <View style={styles.previewPublishPill}>
-                <Text style={styles.previewPublishPillText}>💼 Ofrecer Oficio</Text>
+                <Text style={[styles.previewPublishPillText, { fontSize: previewScale(9) }]}>💼 Ofrecer Oficio</Text>
               </View>
               <View style={styles.previewPublishPill}>
-                <Text style={styles.previewPublishPillText}>🍞 Vender Producto</Text>
+                <Text style={[styles.previewPublishPillText, { fontSize: previewScale(9) }]}>🍞 Vender Producto</Text>
               </View>
               <View style={styles.previewPublishPill}>
-                <Text style={styles.previewPublishPillText}>🆘 Pedir Ayuda</Text>
+                <Text style={[styles.previewPublishPillText, { fontSize: previewScale(9) }]}>🆘 Pedir Ayuda</Text>
               </View>
             </View>
           </View>
@@ -340,7 +345,7 @@ export default function SpotlightTourModal({
     }
   };
 
-  const cardMaxWidth = Math.min(windowWidth - 32, 420);
+  const cardMaxWidth = Math.min(windowWidth - 28, 420);
 
   return (
     <Modal
@@ -356,21 +361,21 @@ export default function SpotlightTourModal({
             styles.cardContainer,
             {
               width: cardMaxWidth,
-              maxHeight: windowHeight * 0.90,
+              maxHeight: windowHeight * 0.88,
               opacity: fadeAnim
             }
           ]}
         >
-          {/* Header de la tarjeta */}
+          {/* Header de la tarjeta fijo arriba */}
           <View style={styles.topHeaderRow}>
             <View style={[styles.tagBadge, { backgroundColor: currentStep.tagBg }]}>
-              <Text style={[styles.tagBadgeText, { color: currentStep.tagColor, fontSize: scale(10) }]}>
+              <Text style={[styles.tagBadgeText, { color: currentStep.tagColor, fontSize: scale(9.5) }]}>
                 {currentStep.tag}
               </Text>
             </View>
 
             <View style={styles.stepBadge}>
-              <Text style={[styles.stepBadgeText, { fontSize: scale(11) }]}>
+              <Text style={[styles.stepBadgeText, { fontSize: scale(10.5) }]}>
                 Paso {currentStepIndex + 1} de {TOUR_STEPS.length}
               </Text>
             </View>
@@ -380,23 +385,24 @@ export default function SpotlightTourModal({
               style={styles.closeBtn}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Text style={[styles.closeBtnText, { fontSize: scale(11.5) }]}>Omitir</Text>
+              <Text style={[styles.closeBtnText, { fontSize: scale(11) }]}>Omitir</Text>
               <Ionicons name="close" size={15} color="#64748b" style={{ marginLeft: 2 }} />
             </TouchableOpacity>
           </View>
 
-          {/* Demostración Visual HD Interactiva (Simulador del Botón/Sección) */}
-          <View style={{ marginVertical: 10 }}>
-            {renderVisualPreview()}
-          </View>
-
-          {/* Contenido Desplazable para adaptarse a cualquier altura de pantalla */}
+          {/* Contenido Desplazable que contiene el simulador y la explicación (SE ADAPTA A CUALQUIER TAMAÑO DE LETRA) */}
           <ScrollView
             bounces={false}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 6 }}
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={{ paddingVertical: 4, paddingBottom: 6 }}
           >
-            <Text style={[styles.mainTitle, { fontSize: scale(15) }]}>
+            {/* Demostración Visual HD Interactiva (Simulador del Botón/Sección) */}
+            <View style={{ marginBottom: 10 }}>
+              {renderVisualPreview()}
+            </View>
+
+            <Text style={[styles.mainTitle, { fontSize: scale(14.5) }]}>
               {currentStep.title}
             </Text>
 
