@@ -87,7 +87,6 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
   const [isCheckingMic, setIsCheckingMic] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
 
-  // Referencias para micrófono y reconocimiento
   const activeMediaStreamRef = useRef(null);
   const activeRecognitionRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -119,20 +118,20 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
       if (data && data.type === 'result' && data.text) {
         setVoiceQuery(data.text);
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const stopActiveMicrophone = () => {
     if (activeMediaStreamRef.current) {
       try {
         activeMediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      } catch (_) {}
+      } catch (_) { }
       activeMediaStreamRef.current = null;
     }
     if (activeRecognitionRef.current) {
       try {
         activeRecognitionRef.current.stop();
-      } catch (_) {}
+      } catch (_) { }
       activeRecognitionRef.current = null;
     }
     setIsListening(false);
@@ -244,7 +243,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
 
         recognition.start();
         activeRecognitionRef.current = recognition;
-      } catch (err) {}
+      } catch (err) { }
     }
   };
 
@@ -272,7 +271,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             activeMediaStreamRef.current = stream;
             hasMicPermission = true;
-          } catch (e) {}
+          } catch (e) { }
         } else {
           hasMicPermission = true;
         }
@@ -629,7 +628,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
               style={styles.voicePulseWrapper}
               activeOpacity={0.85}
               onPress={() => {
-                try { Vibration.vibrate(35); } catch (_) {}
+                try { Vibration.vibrate(35); } catch (_) { }
                 setIsListening(prev => !prev);
               }}
             >
@@ -655,7 +654,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
                   onPermissionRequest={(request) => {
                     try {
                       request.grant(request.resources);
-                    } catch (_) {}
+                    } catch (_) { }
                   }}
                   onMessage={handleWebViewMessage}
                 />
@@ -696,7 +695,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
                   key={chip.label}
                   style={styles.voiceChipBtn}
                   onPress={() => {
-                    try { Vibration.vibrate(25); } catch (_) {}
+                    try { Vibration.vibrate(25); } catch (_) { }
                     setVoiceQuery(chip.q);
                     handleExecuteVoiceSearch(chip.q);
                   }}
