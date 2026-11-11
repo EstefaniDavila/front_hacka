@@ -10,9 +10,11 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  Platform
+  Platform,
+  PermissionsAndroid
 } from 'react-native';
-import { Camera, requestMicrophonePermissionsAsync, getMicrophonePermissionsAsync } from 'expo-camera';
+import { Audio } from 'expo-av';
+import { Camera } from 'expo-camera';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { api } from '../services/api';
@@ -33,10 +35,17 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
   const [userLocation, setUserLocation] = useState(null);
 
   // Referencias para micrófono de hardware real y reconocimiento continuo
+  const activeAudioRecordingRef = useRef(null);
   const activeMediaStreamRef = useRef(null);
   const activeRecognitionRef = useRef(null);
 
-  const stopActiveMicrophone = () => {
+  const stopActiveMicrophone = async () => {
+    if (activeAudioRecordingRef.current) {
+      try {
+        await activeAudioRecordingRef.current.stopAndUnloadAsync();
+      } catch (_) {}
+      activeAudioRecordingRef.current = null;
+    }
     if (activeMediaStreamRef.current) {
       try {
         activeMediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -99,32 +108,66 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
     let hasMicPermission = false;
 
     try {
-      // 1. En dispositivo móvil nativo (Android / iOS): Invocar diálogo real de permisos del sistema operativo
-      if (typeof requestMicrophonePermissionsAsync === 'function') {
-        const check = await getMicrophonePermissionsAsync?.().catch(() => null);
-        if (check?.granted) {
-          hasMicPermission = true;
-        } else {
-          const req = await requestMicrophonePermissionsAsync().catch(() => null);
-          hasMicPermission = req?.granted || req?.status === 'granted';
+      // 1. Android Nativo en Expo Go: PermissionsAndroid directo del sistema
+      if (Platform.OS === 'android') {
+        try {
+          const checkAlready = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+          if (checkAlready) {
+            hasMicPermission = true;
+          } else {
+            const granted = await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+              {
+                title: 'Permiso de Micrófono - VeciRed IA',
+                message: 'VeciRed IA necesita acceso a tu micrófono para buscar emergencias y servicios con tu voz.',
+                buttonNeutral: 'Preguntarme luego',
+                buttonNegative: 'Cancelar',
+                buttonPositive: 'Permitir',
+              }
+            );
+            hasMicPermission = (granted === PermissionsAndroid.RESULTS.GRANTED);
+          }
+        } catch (androidErr) {
+          console.warn('[Voice] PermissionsAndroid error:', androidErr);
         }
-      } else if (Camera?.requestMicrophonePermissionsAsync) {
-        const req = await Camera.requestMicrophonePermissionsAsync().catch(() => null);
-        hasMicPermission = req?.granted || req?.status === 'granted';
       }
 
-      // 2. Hardware real de micrófono en Web / WebView: Iniciar stream de audio para activar el hardware (ícono verde)
-      if (typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
+      // 2. Módulo oficial de Expo Go: expo-av Audio
+      if (!hasMicPermission && Audio && typeof Audio.requestPermissionsAsync === 'function') {
+        try {
+          const audioStatus = await Audio.requestPermissionsAsync();
+          if (audioStatus.granted || audioStatus.status === 'granted') {
+            hasMicPermission = true;
+          }
+        } catch (audioErr) {
+          console.warn('[Voice] Audio.requestPermissionsAsync error:', audioErr);
+        }
+      }
+
+      // 3. Fallback adicional Camera
+      if (!hasMicPermission && Camera && typeof Camera.requestMicrophonePermissionsAsync === 'function') {
+        try {
+          const camMicStatus = await Camera.requestMicrophonePermissionsAsync();
+          if (camMicStatus.granted || camMicStatus.status === 'granted') {
+            hasMicPermission = true;
+          }
+        } catch (camErr) {
+          console.warn('[Voice] Camera.requestMicrophonePermissionsAsync error:', camErr);
+        }
+      }
+
+      // 4. Web / WebView
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           activeMediaStreamRef.current = stream;
           hasMicPermission = true;
         } catch (e) {
-          console.warn('[Voice] Error activando hardware de micrófono web:', e);
+          console.warn('[Voice] Web getUserMedia error:', e);
         }
       }
     } catch (err) {
-      console.warn('[Voice] Error en permisos de micrófono:', err);
+      console.warn('[Voice] Error general al solicitar permisos:', err);
     } finally {
       setIsCheckingMic(false);
     }
@@ -132,18 +175,35 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
     if (!hasMicPermission && Platform.OS !== 'web') {
       Alert.alert(
         '🎤 Permiso de Micrófono',
-        'VeciRed IA necesita acceso al micrófono para escuchar tus consultas por voz. Por favor autoriza el permiso.',
+        'VeciRed IA necesita acceso al micrófono para escuchar tus consultas por voz en Expo Go.\n\nSi no apareció el diálogo, actívalo en Ajustes de tu celular > Aplicaciones > Expo Go > Permisos > Micrófono.',
         [{ text: 'Entendido', style: 'cancel' }]
       );
       return;
     }
 
-    // Permiso otorgado -> abrir interfaz de voz activa y activar escucha
+    // Permiso otorgado -> abrir interfaz de voz activa y activar hardware de grabación
     setVoiceQuery('');
     setIsListening(true);
     setShowVoiceModal(true);
 
-    // 3. Reconocimiento de voz continuo
+    // Activar hardware real de grabación en Expo Go
+    if (Platform.OS !== 'web' && Audio) {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        }).catch(() => {});
+
+        const recording = new Audio.Recording();
+        await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        await recording.startAsync();
+        activeAudioRecordingRef.current = recording;
+      } catch (recErr) {
+        console.warn('[Voice] No se pudo iniciar Audio.Recording en Expo Go:', recErr);
+      }
+    }
+
+    // Reconocimiento web si está disponible
     if (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) {
       try {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -168,10 +228,6 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
 
         recognition.onerror = (e) => {
           console.warn('[Voice] Error en reconocimiento:', e);
-        };
-
-        recognition.onend = () => {
-          // El modal sigue abierto para que el usuario pueda seguir dictando o presionar buscar
         };
 
         recognition.start();
@@ -501,7 +557,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
             <View style={styles.micVerifiedBadge}>
               <Ionicons name="shield-checkmark" size={14} color="#16a34a" />
               <Text style={styles.micVerifiedText}>
-                Micrófono del dispositivo activado y verificado
+                Micrófono activo y verificado en Expo Go
               </Text>
             </View>
 
@@ -523,7 +579,7 @@ export default function HomeScreen({ onNavigate, fontScale = 1.0, onOpenDetail, 
                 </View>
               </View>
               <Text style={styles.voiceListeningStatus}>
-                {isListening ? "🎙️ Micrófono activo: habla ahora en tiempo real..." : "Toca el micrófono para hablar o escribe abajo:"}
+                {isListening ? "🎙️ Micrófono grabando en vivo... Habla ahora o escribe:" : "Toca el micrófono para hablar o escribe abajo:"}
               </Text>
             </TouchableOpacity>
 
